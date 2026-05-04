@@ -5,7 +5,8 @@ import platform
 import socket
 import urllib.parse
 from functools import cached_property
-from typing import Any, Dict, TypeVar, Union, Generic
+from pydantic import model_
+from typing import Any, Dict, TypeVar, Union, Generic, Mapping
 
 import asyncio
 import httpx
@@ -19,8 +20,8 @@ logger: logging.Logger = logging.getLogger(__name__)
 
 _HttpxClientT = TypeVar("_HttpxClientT", bound=Union[httpx.Client, httpx.AsyncClient])
 Headers = Dict[str, str]
-_StreamT = TypeVar("_StreamT", bound=httpx.SyncByteStream)
-_AsyncStreamT = TypeVar("_AsyncStreamT", bound=httpx.AsyncByteStream)
+_StreamT = TypeVar("_StreamT", bound=Mapping[str, Any])
+_AsyncStreamT = TypeVar("_AsyncStreamT", bound=Mapping[str, Any])
 
 
 class BaseClient(Generic[_HttpxClientT]):
@@ -36,7 +37,7 @@ class BaseClient(Generic[_HttpxClientT]):
             self, 
             *,
             version: str,
-            base_url: str, 
+            base_url: str | httpx.URL, 
             token_store_path: str = "", 
             follow_redirects: bool = True, 
             max_retries: int = DEFAULT_MAX_RETRIES,
@@ -130,7 +131,7 @@ class BaseClient(Generic[_HttpxClientT]):
             # Case 4: Neither starts with "{" nor ends with "}" (still an incomplete JSON object)
             else:
                 partial_response += chunk  # Append to the saved partial object
-                return [], partial_response
+                return [], partial_response     
 
         # If there are multiple parts after splitting, handle them as potential JSON objects
         else:
@@ -152,15 +153,16 @@ class BaseClient(Generic[_HttpxClientT]):
                     # If it is still incomplete, save it as the new partial response
                     if part[-1] != "}":
                         partial_response = fixed_part
-                        return complete_parts, partial_response
                     # If it is complete, add to the list and clear partial response
                     complete_parts.append(recurse_dict(json.loads(fixed_part)))
-                    return complete_parts, ""
+                    partial_response=""
 
                 else:
                     fixed_part = "{" + part + "}"
 
                 complete_parts.append(recurse_dict(json.loads(fixed_part)))
+        return complete_parts, partial_response
+        
     
     @staticmethod  
     def _parse_host(host: Union[str, httpx.URL]) -> str:
@@ -269,6 +271,7 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
         for retries_taken in range(self.max_retries + 1):
             try:            
                 result = inner()
+                break
             except httpx.HTTPError as e:
                 if retries_taken < self.max_retries:
                     await self._sleep_for_retry(retries_taken=retries_taken)
@@ -283,7 +286,7 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
                             e.response.status_code,
                             f"Error connecting to url {self._parse_host(e.request.url)} with error: {e.response.text}",
                         ) from None
-            return result
+        return result
         
     async def _request_raw(self, *args, **kwargs) -> httpx.Response:
             retries_taken = 0
@@ -291,6 +294,7 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
                 try:
                     r: httpx.Response = await self._client.request(*args, **kwargs)
                     r.raise_for_status()
+                    break
                 except httpx.HTTPError as e:
                     if retries_taken < self.max_retries:
                         await self._sleep_for_retry(retries_taken=retries_taken)
@@ -300,12 +304,12 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
                             f"Failed to connect to {self._parse_host(e.request.url)}. Please try again."
                         ) from None
                     elif isinstance(e, httpx.HTTPStatusError):
-                        e.response.aread()
+                        await e.response.aread()
                         raise ConnectionError(
                             e.response.status_code,
                             f"Error connecting to url {self._parse_host(e.request.url)} with error: {e.response.text}",
                         ) from None
-                return r
+            return r
     
     async def request(self, *args, stream=False, **kwargs) -> _AsyncStreamT | httpx.Response:        
         if stream:
@@ -333,7 +337,7 @@ class SyncAPIClient(BaseClient[httpx.Client]):
             self, 
             *,
             version: str,
-            base_url: str, 
+            base_url: str | httpx.URL, 
             token_store_path: str = "", 
             follow_redirects: bool = True, 
             max_retries: int = DEFAULT_MAX_RETRIES,
@@ -397,6 +401,7 @@ class SyncAPIClient(BaseClient[httpx.Client]):
         for retries_taken in range(self.max_retries + 1):
             try:
                 result = inner()
+                break
             except httpx.HTTPError as e:
                 if retries_taken < self.max_retries:
                     self._sleep_for_retry(retries_taken=retries_taken)
@@ -411,7 +416,7 @@ class SyncAPIClient(BaseClient[httpx.Client]):
                         e.response.status_code,
                         f"Error connecting to url {self._parse_host(e.request.url)} with error: {e.response.text}",
                     ) from None
-            return result
+        return result
         
     def _request_raw(self, *args, **kwargs) -> httpx.Response:
             retries_taken = 0
@@ -419,6 +424,7 @@ class SyncAPIClient(BaseClient[httpx.Client]):
                 try:
                     r: httpx.Response = self._client.request(*args, **kwargs)
                     r.raise_for_status()
+                    break
                 except httpx.HTTPError as e:
                     if retries_taken < self.max_retries:
                         self._sleep_for_retry(retries_taken=retries_taken)
@@ -433,7 +439,7 @@ class SyncAPIClient(BaseClient[httpx.Client]):
                             e.response.status_code,
                             f"Error connecting to url {self._parse_host(e.request.url)} with error: {e.response.text}",
                         ) from None
-                return r
+            return r
         
     def request(self, *args, stream=False, **kwargs) -> _StreamT | httpx.Response:        
         if stream:

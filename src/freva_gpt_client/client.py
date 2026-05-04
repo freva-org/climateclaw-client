@@ -20,8 +20,8 @@ except metadata.PackageNotFoundError:
 class FrevaGPT(SyncAPIClient):
     _root_api_path: str = "/api/chatbot"
     _user: str = getpass.getuser()
-    _thread_id: str
-    model: str
+    _thread_id: str | None
+    model: str | None
     def __init__(
             self,
             *,
@@ -59,7 +59,7 @@ class FrevaGPT(SyncAPIClient):
         thread_id = response.json()
         return thread_id
     
-    def prompt(self, input: str, model: str = None, thread_id = None) -> Conversation:
+    def prompt(self, input: str, model: str | None = None, thread_id: str | None = None) -> Conversation:
         if not (self._thread_id or thread_id):
             self._thread_id = self.newthread()
             thread_id = self._thread_id
@@ -74,7 +74,7 @@ class FrevaGPT(SyncAPIClient):
         messages = [Message(**json.loads(el)) for el in response.text.split("\n") if el]
         return Conversation(messages=messages)
     
-    def stream_prompt(self, input: str, model: str = None, thread_id = None) -> Iterator[Message]:
+    def stream_prompt(self, input: str, model: str | None = None, thread_id: str | None = None) -> Iterator[Message]:
         if not (self._thread_id or thread_id):
             self._thread_id = self.newthread()
             thread_id = self._thread_id
@@ -97,7 +97,7 @@ class FrevaGPT(SyncAPIClient):
         return Conversation(messages=response.json())
     
     def _cast_message(self, message: Message) -> Union[Message, Image]:
-        pass
+        return message 
 
     def _construct_path(self, endpoint_name:str) -> str:
         return f"{self._root_api_path}/{FREVAGPT_API_ENDPOINTS[endpoint_name]}"
