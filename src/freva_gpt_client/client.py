@@ -1,16 +1,16 @@
-import httpx
-from httpx import URL
-
-import json
-
 import getpass
+import json
 from functools import cached_property
 from importlib import metadata
 from typing import Iterator, Union
 
-from ._base_client import SyncAPIClient, AsyncAPIClient
-from ._models import MessageModel, Conversation, Image
-from ._utils import FREVAGPT_API_ENDPOINTS, DEFAULT_TIMEOUT, DEFAULT_MAX_RETRIES
+import httpx
+from httpx import URL
+
+from ._base_client import AsyncAPIClient, SyncAPIClient
+from ._models import Conversation, Image, MessageModel
+from ._utils import (DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT,
+                     FREVAGPT_API_ENDPOINTS)
 
 try:
     __version__ = metadata.version("jupyter_freva_gpt")

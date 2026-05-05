@@ -1,10 +1,10 @@
 import base64
 import re
-
 from functools import cached_property
-from pydantic import BaseModel, Field, computed_field
 from pathlib import Path
-from typing import Any, Literal, Optional, Union, Sequence, Mapping
+from typing import Any, Literal, Mapping, Optional, Sequence, Union
+
+from pydantic import BaseModel, Field, computed_field
 
 
 class BaseMessage(BaseModel):

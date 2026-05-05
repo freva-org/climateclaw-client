@@ -1,12 +1,12 @@
-from py_oidc_auth_client import authenticate, Token, TokenStore, AuthError  # type: ignore
-from typing import Any
+import logging
+import os
 from datetime import datetime
 from pathlib import Path
-
-import os
-import logging
+from typing import Any
 
 import httpx
+from py_oidc_auth_client import (AuthError, Token, TokenStore,  # type: ignore
+                                 authenticate)
 
 from ._utils import DEFAULT_AUTH_TIMEOUT
 

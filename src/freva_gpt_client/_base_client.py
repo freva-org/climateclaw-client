@@ -1,16 +1,16 @@
+import asyncio
 import ipaddress
 import logging
 import platform
+import random
 import socket
+import time
 import urllib.parse
 from functools import cached_property
-from httpx import Response
-from typing import Any, Dict, TypeVar, Union, Generic
+from typing import Any, Dict, Generic, TypeVar, Union
 
-import asyncio
 import httpx
-import time
-import random
+from httpx import Response
 
 from ._auth import TokenAuth
 from ._streaming import StreamResponse
