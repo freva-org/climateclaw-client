@@ -9,8 +9,8 @@ from importlib import metadata
 from typing import Iterator, Union
 
 from ._base_client import SyncAPIClient, AsyncAPIClient
-from .types import Message, Conversation, Image
-from .utils import FREVAGPT_API_ENDPOINTS, DEFAULT_TIMEOUT, DEFAULT_MAX_RETRIES
+from ._models import MessageModel, Conversation, Image
+from ._utils import FREVAGPT_API_ENDPOINTS, DEFAULT_TIMEOUT, DEFAULT_MAX_RETRIES
 
 try:
     __version__ = metadata.version("jupyter_freva_gpt")
@@ -44,12 +44,15 @@ class FrevaGPT(SyncAPIClient):
             http_client=http_client
         )
         self._thread_id = thread_id
+        if model and model not in self.available_models:
+            raise ValueError(f"Model {model} is not a valid selection. Please select from available models: {self.available_models} instead.")
         self.model = model
 
     @cached_property
     def available_models(self) -> list[str]:
         response=self.get(path=self._construct_path("chatbots"))
-        return response.json()
+        available_models = response.json()
+        return available_models
     
     def authenticate(self) -> None:
         self._auth._authenticate()
@@ -59,44 +62,51 @@ class FrevaGPT(SyncAPIClient):
         thread_id = response.json()
         return thread_id
     
-    def prompt(self, input: str, model: str | None = None, thread_id: str | None = None) -> Conversation:
+    def prompt(self, input: str, model: str | None = None, thread_id: str | None = None, stream=False) -> Conversation | Iterator[MessageModel]:
+        
+        if not model and self.model:
+            model = self.model
+        elif model and not model in self.available_models:
+            raise ValueError(f"Model {model} is not a valid selection. Please select from available models: {self.available_models} instead.")
+        elif not model and not self.model:
+            raise TypeError(f"Argument model has to specified, unless instance attribute {self.__class__.__name__}.model is set.")
+
         if not (self._thread_id or thread_id):
-            self._thread_id = self.newthread()
+            thread_id = self.newthread()
+            self._thread_id = thread_id
+        elif thread_id:
+            self._thread_id = thread_id
+        else:
             thread_id = self._thread_id
+
         response = self.get(
-            path=self._construct_path("streamresponse"),
-            params={
-                "input": input,
-                "thread_id": thread_id,
-                "chatbot": model,
-            }
-        )
-        messages = [Message(**json.loads(el)) for el in response.text.split("\n") if el]
-        return Conversation(messages=messages)
-    
-    def stream_prompt(self, input: str, model: str | None = None, thread_id: str | None = None) -> Iterator[Message]:
-        if not (self._thread_id or thread_id):
-            self._thread_id = self.newthread()
-            thread_id = self._thread_id
-        for response in self.get(
             path=self._construct_path("streamresponse"),
             params={
                 "input": input,
                 "thread_id": thread_id,
                 "chatbot": model,
             },
-            stream=True
-        ):
-            yield Message(**response)   
+            stream=stream
+        )
+        if not stream:
+            messages = [MessageModel(message=json.loads(el)) for el in response.text.split("\n") if el]
+            return Conversation(raw_messages=messages)
+        else:
+            return map(lambda x: MessageModel(message=x), response.iter_json_objects())
          
-    def getthread(self, thread_id: str):
+    def getthread(self, thread_id: str = None):
+        if not thread_id and self._thread_id:
+            thread_id = self._thread_id
+        else:
+            raise TypeError(f"Argument thread_id has to specified, if no conversation was started previously.")
         response = self.get(
             path=self._construct_path("getthread"),
             params = {"thread_id": thread_id}    ,
         )
-        return Conversation(messages=response.json())
+        messages = [MessageModel(message=m) for m in response.json()]
+        return Conversation(raw_messages=messages)
     
-    def _cast_message(self, message: Message) -> Union[Message, Image]:
+    def _cast_message(self, message: MessageModel) -> Union[MessageModel, Image]:
         return message 
 
     def _construct_path(self, endpoint_name:str) -> str:
