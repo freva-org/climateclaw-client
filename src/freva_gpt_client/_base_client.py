@@ -1,27 +1,25 @@
 import ipaddress
-import json
 import logging
 import platform
 import socket
 import urllib.parse
 from functools import cached_property
-from pydantic import model_
-from typing import Any, Dict, TypeVar, Union, Generic, Mapping
+from httpx import Response
+from typing import Any, Dict, TypeVar, Union, Generic
 
 import asyncio
 import httpx
 import time
 import random
 
-from .auth import TokenAuth
-from .utils import DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT
+from ._auth import TokenAuth
+from ._streaming import StreamResponse
+from ._utils import DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT
 
 logger: logging.Logger = logging.getLogger(__name__)
 
 _HttpxClientT = TypeVar("_HttpxClientT", bound=Union[httpx.Client, httpx.AsyncClient])
 Headers = Dict[str, str]
-_StreamT = TypeVar("_StreamT", bound=Mapping[str, Any])
-_AsyncStreamT = TypeVar("_AsyncStreamT", bound=Mapping[str, Any])
 
 
 class BaseClient(Generic[_HttpxClientT]):
@@ -82,86 +80,7 @@ class BaseClient(Generic[_HttpxClientT]):
     def _validate_base_url(self, base_url) -> httpx.URL:
         return httpx.URL(self._parse_host(base_url))   
     
-    @staticmethod
-    def _process_chunks(chunk: str, partial_response: str = "") -> tuple[list[dict], str]:
-        """
-        Processes a chunk of string data, which represent JSON-like objects split across chunks.
 
-        Args:
-        chunk (str): A string that may contain full or partial JSON-like objects.
-        partial_response (str): A string that stores an incomplete JSON-like object from the previous chunk.
-
-        Returns:
-        Tuple[List[str], str]: A list of complete JSON-like objects and the partial string (if any).
-        """
-
-        def recurse_dict(d: dict[str, Any]) -> dict[str, Any]:
-            """
-            Make sure that all (possibly escaped) json-strings within a dictionary are parsed as dicts
-            """
-            for key, value in d.items():
-                if isinstance(value, str):
-                    if value.startswith("{") and value.endswith("}"):
-                        d[key] = recurse_dict(json.loads(value))
-            return d
-
-        # sanitize input string
-        chunk = chunk.strip().replace("\n", "")
-        # check that chunk is not empty
-        if not chunk:
-            return [], partial_response
-        # Attempt to split the input chunk into potential JSON-like parts based on "}{"
-        chunk_split = chunk.split("}{")
-        # If there is no "}{", the chunk might represent a single or partial JSON-like object
-        if len(chunk_split) == 1:
-            # Case 1: The chunk starts with "{" and ends with "}" (a complete JSON object)
-            if chunk[0] == "{" and chunk[-1] == "}":
-                return [recurse_dict(json.loads(chunk))], ""
-
-            # Case 2: The chunk starts with "{" but does not end with "}" (partial JSON object)
-            elif chunk[0] == "{" and chunk[-1] != "}":
-                partial_response = chunk  # Save the partial object for later
-                return [], partial_response
-
-            # Case 3: The chunk ends with "}" but does not start with "{" (completes a partial JSON object)
-            elif chunk[-1] == "}":
-                partial_response += chunk  # Append to the saved partial object
-                return [recurse_dict(json.loads(partial_response))], ""  # Return the completed object
-
-            # Case 4: Neither starts with "{" nor ends with "}" (still an incomplete JSON object)
-            else:
-                partial_response += chunk  # Append to the saved partial object
-                return [], partial_response     
-
-        # If there are multiple parts after splitting, handle them as potential JSON objects
-        else:
-            complete_parts = []
-
-            for i, part in enumerate(chunk_split):
-                if i == 0:
-                    fixed_part = part + "}"  # Add closing brace to make it a complete object
-                    # Check if it is a continuation of a partial response
-                    if part[0] != "{":
-                        partial_response += fixed_part  # Append to the saved partial object
-                        complete_parts.append(
-                            recurse_dict(json.loads(partial_response))
-                        )  # Add the completed object to the list
-                        continue
-
-                elif i == len(chunk_split) - 1:
-                    fixed_part = "{" + part  # Add opening brace to make it a complete object
-                    # If it is still incomplete, save it as the new partial response
-                    if part[-1] != "}":
-                        partial_response = fixed_part
-                    # If it is complete, add to the list and clear partial response
-                    complete_parts.append(recurse_dict(json.loads(fixed_part)))
-                    partial_response=""
-
-                else:
-                    fixed_part = "{" + part + "}"
-
-                complete_parts.append(recurse_dict(json.loads(fixed_part)))
-        return complete_parts, partial_response
         
     
     @staticmethod  
@@ -254,24 +173,14 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
             logger.debug(f"Retrying connection after sleeping {timeout} seconds. Final attempt.")
         await asyncio.sleep(timeout)
     
-    async def _stream(self, *args, **kwargs) -> _AsyncStreamT:
-        async def inner():
-            async with self._client.stream(*args, **kwargs) as r:
-                r.raise_for_status()
-                complete_parts, partial_response = [], ""
-                async for chunk in r.aiter_bytes():
-                    chunk_decoded = chunk.decode("utf-8")
-                    complete_parts, partial_response = self._process_chunks(
-                        chunk_decoded, partial_response
-                    )
-                    if complete_parts:
-                        for part in complete_parts:
-                            yield part
+    async def _stream(self, *args, **kwargs) -> StreamResponse:
         retries_taken = 0
         for retries_taken in range(self.max_retries + 1):
-            try:            
-                result = inner()
-                break
+            try:
+                req: httpx.Request = self._client.build_request(*args, **kwargs) 
+                res: httpx.Response = await self._client.send(request=req, stream=True)
+                res.raise_for_status()
+                return StreamResponse(res)
             except httpx.HTTPError as e:
                 if retries_taken < self.max_retries:
                     await self._sleep_for_retry(retries_taken=retries_taken)
@@ -281,12 +190,12 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
                         f"Failed to connect to url {self._parse_host(e.request.url)}. Please try again.",
                     ) from None
                 elif isinstance(e, httpx.HTTPStatusError):
-                        await e.response.aread()
-                        raise ConnectionError(
-                            e.response.status_code,
-                            f"Error connecting to url {self._parse_host(e.request.url)} with error: {e.response.text}",
-                        ) from None
-        return result
+                    await e.response.aread()
+                    raise ConnectionError(
+                        e.response.status_code,
+                        f"Error connecting to url {self._parse_host(e.request.url)} with error: {e.response.text}",
+                    ) from None
+        raise ConnectionError("Unexpected error in _stream retry logic")
         
     async def _request_raw(self, *args, **kwargs) -> httpx.Response:
             retries_taken = 0
@@ -311,7 +220,7 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
                         ) from None
             return r
     
-    async def request(self, *args, stream=False, **kwargs) -> _AsyncStreamT | httpx.Response:        
+    async def request(self, *args, stream=False, **kwargs) -> StreamResponse | httpx.Response:        
         if stream:
             return await self._stream(*args, **kwargs)
         else:
@@ -378,30 +287,19 @@ class SyncAPIClient(BaseClient[httpx.Client]):
     def _sleep_for_retry(self, retries_taken: int):
         timeout = self.timeout * (1 + random.random())
         if retries_taken < self.max_retries:
-            logger.debug(f"Retrying connection after sleeping {timeout} seconds. Attempt {retries_taken + 1}.")
+            logger.debug(f"Retrying connection after sleeping {timeout} seconds. Retry attempt {retries_taken + 1}.")
         elif retries_taken == self.max_retries:
             logger.debug(f"Retrying connection after sleeping {timeout} seconds. Final attempt.")
         time.sleep(timeout)
     
-    def _stream(self, *args, **kwargs) -> _StreamT:
-        def inner():
-            with self._client.stream(*args, **kwargs) as r:
-                r.raise_for_status()
-                complete_parts, partial_response = [], ""
-                for chunk in r.iter_bytes():
-                    chunk_decoded = chunk.decode("utf-8")
-                    complete_parts, partial_response = self._process_chunks(
-                        chunk_decoded, partial_response
-                    )
-                    if complete_parts:
-                        for part in complete_parts:
-                            yield part
-
+    def _stream(self, *args, **kwargs) -> StreamResponse:
         retries_taken = 0
         for retries_taken in range(self.max_retries + 1):
             try:
-                result = inner()
-                break
+                req: httpx.Request = self._client.build_request(*args, **kwargs) 
+                res: httpx.Response = self._client.send(request=req, stream=True)
+                res.raise_for_status()
+                return StreamResponse(res)
             except httpx.HTTPError as e:
                 if retries_taken < self.max_retries:
                     self._sleep_for_retry(retries_taken=retries_taken)
@@ -416,9 +314,9 @@ class SyncAPIClient(BaseClient[httpx.Client]):
                         e.response.status_code,
                         f"Error connecting to url {self._parse_host(e.request.url)} with error: {e.response.text}",
                     ) from None
-        return result
+        raise RuntimeError("Unexpected error in _stream retry logic")
         
-    def _request_raw(self, *args, **kwargs) -> httpx.Response:
+    def _request_raw(self, *args, **kwargs) -> Response:
             retries_taken = 0
             for retries_taken in range(self.max_retries + 1):
                 try:
@@ -441,7 +339,7 @@ class SyncAPIClient(BaseClient[httpx.Client]):
                         ) from None
             return r
         
-    def request(self, *args, stream=False, **kwargs) -> _StreamT | httpx.Response:        
+    def request(self, *args, stream=False, **kwargs) -> StreamResponse | Response:        
         if stream:
             return self._stream(*args, **kwargs)
         else:
