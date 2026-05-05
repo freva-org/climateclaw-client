@@ -15,5 +15,5 @@ FREVAGPT_API_ENDPOINTS = {
     "streamresponse": "streamresponse",
     "stop": "stop",
     "editthread": "editthread",
-    "userfeedback": "userfeedback"
+    "userfeedback": "userfeedback",
 }

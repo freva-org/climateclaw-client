@@ -52,7 +52,9 @@ class StreamResponse:
             # Case 3: The chunk ends with "}" but does not start with "{" (completes a partial JSON object)
             elif chunk[-1] == "}":
                 partial_response += chunk  # Append to the saved partial object
-                return [recurse_dict(json.loads(partial_response))], ""  # Return the completed object
+                return [
+                    recurse_dict(json.loads(partial_response))
+                ], ""  # Return the completed object
 
             # Case 4: Neither starts with "{" nor ends with "}" (still an incomplete JSON object)
             else:
@@ -94,9 +96,7 @@ class StreamResponse:
         complete_parts, partial_response = [], ""
         for chunk in self._response.iter_bytes():
             chunk_decoded = chunk.decode("utf-8")
-            complete_parts, partial_response = self._process_chunks(
-                chunk_decoded, partial_response
-            )
+            complete_parts, partial_response = self._process_chunks(chunk_decoded, partial_response)
             for part in complete_parts:
                 yield part
 
@@ -105,8 +105,6 @@ class StreamResponse:
         complete_parts, partial_response = [], ""
         async for chunk in self._response.aiter_bytes():
             chunk_decoded = chunk.decode("utf-8")
-            complete_parts, partial_response = self._process_chunks(
-                chunk_decoded, partial_response
-            )
+            complete_parts, partial_response = self._process_chunks(chunk_decoded, partial_response)
             for part in complete_parts:
                 yield part
