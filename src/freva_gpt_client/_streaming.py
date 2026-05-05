@@ -1,13 +1,31 @@
 import json
-from typing import Any
+from typing import Any, Mapping
 
 import httpx
 
 
 class StreamResponse:
-    """Wrapper around httpx.Response that streams complete JSON objects."""
+    """Wrapper around httpx.Response that streams complete JSON objects.
+
+    This class wraps an httpx.Response object and provides methods to iterate
+    over the response stream, yielding only complete JSON objects. It handles
+    cases where JSON objects may be split across multiple chunks in the stream.
+
+    Attributes:
+        _response: The underlying httpx.Response object.
+        status_code: HTTP status code from the response.
+        headers: Response headers.
+        url: The URL of the response.
+        request: The original request.
+        is_closed: Whether the response has been closed.
+    """
 
     def __init__(self, response: httpx.Response):
+        """Initializes StreamResponse with an httpx.Response.
+
+        Args:
+            response: The httpx.Response object to wrap.
+        """
         self._response = response
         self.status_code = response.status_code
         self.headers = response.headers
@@ -17,14 +35,22 @@ class StreamResponse:
 
     @staticmethod
     def _process_chunks(chunk: str, partial_response: str = "") -> tuple[list[dict], str]:
-        """
-        Processes a chunk of string data, which represent JSON-like objects split across chunks.
+        """Processes a chunk of string data containing JSON-like objects.
+
+        Handles cases where JSON objects are split across chunks by tracking
+        partial responses and combining them when complete objects are received.
+
+        Args:
+            chunk: A string that may contain full or partial JSON-like objects.
+            partial_response: A string storing an incomplete JSON object from
+                the previous chunk.
+
+        Returns:
+            A tuple of (list of complete JSON dicts, remaining partial string).
         """
 
         def recurse_dict(d: dict[str, Any]) -> dict[str, Any]:
-            """
-            Make sure that all (possibly escaped) json-strings within a dictionary are parsed as dicts
-            """
+            """Recursively parses JSON strings within a dictionary as dicts."""
             for key, value in d.items():
                 if isinstance(value, str):
                     if value.startswith("{") and value.endswith("}"):
@@ -92,7 +118,14 @@ class StreamResponse:
         return complete_parts, partial_response
 
     def iter_json_objects(self):
-        """Generator that yields complete JSON dicts from the stream."""
+        """Generator that yields complete JSON dicts from the stream.
+
+        Iterates over the response bytes, processes chunks, and yields
+        only complete JSON objects.
+
+        Yields:
+            dict: Complete JSON objects parsed from the stream.
+        """
         complete_parts, partial_response = [], ""
         for chunk in self._response.iter_bytes():
             chunk_decoded = chunk.decode("utf-8")
@@ -101,7 +134,14 @@ class StreamResponse:
                 yield part
 
     async def aiter_json_objects(self):
-        """Async generator that yields complete JSON dicts from the stream."""
+        """Async generator that yields complete JSON dicts from the stream.
+
+        Asynchronously iterates over the response bytes, processes chunks,
+        and yields only complete JSON objects.
+
+        Yields:
+            dict: Complete JSON objects parsed from the stream.
+        """
         complete_parts, partial_response = [], ""
         async for chunk in self._response.aiter_bytes():
             chunk_decoded = chunk.decode("utf-8")

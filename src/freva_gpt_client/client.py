@@ -9,8 +9,7 @@ from httpx import URL
 
 from ._base_client import AsyncAPIClient, SyncAPIClient
 from ._models import Conversation, Image, MessageModel
-from ._utils import (DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT,
-                     FREVAGPT_API_ENDPOINTS)
+from ._utils import DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT, FREVAGPT_API_ENDPOINTS
 
 try:
     __version__ = metadata.version("jupyter_freva_gpt")
@@ -19,6 +18,19 @@ except metadata.PackageNotFoundError:
 
 
 class FrevaGPT(SyncAPIClient):
+    """Synchronous client for interacting with the FrevaGPT API.
+
+    This class provides a high-level interface for communicating with the
+    FrevaGPT chatbot API, including methods for managing threads, sending
+    prompts, and retrieving conversation history.
+
+    Attributes:
+        _root_api_path: Base path for API endpoints.
+        _user: Current system user.
+        _thread_id: Current active thread ID.
+        model: Selected chatbot model.
+    """
+
     _root_api_path: str = "/api/chatbot"
     _user: str = getpass.getuser()
     _thread_id: str | None
@@ -36,6 +48,21 @@ class FrevaGPT(SyncAPIClient):
         thread_id: str | None = None,
         model: str | None = None,
     ):
+        """Initializes the FrevaGPT client.
+
+        Args:
+            base_url: Base URL for the FrevaGPT API.
+            token_store_path: Path to store authentication tokens.
+            follow_redirects: Whether to follow HTTP redirects.
+            timeout: Request timeout in seconds.
+            max_retries: Maximum number of retry attempts.
+            http_client: Optional pre-configured httpx.Client.
+            thread_id: Optional thread ID for an existing conversation.
+            model: Optional chatbot model to use for requests.
+
+        Raises:
+            ValueError: If the specified model is not in available_models.
+        """
         super().__init__(
             version=__version__,
             base_url=base_url,
@@ -54,14 +81,28 @@ class FrevaGPT(SyncAPIClient):
 
     @cached_property
     def available_models(self) -> list[str]:
+        """Gets the list of available chatbot models.
+
+        Returns:
+            List of available model names.
+        """
         response = self.get(path=self._construct_path("chatbots"))
         available_models = response.json()
         return available_models
 
     def authenticate(self) -> None:
+        """Authenticates the client with the FrevaGPT API.
+
+        Triggers the OIDC authentication flow.
+        """
         self._auth._authenticate()
 
     def newthread(self) -> str:
+        """Creates a new conversation thread.
+
+        Returns:
+            The ID of the newly created thread.
+        """
         response = self.get(path=self._construct_path("newthread"))
         thread_id = response.json()
         return thread_id
@@ -73,6 +114,25 @@ class FrevaGPT(SyncAPIClient):
         thread_id: str | None = None,
         stream=False,
     ) -> Conversation | Iterator[MessageModel]:
+        """Sends a prompt to the chatbot and gets the response.
+
+        Args:
+            input: The user input/prompt to send.
+            model: Optional model to use for this request. Falls back to
+                instance attribute if not specified.
+            thread_id: Optional thread ID for the conversation. Creates a
+                new thread if not specified and no active thread exists.
+            stream: If True, returns an iterator of MessageModel objects as
+                they are streamed from the server.
+
+        Returns:
+            If stream=False: Conversation containing all messages.
+            If stream=True: Iterator of MessageModel objects.
+
+        Raises:
+            ValueError: If model is specified but not in available_models.
+            TypeError: If model is not specified and instance has no model set.
+        """
 
         if not model and self.model:
             model = self.model
@@ -111,6 +171,18 @@ class FrevaGPT(SyncAPIClient):
             return map(lambda x: MessageModel(message=x), response.iter_json_objects())
 
     def getthread(self, thread_id: str | None = None):
+        """Retrieves a conversation thread by ID.
+
+        Args:
+            thread_id: The ID of the thread to retrieve. If not specified,
+                uses the current active thread ID.
+
+        Returns:
+            Conversation containing all messages in the thread.
+
+        Raises:
+            TypeError: If thread_id is not specified and no active thread exists.
+        """
         if not thread_id and self._thread_id:
             thread_id = self._thread_id
         else:
@@ -125,11 +197,31 @@ class FrevaGPT(SyncAPIClient):
         return Conversation(raw_messages=messages)
 
     def _cast_message(self, message: MessageModel) -> Union[MessageModel, Image]:
+        """Casts a message to the appropriate type.
+
+        Args:
+            message: The message to cast.
+
+        Returns:
+            The message cast to the appropriate type (MessageModel or Image).
+        """
         return message
 
     def _construct_path(self, endpoint_name: str) -> str:
+        """Constructs the full API path for an endpoint."""
         return f"{self._root_api_path}/{FREVAGPT_API_ENDPOINTS[endpoint_name]}"
 
 
 class AsyncFrevaGPT(AsyncAPIClient):
+    """Asynchronous client for interacting with the FrevaGPT API.
+
+    This class provides an async high-level interface for communicating with
+    the FrevaGPT chatbot API. Inherits from AsyncAPIClient and will have
+    async versions of the methods implemented in FrevaGPT.
+
+    Note:
+        Async methods are not yet implemented - this class currently serves
+        as a placeholder for future async support.
+    """
+
     pass

@@ -5,8 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-from py_oidc_auth_client import (AuthError, Token, TokenStore,  # type: ignore
-                                 authenticate)
+from py_oidc_auth_client import AuthError, Token, TokenStore, authenticate  # type: ignore
 
 from ._utils import DEFAULT_AUTH_TIMEOUT
 
@@ -14,12 +13,19 @@ logger = logging.getLogger(__name__)
 
 
 class TokenAuth(httpx.Auth):
-    base_url: httpx.URL
-    app_name: str
-    timeout: float
-    token_store_path: str | Path
-    token_store: TokenStore
-    auth_token: Token
+    """Authentication handler for FrevaGPT API using OIDC tokens.
+
+    This class manages token authentication for HTTP requests, including
+    token storage, validation, and automatic refresh when tokens expire.
+
+    Attributes:
+        base_url: The base URL of the FrevaGPT API.
+        app_name: The application name used for token storage.
+        timeout: Timeout in seconds for authentication requests.
+        token_store_path: Path to the token store file.
+        token_store: TokenStore instance for managing tokens.
+        auth_token: Current authentication token.
+    """
 
     def __init__(
         self,
@@ -28,6 +34,14 @@ class TokenAuth(httpx.Auth):
         timeout: float = DEFAULT_AUTH_TIMEOUT,
         app_name: str = "freva-gpt-client",
     ):
+        """Initializes TokenAuth with base URL and token store configuration.
+
+        Args:
+            base_url: The base URL of the FrevaGPT API.
+            token_store_path: Optional path to the token store file.
+            timeout: Timeout in seconds for authentication requests.
+            app_name: Application name for token storage identification.
+        """
         self.base_url = base_url
         self.app_name = app_name
         self.timeout = timeout
@@ -37,6 +51,7 @@ class TokenAuth(httpx.Auth):
         )
 
     def _authenticate(self) -> Token:
+        """Authenticates with the OIDC provider and returns a new token."""
         return authenticate(
             host=f"{self.base_url}/api/freva-nextgen",
             store=self.token_store,
@@ -45,6 +60,7 @@ class TokenAuth(httpx.Auth):
         )
 
     def _update_token_or_store(self) -> Token:
+        """Updates the token store with the current auth token."""
         stored_token = self.token_store.get(str(self.base_url))
         if stored_token:
             self.auth_token = stored_token
@@ -52,7 +68,7 @@ class TokenAuth(httpx.Auth):
             self.token_store.put(host=str(self.base_url), token=self.auth_token)
 
     def _validate_token_store(self) -> TokenStore:
-        """Validate token store"""
+        """Validates and initializes the token store."""
         # load token store
         token_store = (
             self.token_store if hasattr(self, "token_store") else TokenStore(self.token_store_path)
@@ -71,8 +87,8 @@ class TokenAuth(httpx.Auth):
         self._update_token_or_store()
         return token_store
 
-    def _validate_token(self):
-        """Validate token"""
+    def _validate_token(self) -> Token:
+        """Validates the current authentication token."""
         self.token_store = self._validate_token_store()
         token_expires_at = datetime.fromtimestamp(self.auth_token["expires"])
         token_refresh_expires_at = datetime.fromtimestamp(self.auth_token["refresh_expires"])
@@ -93,10 +109,26 @@ class TokenAuth(httpx.Auth):
         return self.auth_token
 
     def get_auth_headers(self) -> dict[str, str]:
+        """Gets the authentication headers for HTTP requests.
+
+        Returns:
+            Dictionary containing authentication headers.
+        """
         self._validate_token()
         return self.auth_token["headers"]
 
     def auth_flow(self, request: httpx.Request):
+        """HTTP authentication flow handler.
+
+        This generator yields requests with authentication headers added
+        when a 401 Unauthorized response is received.
+
+        Args:
+            request: The HTTP request to authenticate.
+
+        Yields:
+            httpx.Request: The authenticated request.
+        """
         response: httpx.Response = yield request
         if response.status_code == 401:
             # If the server issues a 401 response then resend the request,
