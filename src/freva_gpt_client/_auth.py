@@ -1,4 +1,4 @@
-from py_oidc_auth_client import authenticate, Token, TokenStore, AuthError
+from py_oidc_auth_client import authenticate, Token, TokenStore, AuthError # type: ignore
 from typing import Any
 from datetime import datetime
 from pathlib import Path
@@ -8,7 +8,7 @@ import logging
 
 import httpx
 
-from .utils import DEFAULT_AUTH_TIMEOUT
+from ._utils import DEFAULT_AUTH_TIMEOUT
 
 logger = logging.getLogger(__name__)
 
