@@ -2,7 +2,6 @@ import logging
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 import httpx
 from py_oidc_auth_client import AuthError, Token, TokenStore, authenticate  # type: ignore
