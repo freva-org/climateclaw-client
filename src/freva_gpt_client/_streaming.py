@@ -1,5 +1,5 @@
 import json
-from typing import Any
+from typing import Any, AsyncGenerator, Generator
 
 import httpx
 
@@ -117,7 +117,7 @@ class StreamResponse:
                 complete_parts.append(recurse_dict(json.loads(fixed_part)))
         return complete_parts, partial_response
 
-    def iter_json_objects(self):
+    def iter_json_objects(self) -> Generator[dict]:
         """Generator that yields complete JSON dicts from the stream.
 
         Iterates over the response bytes, processes chunks, and yields
@@ -133,7 +133,7 @@ class StreamResponse:
             for part in complete_parts:
                 yield part
 
-    async def aiter_json_objects(self):
+    async def aiter_json_objects(self) -> AsyncGenerator[dict]:
         """Async generator that yields complete JSON dicts from the stream.
 
         Asynchronously iterates over the response bytes, processes chunks,
