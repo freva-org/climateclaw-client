@@ -8,6 +8,8 @@ DEFAULT_MAX_RETRIES = 10
 DEFAULT_TIMEOUT = 20.0
 DEFAULT_AUTH_TIMEOUT = 30.0
 
+OPENAPI_SPEC_PATH = "openapi.json"
+
 FREVAGPT_API_ENDPOINTS = {
     "ping": "ping",
     "help": "help",
