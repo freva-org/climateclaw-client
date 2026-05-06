@@ -1,5 +1,6 @@
 import getpass
 import json
+import logging
 from functools import cached_property
 from importlib import metadata
 from typing import Iterator, Union
@@ -9,12 +10,14 @@ from httpx import URL
 
 from ._base_client import AsyncAPIClient, SyncAPIClient
 from ._models import Conversation, Image, MessageModel
-from ._utils import DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT, FREVAGPT_API_ENDPOINTS
+from ._utils import DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT, FREVAGPT_API_ENDPOINTS, OPENAPI_SPEC_PATH
 
 try:
     __version__ = metadata.version("jupyter_freva_gpt")
 except metadata.PackageNotFoundError:
     __version__ = "0.0.0"
+
+logger = logging.getLogger(__name__)
 
 
 class FrevaGPT(SyncAPIClient):
@@ -72,6 +75,7 @@ class FrevaGPT(SyncAPIClient):
             timeout=timeout,
             http_client=http_client,
         )
+        self._validate_backend_endpoints()
         self._thread_id = thread_id
         if model and model not in self.available_models:
             raise ValueError(
@@ -89,6 +93,39 @@ class FrevaGPT(SyncAPIClient):
         response = self.get(path=self._construct_path("chatbots"))
         available_models = response.json()
         return available_models
+
+    def _validate_backend_endpoints(self) -> None:
+        """Validates chatbot endpoints available on the backend against those expected by the client."""
+        r: httpx.Response = self.get(
+            path=f"{self._root_api_path}/{OPENAPI_SPEC_PATH}", stream=False
+        )
+        openapi_spec = r.json()
+        if (key := "paths") not in openapi_spec or (key := "info") not in openapi_spec:
+            raise KeyError(
+                f"Key '{key}' cannot be found in openapi spec file located under {self.base_url.join(f"{self._root_api_path}/{OPENAPI_SPEC_PATH}")}. Make sure backend is configured correctly."
+            )
+        # get version info from openapi spec file
+        if "version" not in openapi_spec["info"]:
+            raise KeyError(
+                "FrevaGPT backend version information could not be retrieved from openapi spec file. Make sure backend is configured correctly."
+            )
+        frevagpt_backend_version = openapi_spec["info"]["version"]
+        # filter relevant paths specific to chatbot
+        chatbot_paths = list(
+            filter(lambda p: self._root_api_path in p, openapi_spec["paths"].keys())
+        )
+        # first check that all endpoints located on the backend are included in the client specification, raise warnings if unexpected enpoints are encountered
+        for found_path in chatbot_paths:
+            if found_path not in map(self._construct_path, FREVAGPT_API_ENDPOINTS.keys()):
+                logger.warning(
+                    f"API endpoint {found_path} not included in client specification. The client (version {self._version}) might not be compatible with the backend (version {frevagpt_backend_version})."
+                )
+        # now check that all endpoints expected by the client are available on the backend, raise a KeyError if at least one cannot be found.
+        for endpoint in FREVAGPT_API_ENDPOINTS.keys():
+            if (expected_endpoint := self._construct_path(endpoint)) not in chatbot_paths:
+                raise KeyError(
+                    f"FrevaGPT client expected endpoint {expected_endpoint} could not be found in backend specification. Make sure that client (version {self._version}) and backend (version {frevagpt_backend_version}) are up-to-date."
+                )
 
     def authenticate(self) -> None:
         """Authenticates the client with the FrevaGPT API.
@@ -136,7 +173,7 @@ class FrevaGPT(SyncAPIClient):
 
         if not model and self.model:
             model = self.model
-        elif model and not model in self.available_models:
+        elif model and model not in self.available_models:
             raise ValueError(
                 f"Model {model} is not a valid selection. Please select from available models: {self.available_models} instead."
             )
@@ -187,7 +224,7 @@ class FrevaGPT(SyncAPIClient):
             thread_id = self._thread_id
         else:
             raise TypeError(
-                f"Argument thread_id has to specified, if no conversation was started previously."
+                "Argument thread_id has to specified, if no conversation was started previously."
             )
         response = self.get(
             path=self._construct_path("getthread"),
