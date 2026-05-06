@@ -1,8 +1,9 @@
 import base64
+import json
 import re
 from functools import cached_property
 from pathlib import Path
-from typing import Any, Literal, Mapping, Optional, Sequence, Union
+from typing import Any, Generator, Literal, Mapping, Optional, Sequence, TypedDict, Union
 
 from pydantic import BaseModel, Field, computed_field
 
@@ -40,6 +41,15 @@ class BaseMessage(BaseModel):
         """
         return str(self.content)
 
+    def repr_markdown(self) -> str:
+        return str(self.content)
+
+    @computed_field(repr=False) # type: ignore[prop-decorator]
+    @cached_property
+    def code_cells(self) -> list[str]:
+        """Representation of code cells included in a given message. By default returns an empty list."""
+        return []
+
 
 class Prompt(BaseMessage):
     """A prompt message."""
@@ -58,11 +68,50 @@ class Assistant(BaseMessage):
 
     variant: Literal["Assistant"]
 
+    @computed_field # type: ignore[prop-decorator]
+    @cached_property
+    def code_cells(self) -> list[str]:
+        """Extracts python code cells from the assistant message.
+
+        Finds all Python code blocks (between ```python and ``` markers)
+        in Assistant and Code messages.
+
+        Returns:
+            List of extracted Python code strings.
+        """
+        string = str(self.content)
+        matches = re.findall(
+            r"(?:```python)((?:\n(?!.*```python).*)+)(?:```)",
+            string,
+            flags=re.MULTILINE,
+        )
+        result = []
+        for m in matches:
+            result.append(m)
+        return result
+
+
+CodeContent = TypedDict("CodeContent", {"code": str})
+
 
 class Code(BaseMessage):
     """A code message."""
 
     variant: Literal["Code"]
+
+    @computed_field(repr=False) # type: ignore[prop-decorator]
+    @property
+    def code_cells(self) -> list[str]:
+        try: 
+            return [json.loads(self.content)["code"]]
+        except json.JSONDecodeError:
+            return []
+    def repr_markdown(self):
+        """
+        """
+        if len(self.content) > 8:
+            return self.content[8:]
+        return ""
 
 
 class CodeOutput(BaseMessage):
@@ -120,10 +169,12 @@ class Image(BaseMessage):
         Returns:
             Truncated string representation of the content.
         """
+        if len(self.content) < 10:
+            return self.content
         content = f"{self.content[:10]}..."
         return content
 
-    def markdown_repr(self) -> str:
+    def repr_markdown(self) -> str:
         """Returns a markdown representation of the image.
 
         Returns:
@@ -200,8 +251,8 @@ class Conversation(BaseModel):
             format_str += f"[{i}] {mm.message.variant}: {mm.message.repr_content()}\n"
         return format_str
 
+    @computed_field # type: ignore[prop-decorator]
     @cached_property
-    @computed_field
     def messages(self) -> list[MessageModel]:
         """Appends message chunks to create complete messages.
 
@@ -231,29 +282,23 @@ class Conversation(BaseModel):
         )
         return result
 
+    @computed_field(repr=False) # type: ignore[prop-decorator]
     @cached_property
-    @computed_field(repr=False)
     def code_cells(self) -> list[str]:
         """Extracts python code cells from the conversation.
-
-        Finds all Python code blocks (between ```python and ``` markers)
-        in Assistant and Code messages.
 
         Returns:
             List of extracted Python code strings.
         """
         result = []
         for mm in self.messages:
-            if mm.message.variant in ["Assistant", "Code"]:
-                string = str(mm.message.content)
-                matches = re.findall(
-                    r"(?:```python)((?:\n(?!.*```python).*)+)(?:```)",
-                    string,
-                    flags=re.MULTILINE,
-                )
-                for m in matches:
-                    result.append(m)
+            result += mm.message.code_cells
         return result
+    
+    def repr_markdown(self) -> str:
+        markdown_string = ""
+        for mm in self.messages:
+            markdown_string += mm.message.repr_markdown()
 
     def __str__(self) -> str:
         """Returns a string representation of the conversation.
@@ -262,3 +307,9 @@ class Conversation(BaseModel):
             Formatted chat string of all messages.
         """
         return self._format_messages_for_chat()
+    
+class StreamConversation(BaseModel):
+    stream: Generator[dict]
+
+
+
