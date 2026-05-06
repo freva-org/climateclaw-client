@@ -1,16 +1,15 @@
+import asyncio
 import ipaddress
 import logging
 import platform
+import random
 import socket
+import time
 import urllib.parse
 from functools import cached_property
-from pydantic import model_
-from typing import Any, Dict, TypeVar, Union, Generic, Mapping
+from typing import Any, Dict, Generic, TypeVar, Union
 
-import asyncio
 import httpx
-import time
-import random
 
 from ._auth import TokenAuth
 from ._streaming import StreamResponse
