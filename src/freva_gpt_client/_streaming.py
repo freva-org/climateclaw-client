@@ -31,7 +31,10 @@ class StreamResponse:
         self.headers = response.headers
         self.url = response.url
         self.request = response.request
-        self.is_closed = response.is_closed
+
+    @property
+    def is_closed(self):
+        return self._response.is_closed
 
     @staticmethod
     def _process_chunks(chunk: str, partial_response: str = "") -> tuple[list[dict], str]:
@@ -148,3 +151,7 @@ class StreamResponse:
             complete_parts, partial_response = self._process_chunks(chunk_decoded, partial_response)
             for part in complete_parts:
                 yield part
+
+    def close(self) -> None:
+        if not self.is_closed:
+            self._response.close()

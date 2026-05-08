@@ -9,7 +9,7 @@ import httpx
 from httpx import URL
 
 from ._base_client import AsyncAPIClient, SyncAPIClient
-from ._models import Conversation, Image, MessageModel
+from ._models import Conversation, Image, MessageModel, StreamConversation
 from ._utils import DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT, FREVAGPT_API_ENDPOINTS, OPENAPI_SPEC_PATH
 
 try:
@@ -150,7 +150,7 @@ class FrevaGPT(SyncAPIClient):
         model: str | None = None,
         thread_id: str | None = None,
         stream=False,
-    ) -> Conversation | Iterator[MessageModel]:
+    ) -> Conversation | Iterator[str]:
         """Sends a prompt to the chatbot and gets the response.
 
         Args:
@@ -159,12 +159,12 @@ class FrevaGPT(SyncAPIClient):
                 instance attribute if not specified.
             thread_id: Optional thread ID for the conversation. Creates a
                 new thread if not specified and no active thread exists.
-            stream: If True, returns an iterator of MessageModel objects as
+            stream: If True, returns an iterator of markdown strings as
                 they are streamed from the server.
 
         Returns:
             If stream=False: Conversation containing all messages.
-            If stream=True: Iterator of MessageModel objects.
+            If stream=True: Iterator of markdown strings ready for rendering.
 
         Raises:
             ValueError: If model is specified but not in available_models.
@@ -205,7 +205,8 @@ class FrevaGPT(SyncAPIClient):
             ]
             return Conversation(raw_messages=messages)
         else:
-            return map(lambda x: MessageModel(message=x), response.iter_json_objects())
+            return StreamConversation(stream=response)
+
 
     def getthread(self, thread_id: str | None = None):
         """Retrieves a conversation thread by ID.
