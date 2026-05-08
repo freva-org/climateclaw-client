@@ -95,14 +95,22 @@ class FrevaGPT(SyncAPIClient):
         return available_models
 
     def _validate_backend_endpoints(self) -> None:
-        """Validates chatbot endpoints available on the backend against those expected by the client."""
+        """Validates chatbot endpoints available on the backend against those expected by the client.
+
+        Fetches the OpenAPI spec from the backend and verifies that all expected
+        endpoints are available. Also checks for unexpected endpoints and logs warnings.
+
+        Raises:
+            KeyError: If required keys ('paths', 'info') are missing from the OpenAPI spec,
+                or if expected endpoints are not found in the backend specification.
+        """
         r: httpx.Response = self.get(
             path=f"{self._root_api_path}/{OPENAPI_SPEC_PATH}", stream=False
         )
         openapi_spec = r.json()
         if (key := "paths") not in openapi_spec or (key := "info") not in openapi_spec:
             raise KeyError(
-                f"Key '{key}' cannot be found in openapi spec file located under {self.base_url.join(f"{self._root_api_path}/{OPENAPI_SPEC_PATH}")}. Make sure backend is configured correctly."
+                f"Key '{key}' cannot be found in openapi spec file located under {self.base_url.join(f'{self._root_api_path}/{OPENAPI_SPEC_PATH}')}. Make sure backend is configured correctly."
             )
         # get version info from openapi spec file
         if "version" not in openapi_spec["info"]:
@@ -150,7 +158,7 @@ class FrevaGPT(SyncAPIClient):
         model: str | None = None,
         thread_id: str | None = None,
         stream=False,
-    ) -> Conversation | Iterator[str]:
+    ) -> Conversation | StreamConversation:
         """Sends a prompt to the chatbot and gets the response.
 
         Args:
@@ -159,12 +167,11 @@ class FrevaGPT(SyncAPIClient):
                 instance attribute if not specified.
             thread_id: Optional thread ID for the conversation. Creates a
                 new thread if not specified and no active thread exists.
-            stream: If True, returns an iterator of markdown strings as
-                they are streamed from the server.
+            stream: If True, returns a StreamConversation for streaming.
 
         Returns:
             If stream=False: Conversation containing all messages.
-            If stream=True: Iterator of markdown strings ready for rendering.
+            If stream=True: StreamConversation, allowing for incremental streaming as markdown strings.
 
         Raises:
             ValueError: If model is specified but not in available_models.
@@ -207,7 +214,6 @@ class FrevaGPT(SyncAPIClient):
         else:
             return StreamConversation(stream=response)
 
-
     def getthread(self, thread_id: str | None = None):
         """Retrieves a conversation thread by ID.
 
@@ -246,7 +252,14 @@ class FrevaGPT(SyncAPIClient):
         return message
 
     def _construct_path(self, endpoint_name: str) -> str:
-        """Constructs the full API path for an endpoint."""
+        """Constructs the full API path for an endpoint.
+
+        Args:
+            endpoint_name: Name of the endpoint from FREVAGPT_API_ENDPOINTS.
+
+        Returns:
+            Full path string combining root API path and endpoint path.
+        """
         return f"{self._root_api_path}/{FREVAGPT_API_ENDPOINTS[endpoint_name]}"
 
 

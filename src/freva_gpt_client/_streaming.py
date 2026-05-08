@@ -34,6 +34,11 @@ class StreamResponse:
 
     @property
     def is_closed(self):
+        """Whether the underlying response has been closed.
+
+        Returns:
+            True if the response is closed, False otherwise.
+        """
         return self._response.is_closed
 
     @staticmethod
@@ -153,5 +158,6 @@ class StreamResponse:
                 yield part
 
     def close(self) -> None:
+        """Closes the underlying response if not already closed."""
         if not self.is_closed:
             self._response.close()
