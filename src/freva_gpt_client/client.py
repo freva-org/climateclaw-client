@@ -3,7 +3,7 @@ import json
 import logging
 from functools import cached_property
 from importlib import metadata
-from typing import Iterator, Union
+from typing import Any, Literal, Union
 
 import httpx
 from httpx import URL
@@ -240,6 +240,36 @@ class FrevaGPT(SyncAPIClient):
         )
         messages = [MessageModel(message=m) for m in response.json()]
         return Conversation(raw_messages=messages)
+    
+    def getuserthreads(self, user_id: str | None = None) -> list[Any]:
+        # TODO: Implement method 'getuserthreads'
+        raise NotImplementedError("'getuserthreads' is not implemented yet.")
+    
+    def deletethread(self, thread_id: str | None = None) -> None:
+        # TODO: Implement method 'deletethread'
+        raise NotImplementedError("'deletethread' is not implemented yet.")
+    
+    def setthreadtopic(self, thread_topic: str, thread_id: str | None = None) -> str:
+        # TODO: Implement method 'setthreadtopic'
+        raise NotImplementedError("'setthreadtopic' is not implemented yet.")
+    
+    def searchthreads(self, query: str, num_threads: int) -> list[Any]:
+        # TODO: Implement method 'searchthreads'
+        raise NotImplementedError("'searchthreads' is not implemented yet.")
+    
+    def stop(self, thread_id: str | None) -> bool:
+        # TODO: Implement method 'stop'
+        raise NotImplementedError("'stop' is not implemented yet.")
+    
+    def editthread(self, user_idx: int, thread_id: str | None) -> str:
+        # TODO: Implement method 'editthread'
+        raise NotImplementedError("'editthread' is not implemented yet.")        
+    
+    def feedback(self, feedback_idx: int, feedback: Literal["up", "down", "remove"], thread_id: str | None) -> dict[str, str]:
+        # TODO: Implement method 'feedback'
+        raise NotImplementedError("'feedback' is not implemented yet.")            
+
+    
 
     def _cast_message(self, message: MessageModel) -> Union[MessageModel, Image]:
         """Casts a message to the appropriate type.
