@@ -6,7 +6,7 @@ from functools import cached_property
 from pathlib import Path
 from typing import Any, Literal, Mapping, Optional, Self, Sequence, TypedDict, Union
 
-from pydantic import BaseModel, Field, ValidationError, computed_field, field_validator, validator
+from pydantic import BaseModel, Field, computed_field, field_validator
 
 from ._streaming import StreamResponse
 
@@ -643,7 +643,7 @@ class StreamConversation(AbstractContextManager):
         # Check if we have the complete prefix
         if prefix_idx >= 0:
             # Extract everything after the prefix
-            valid_content = content[prefix_idx + len(prefix) :]
+            valid_content = content[prefix_idx + len(prefix):]
             # if valid content is empty, indicates start of actual code content
             if not valid_content:
                 code_content = "\n\n```python\n"
