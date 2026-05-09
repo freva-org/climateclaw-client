@@ -13,7 +13,7 @@ import httpx
 
 from ._auth import TokenAuth
 from ._streaming import StreamResponse
-from ._utils import DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT
+from ._constants import DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT
 
 logger: logging.Logger = logging.getLogger(__name__)
 

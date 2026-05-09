@@ -10,7 +10,7 @@ from httpx import URL
 
 from ._base_client import AsyncAPIClient, SyncAPIClient
 from ._models import Conversation, Image, MessageModel, StreamConversation
-from ._utils import DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT, FREVAGPT_API_ENDPOINTS, OPENAPI_SPEC_PATH
+from ._constants import DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT, FREVAGPT_API_ENDPOINTS, OPENAPI_SPEC_PATH
 
 try:
     __version__ = metadata.version("jupyter_freva_gpt")
