@@ -1,7 +1,7 @@
 import base64
 import json
 import re
-from contextlib import ContextDecorator
+from contextlib import AbstractContextManager
 from functools import cached_property
 from pathlib import Path
 from typing import Any, Self, Literal, Mapping, Optional, Sequence, TypedDict, Union
@@ -181,7 +181,7 @@ class CodeOutput(BaseMessage):
         """
         markdown_str = ""
         for line in self.content.split("\n"):
-            markdown_str += f"\n> {line}\n>"
+            markdown_str += f"\n> {line}"
         return markdown_str
 
 
@@ -207,6 +207,9 @@ class StreamEnd(BaseMessage):
     """A stream end message."""
 
     variant: Literal["StreamEnd"]
+
+    def repr_markdown(self):
+        return ""
 
 
 class ServerHint(BaseMessage):
@@ -237,6 +240,9 @@ class ServerHint(BaseMessage):
             return json.loads(value)
         except json.JSONDecodeError:
             raise ValueError(f"Value {value} cannot be parsed as a json object.")
+    
+    def repr_markdown(self):
+        return ""
 
 
 class Image(BaseMessage):
@@ -480,7 +486,7 @@ class Conversation(BaseModel):
         return len(self.messages)
 
 
-class StreamConversation(ContextDecorator):
+class StreamConversation(AbstractContextManager):
     """Accumulates streaming message chunks and yields markdown-ready content.
 
     This class handles the type-specific logic for rendering streamed messages
@@ -495,6 +501,7 @@ class StreamConversation(ContextDecorator):
         stream_response: The underlying StreamResponse object.
         conversation: Cached Conversation instance after stream completes.
         _current_message: The current MessageModel being accumulated.
+        _buffered_content: Any message content that needs to be buffered for delayed processing.
     """
 
     def __init__(self, stream: StreamResponse):
@@ -506,6 +513,7 @@ class StreamConversation(ContextDecorator):
         self.stream_response: StreamResponse = stream
         self.conversation: Conversation | None = None
         self._current_message: MessageModel | None = None
+        self._buffered_content: str = ""
 
     def __enter__(self) -> Self:
         """Enters the context manager.
@@ -515,7 +523,7 @@ class StreamConversation(ContextDecorator):
         """
         return self
 
-    def __exit__(self, exc_type, exc_value, exc_traceback) -> None:
+    def __exit__(self, *exc_details) -> None:
         """Exits the context manager, closing the stream response.
 
         Args:
@@ -576,7 +584,7 @@ class StreamConversation(ContextDecorator):
             # Code Output is returned in one chunk, so it can be skipped in the incremental returns
             pass
         elif variant == "Code":
-            output.extend(self._process_code_chunk(content))
+            output.extend(self._process_code_chunk_for_md(content))
         else:
             # Text messages: yield the new chunk immediately
             output.append(content)
@@ -589,11 +597,20 @@ class StreamConversation(ContextDecorator):
             List of markdown strings for the completed previous message.
         """
         output: list[str] = []
+        self._buffered_content = ""
         if  self._current_message.variant in ["Image", "CodeOutput"] and self._current_message.content:
             output.append(self._current_message.repr_markdown() + "\n")
         return output
+    
+    @staticmethod
+    def _parse_escaped_chars(string: str) -> str:
+        """Parse string to replace various characters typically escaped in a json-like string."""
+        esc_char_dict = {"\\n": "\n", "\\t": "\t", "\\r": "\r", "\\\\": "\\", "\\\"": "\"", "\\'": "'"}
+        for esc_char, non_esc in esc_char_dict.items():
+            string = string.replace(esc_char, non_esc)
+        return string
 
-    def _process_code_chunk(self, code_chunk: str) -> list[str]:
+    def _process_code_chunk_for_md(self, code_chunk: str) -> list[str]:
         """Process Code message content, stripping prefix when detected.
 
         Handles case where prefix might be split across chunks by searching
@@ -608,25 +625,28 @@ class StreamConversation(ContextDecorator):
         output: list[str] = []
 
         content = self._current_message.content
-        code_content = ""
+        self._buffered_content += code_chunk
         prefix = '{"code":"'
+        suffix = '"}'
         prefix_idx = content.find(prefix)
         # Check if we have the complete prefix
         if prefix_idx >= 0:
             # Extract everything after the prefix
             valid_content = content[prefix_idx + len(prefix) :]
+            # if valid content is empty, indicates start of actual code content
             if not valid_content:
                 code_content = "\n\n```python\n"
-            elif code_chunk == "\\n":
-                code_content = "\n"
-            elif "\\n" in valid_content[-len(code_chunk)-1:]:
-                code_content = valid_content[-len(code_chunk)-1:].replace("\\n", "\n")
-            elif code_chunk[-1] == "\\":
-                code_content = code_chunk[:-1]
-            elif code_chunk == '"}':
-                code_content = "\n```\n\n"
+            # if buffered content ends with suffix, indicates end of code
+            elif self._buffered_content.endswith(suffix):
+                code_content = f"{self._buffered_content.lstrip(prefix).rstrip(suffix)}\n```\n\n"
+            # parse buffered content if it does not end with a (potentially) incomplete escape sequence
+            elif self._buffered_content[-1] != "\\":
+                code_content = self._parse_escaped_chars(self._buffered_content).lstrip(prefix).rstrip(suffix)
+                # reset buffered content
+                self._buffered_content = ""
+            # skip content if it includes incomplete escape sequence
             else:
-                code_content = code_chunk
+                code_content = ""
             if code_content:
                 output.append(code_content)
         return output
