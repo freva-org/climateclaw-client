@@ -95,7 +95,7 @@ class Assistant(BaseMessage):
 
     variant: Literal["Assistant"]
 
-    @computed_field # type: ignore[prop-decorator]
+    @computed_field  # type: ignore[prop-decorator]
     @cached_property
     def code_cells(self) -> list[str]:
         """Extracts python code cells from the assistant message.
@@ -236,12 +236,12 @@ class ServerHint(BaseMessage):
         if isinstance(value, dict):
             return value
         if isinstance(value, str):
-            value = value.replace("'", "\"")
+            value = value.replace("'", '"')
         try:
             return json.loads(value)
         except json.JSONDecodeError:
             raise ValueError(f"Value {value} cannot be parsed as a json object.")
-    
+
     def repr_markdown(self):
         return ""
 
@@ -401,7 +401,7 @@ class Conversation(BaseModel):
             format_str += f"[{i}] {mm.message.variant}:\n{mm.message.repr_content()}\n\n"
         return format_str
 
-    @computed_field # type: ignore[prop-decorator]
+    @computed_field  # type: ignore[prop-decorator]
     @cached_property
     def messages(self) -> list[MessageModel]:
         """Appends message chunks to create complete messages.
@@ -416,7 +416,7 @@ class Conversation(BaseModel):
         current_variant = ""
         result = []
         for m in self.raw_messages:
-            if current_variant != m.message.variant or current_variant=="ServerHint":
+            if current_variant != m.message.variant or current_variant == "ServerHint":
                 if current_variant and current_content:
                     result.append(
                         MessageModel(
@@ -433,7 +433,7 @@ class Conversation(BaseModel):
         )
         return result
 
-    @computed_field(repr=False) # type: ignore[prop-decorator]
+    @computed_field(repr=False)  # type: ignore[prop-decorator]
     @cached_property
     def code_cells(self) -> list[str]:
         """Extracts python code cells from the conversation.
@@ -545,7 +545,7 @@ class StreamConversation(AbstractContextManager):
         """
         if self.conversation:
             return self.conversation
-        raw_messages = [MessageModel(message=msg_dict) for msg_dict in self.stream_response.iter_json_objects()] # type: ignore[arg-type]
+        raw_messages = [MessageModel(message=msg_dict) for msg_dict in self.stream_response.iter_json_objects()]  # type: ignore[arg-type]
         self.conversation = Conversation(raw_messages=raw_messages)
         return self.conversation
 
@@ -573,7 +573,7 @@ class StreamConversation(AbstractContextManager):
             self._current_message = MessageModel(**message_chunk.model_dump())
         else:
             # Accumulate content
-            self._current_message.content += content # type: ignore[operator]
+            self._current_message.content += content  # type: ignore[operator]
 
         # Type-specific handling for current variant
         if variant == "Image":
@@ -598,14 +598,25 @@ class StreamConversation(AbstractContextManager):
         """
         output: list[str] = []
         self._buffered_content = ""
-        if self._current_message and self._current_message.variant in ["Image", "CodeOutput"] and self._current_message.content:
+        if (
+            self._current_message
+            and self._current_message.variant in ["Image", "CodeOutput"]
+            and self._current_message.content
+        ):
             output.append(self._current_message.repr_markdown() + "\n")
         return output
-    
+
     @staticmethod
     def _parse_escaped_chars(string: str) -> str:
         """Parse string to replace various characters typically escaped in a json-like string."""
-        esc_char_dict = {"\\n": "\n", "\\t": "\t", "\\r": "\r", "\\\\": "\\", "\\\"": "\"", "\\'": "'"}
+        esc_char_dict = {
+            "\\n": "\n",
+            "\\t": "\t",
+            "\\r": "\r",
+            "\\\\": "\\",
+            '\\"': '"',
+            "\\'": "'",
+        }
         for esc_char, non_esc in esc_char_dict.items():
             string = string.replace(esc_char, non_esc)
         return string
@@ -641,7 +652,9 @@ class StreamConversation(AbstractContextManager):
                 code_content = f"{self._buffered_content.lstrip(prefix).rstrip(suffix)}\n```\n\n"
             # parse buffered content if it does not end with a (potentially) incomplete escape sequence
             elif self._buffered_content[-1] != "\\":
-                code_content = self._parse_escaped_chars(self._buffered_content).lstrip(prefix).rstrip(suffix)
+                code_content = (
+                    self._parse_escaped_chars(self._buffered_content).lstrip(prefix).rstrip(suffix)
+                )
                 # reset buffered content
                 self._buffered_content = ""
             # skip content if it includes incomplete escape sequence
