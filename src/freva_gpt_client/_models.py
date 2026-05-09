@@ -4,7 +4,7 @@ import re
 from contextlib import AbstractContextManager
 from functools import cached_property
 from pathlib import Path
-from typing import Any, Self, Literal, Mapping, Optional, Sequence, TypedDict, Union
+from typing import Any, Literal, Mapping, Optional, Self, Sequence, TypedDict, Union
 
 from pydantic import BaseModel, Field, ValidationError, computed_field, field_validator, validator
 

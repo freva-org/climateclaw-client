@@ -12,8 +12,8 @@ from typing import Any, Dict, Generic, TypeVar, Union
 import httpx
 
 from ._auth import TokenAuth
-from ._streaming import StreamResponse
 from ._constants import DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT
+from ._streaming import StreamResponse
 
 logger: logging.Logger = logging.getLogger(__name__)
 
