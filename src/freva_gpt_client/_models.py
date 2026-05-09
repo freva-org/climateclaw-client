@@ -125,6 +125,7 @@ class Code(BaseMessage):
     """A code message containing Python code."""
 
     variant: Literal["Code"]
+    content: str
 
     @computed_field(repr=False)  # type: ignore[prop-decorator]
     @property
@@ -331,7 +332,7 @@ class MessageModel(BaseModel):
     ] = Field(discriminator="variant")
 
     @property
-    def content(self) -> str:
+    def content(self) -> Union[str, Sequence[str], Mapping[str, Any]]:
         """Gets the content of the underlying message.
 
         Returns:
@@ -358,7 +359,7 @@ class MessageModel(BaseModel):
         return self.message.variant
 
     @variant.setter
-    def variant(self, variant: str) -> None:
+    def variant(self, variant) -> None:
         """Sets the variant of the underlying message.
 
         Args:
@@ -466,7 +467,7 @@ class Conversation(BaseModel):
         """
         return self._format_messages_for_chat()
 
-    def __getitem__(self, indexes: int | tuple[int, int, int]):
+    def __getitem__(self, index):
         """Indexes into the messages list.
 
         Args:
@@ -475,7 +476,7 @@ class Conversation(BaseModel):
         Returns:
             MessageModel or list of MessageModel instances.
         """
-        return self.messages[indexes]
+        return self.messages.__getitem__(index)
 
     def __len__(self) -> int:
         """Returns the number of messages in the conversation.
@@ -532,7 +533,6 @@ class StreamConversation(AbstractContextManager):
             exc_traceback: Exception traceback if raised.
         """
         self.stream_response.close()
-        return False
 
     def translate_to_conversation(self) -> Conversation:
         """Converts the streamed messages to a Conversation instance.
@@ -545,7 +545,7 @@ class StreamConversation(AbstractContextManager):
         """
         if self.conversation:
             return self.conversation
-        raw_messages = [MessageModel(message=msg_dict) for msg_dict in self.stream_response.iter_json_objects()]
+        raw_messages = [MessageModel(message=msg_dict) for msg_dict in self.stream_response.iter_json_objects()] # type: ignore[arg-type]
         self.conversation = Conversation(raw_messages=raw_messages)
         return self.conversation
 
@@ -573,7 +573,7 @@ class StreamConversation(AbstractContextManager):
             self._current_message = MessageModel(**message_chunk.model_dump())
         else:
             # Accumulate content
-            self._current_message.content += content
+            self._current_message.content += content # type: ignore[operator]
 
         # Type-specific handling for current variant
         if variant == "Image":
@@ -598,7 +598,7 @@ class StreamConversation(AbstractContextManager):
         """
         output: list[str] = []
         self._buffered_content = ""
-        if  self._current_message.variant in ["Image", "CodeOutput"] and self._current_message.content:
+        if self._current_message and self._current_message.variant in ["Image", "CodeOutput"] and self._current_message.content:
             output.append(self._current_message.repr_markdown() + "\n")
         return output
     
@@ -624,7 +624,7 @@ class StreamConversation(AbstractContextManager):
         """
         output: list[str] = []
 
-        content = self._current_message.content
+        content = str(self._current_message.content) if self._current_message else ""
         self._buffered_content += code_chunk
         prefix = '{"code":"'
         suffix = '"}'

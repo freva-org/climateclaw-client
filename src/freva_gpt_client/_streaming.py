@@ -134,6 +134,8 @@ class StreamResponse:
         Yields:
             dict: Complete JSON objects parsed from the stream.
         """
+        complete_parts: list[dict]
+        partial_response: str
         complete_parts, partial_response = [], ""
         for chunk in self._response.iter_bytes():
             chunk_decoded = chunk.decode("utf-8")
@@ -150,6 +152,8 @@ class StreamResponse:
         Yields:
             dict: Complete JSON objects parsed from the stream.
         """
+        complete_parts: list[dict]
+        partial_response: str
         complete_parts, partial_response = [], ""
         async for chunk in self._response.aiter_bytes():
             chunk_decoded = chunk.decode("utf-8")
