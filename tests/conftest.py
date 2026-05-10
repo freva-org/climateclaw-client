@@ -1,27 +1,8 @@
 """Pytest fixtures for freva-gpt-client tests."""
 
 import base64
-from pathlib import Path
 
 import pytest
-
-from freva_gpt_client.models import (
-    Assistant,
-    BaseMessage,
-    Code,
-    CodeError,
-    CodeOutput,
-    Conversation,
-    Image,
-    MessageModel,
-    OpenAIError,
-    Prompt,
-    ServerError,
-    ServerHint,
-    StreamEnd,
-    User,
-)
-
 
 @pytest.fixture
 def sample_code_content():
