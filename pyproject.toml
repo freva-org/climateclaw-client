@@ -1,0 +1,113 @@
+[build-system]
+requires = ["setuptools", "versioneer[toml]"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "freva_gpt_client"
+dynamic = ["version"]
+description = "FrevaGPT Client library for connecting and interacting with an instance of the FrevaGPT chatbot."
+
+readme = "README.md"
+authors = [
+    { name = 'Felix Oertel', email = 'oertel@dkrz.de' },
+]
+maintainers = [
+    { name = 'Felix Oertel', email = 'oertel@dkrz.de' },
+]
+license = { text = 'EUPL-1.2' }
+
+classifiers = [
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: European Union Public Licence 1.2 (EUPL 1.2)",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.13",
+    "Typing :: Typed",
+]
+
+requires-python = '>= 3.10'
+dependencies = [
+    # add your dependencies here
+    "httpx",
+    "pydantic",
+    "py_oidc_auth_client",
+]
+
+[project.urls]
+Homepage = "https://github.com/freva-org/freva-gpt-client"
+
+Documentation = "https://freva-gpt-client.readthedocs.io/en/latest/"
+
+Source = "https://github.com/freva-org/freva-gpt-client"
+Tracker = "https://github.com/freva-org/freva-gpt-client/issues"
+
+
+[project.optional-dependencies]
+testsite = [
+    "tox",
+    "isort",
+    "black",
+    "blackdoc",
+    "flake8",
+    "pre-commit",
+    "mypy",
+    "pytest",
+    "pytest-cov",
+    "setuptools",
+]
+docs = [
+    "autodocsumm",
+    "sphinx-rtd-theme",
+    "sphinx-design",
+    "myst_parser",
+]
+dev = [
+    "freva_gpt_client[testsite]",
+    "freva_gpt_client[docs]",
+]
+
+[tool.mypy]
+ignore_missing_imports = true
+
+[tool.setuptools]
+zip-safe = false
+license-files = ["LICENSES/*"]
+
+[tool.setuptools.package-data]
+recalibration = ["py.typed"]
+
+[tool.setuptools.packages.find]
+namespaces = false
+exclude = [
+    'docs',
+    'tests*',
+]
+
+[tool.pytest.ini_options]
+addopts = '-v'
+pythonpath = [
+  ".", "src"
+]
+
+[tool.versioneer]
+VCS = 'git'
+style = 'pep440'
+versionfile_source = 'src/freva_gpt_client/_version.py'
+versionfile_build = 'src/freva_gpt_client/_version.py'
+tag_prefix = ''
+
+[tool.isort]
+profile = "black"
+line_length = 100
+src_paths = ["src/freva_gpt_client"]
+float_to_top = true
+known_first_party = "freva_gpt_client"
+
+[tool.black]
+line-length = 100
+target-version = ['py310']
+
+[tool.coverage.run]
+omit = ["src/freva_gpt_client/_version.py", "tests/conftest.py"]
