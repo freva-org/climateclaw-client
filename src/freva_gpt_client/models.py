@@ -1,14 +1,20 @@
 import base64
 import json
 import re
+import sys
 from contextlib import AbstractContextManager
 from functools import cached_property
 from pathlib import Path
-from typing import Any, Literal, Mapping, Optional, Self, Sequence, TypedDict, Union
+from typing import Any, Literal, Mapping, Optional, Sequence, TypedDict, Union
 
 from pydantic import BaseModel, Field, computed_field, field_validator
 
 from ._streaming import StreamResponse
+
+if sys.version_info.minor < 11:
+    from typing_extensions import Self
+else:
+    from typing import Self
 
 
 class BaseMessage(BaseModel):
