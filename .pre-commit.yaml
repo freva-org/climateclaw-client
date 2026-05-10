@@ -1,0 +1,50 @@
+# https://pre-commit.com/
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+  # isort should run before black as black sometimes tweaks the isort output
+  - repo: https://github.com/PyCQA/isort
+    rev: 8.0.1
+    hooks:
+      - id: isort
+        args:
+          - --profile
+          - black
+          - --line-length
+          - "100"
+          - --filter-files
+          - -skip-gitignore
+          - --float-to-top
+  # https://github.com/python/black#version-control-integration
+  - repo: https://github.com/psf/black
+    rev: 26.1.0
+    hooks:
+      - id: black
+        args:
+          - --line-length
+          - "100"
+          - --exclude
+          - venv
+  - repo: https://github.com/keewis/blackdoc
+    rev: v0.4.6
+    hooks:
+      - id: blackdoc
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.3.0
+    hooks:
+      - id: flake8
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.19.1
+    hooks:
+      - id: mypy
+        additional_dependencies:
+          - types-PyYAML
+          - types-toml
+        args:
+          - --ignore-missing-imports
+          - --install-types
+          - --explicit-package-bases
