@@ -125,7 +125,7 @@ class StreamResponse:
                 complete_parts.append(recurse_dict(json.loads(fixed_part)))
         return complete_parts, partial_response
 
-    def iter_json_objects(self) -> Generator[dict]:
+    def iter_json_objects(self) -> Generator[dict, None, None]:
         """Generator that yields complete JSON dicts from the stream.
 
         Iterates over the response bytes, processes chunks, and yields
@@ -143,7 +143,7 @@ class StreamResponse:
             for part in complete_parts:
                 yield part
 
-    async def aiter_json_objects(self) -> AsyncGenerator[dict]:
+    async def aiter_json_objects(self) -> AsyncGenerator[dict, None]:
         """Async generator that yields complete JSON dicts from the stream.
 
         Asynchronously iterates over the response bytes, processes chunks,
