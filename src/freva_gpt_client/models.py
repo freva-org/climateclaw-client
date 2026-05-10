@@ -161,7 +161,7 @@ class Code(BaseMessage):
             Markdown string with code in a Python code block.
         """
         if self.code_cells:
-            markdown_str = f"\n```python\n{"\n".join(self.code_cells)}\n```\n"
+            markdown_str = f"\n```python\n{'\n'.join(self.code_cells)}\n```\n"
             return markdown_str
         return ""
 
