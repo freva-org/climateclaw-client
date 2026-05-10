@@ -4,6 +4,7 @@ import base64
 
 import pytest
 
+
 @pytest.fixture
 def sample_code_content():
     """Sample valid Code message content."""
