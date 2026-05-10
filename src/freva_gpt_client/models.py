@@ -643,7 +643,7 @@ class StreamConversation(AbstractContextManager):
         # Check if we have the complete prefix
         if prefix_idx >= 0:
             # Extract everything after the prefix
-            valid_content = content[prefix_idx + len(prefix):]
+            valid_content = content[prefix_idx + len(prefix) :]
             # if valid content is empty, indicates start of actual code content
             if not valid_content:
                 code_content = "\n\n```python\n"
