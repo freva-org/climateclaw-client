@@ -2,27 +2,27 @@
 
 import base64
 import json
-import pytest
 from pathlib import Path
 
+import pytest
+
 from freva_gpt_client.models import (
-    BaseMessage,
-    Prompt,
-    User,
     Assistant,
+    BaseMessage,
     Code,
-    CodeOutput,
-    ServerError,
-    OpenAIError,
     CodeError,
-    StreamEnd,
-    ServerHint,
+    CodeOutput,
+    Conversation,
     Image,
     MessageModel,
-    Conversation,
+    OpenAIError,
+    Prompt,
+    ServerError,
+    ServerHint,
     StreamConversation,
+    StreamEnd,
+    User,
 )
-
 
 # =============================================================================
 # BaseMessage Tests
