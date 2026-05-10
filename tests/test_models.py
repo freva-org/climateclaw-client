@@ -1,7 +1,5 @@
 """Unit tests for message models in freva-gpt-client."""
 
-import base64
-import json
 from pathlib import Path
 
 import pytest
