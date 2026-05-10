@@ -1,5 +1,8 @@
 # FrevaGPT Client
 
+[![License](https://github.com/eClip-/EUPL-badge/blob/master/eupl_1.2.svg)](LICENSE)
+[![docs](https://readthedocs.org/projects/freva-gpt-client/badge/?version=latest)](https://freva-gpt-client.readthedocs.io/en/latest/?badge=latest)
+
 A Python client library for interacting with the [FrevaGPT backend](https://github.com/freva-org/freva-gpt-backend-py). This library provides both synchronous and asynchronous (not yet fully implemented) interfaces for communicating with a FrevaGPT chatbot instance.
 
 **Features:**
