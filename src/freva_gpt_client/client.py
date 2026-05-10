@@ -15,7 +15,7 @@ from ._constants import (
     FREVAGPT_API_ENDPOINTS,
     OPENAPI_SPEC_PATH,
 )
-from ._models import Conversation, Image, MessageModel, StreamConversation
+from .models import Conversation, Image, MessageModel, StreamConversation
 
 try:
     __version__ = metadata.version("jupyter_freva_gpt")

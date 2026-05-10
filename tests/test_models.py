@@ -5,7 +5,7 @@ import json
 import pytest
 from pathlib import Path
 
-from freva_gpt_client._models import (
+from freva_gpt_client.models import (
     BaseMessage,
     Prompt,
     User,
