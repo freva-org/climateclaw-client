@@ -1,0 +1,50 @@
+name: Linting
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install .[testsite]
+
+      - name: Run isort
+        run: |
+          isort --profile black --line-length 100 --float-to-top --check-only src/ tests/
+
+      - name: Run black
+        run: |
+          black --line-length 100 --check src/ tests/
+
+      - name: Run blackdoc
+        run: |
+          blackdoc --line-length 100 --check src/ tests/
+
+      - name: Run flake8
+        run: |
+          flake8 src/ tests/
+
+      - name: Run mypy
+        run: |
+          mypy --ignore-missing-imports --install-types --explicit-package-bases src/
+
+      - name: Check YAML files
+        run: |
+          python -m pip install pyyaml
+          python -c "import yaml; yaml.safe_load(open('.pre-commit.yaml')); yaml.safe_load(open('.github/workflows/test.yml')); yaml.safe_load(open('.github/workflows/lint.yml'))"
+
+      - name: Check for trailing whitespace
+        run: |
+          grep -r --include='*.py' --include='*.yaml' --include='*.yml' --include='*.toml' -P '\s+$' . && exit 1 || exit 0
