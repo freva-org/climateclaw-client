@@ -380,7 +380,12 @@ class TestMessageModel:
             ("CodeOutput", "output", CodeOutput, "output"),
             ("Image", "base64data", Image, "base64data"),
             ("ServerError", "error", ServerError, "error"),
-            ("ServerHint", '{"key": "val"}', ServerHint, {"key": "val"}),  # ServerHint parses JSON string to dict
+            (
+                "ServerHint",
+                '{"key": "val"}',
+                ServerHint,
+                {"key": "val"},
+            ),  # ServerHint parses JSON string to dict
             ("Prompt", "prompt", Prompt, "prompt"),
             ("OpenAIError", "error", OpenAIError, "error"),
             ("CodeError", "error", CodeError, "error"),
@@ -524,8 +529,6 @@ class TestConversation:
         assert "x=1" in markdown
         assert markdown.endswith("\n")
 
-
-
     def test_str_format(self):
         """Test __str__ returns formatted chat string."""
         messages = [
@@ -578,8 +581,6 @@ class TestConversation:
         ]
         conv = Conversation(raw_messages=messages)
         assert len(conv) == 2
-
-
 
 
 # =============================================================================
@@ -722,8 +723,8 @@ class TestProcessCodeChunk:
 
         # Simulate prefix arriving in chunks
         chunk1 = MessageModel(message={"variant": "Code", "content": '{"'})
-        chunk2 = MessageModel(message={"variant": "Code", "content": 'code'})
-        chunk3 = MessageModel(message={"variant": "Code", "content": '\":\"'})
+        chunk2 = MessageModel(message={"variant": "Code", "content": "code"})
+        chunk3 = MessageModel(message={"variant": "Code", "content": '":"'})
 
         stream_conv.process_chunk(chunk1)
         stream_conv.process_chunk(chunk2)
@@ -744,7 +745,7 @@ class TestProcessCodeChunk:
         stream_conv.process_chunk(prefix_chunk)
 
         # Then backslash
-        backslash_chunk = MessageModel(message={"variant": "Code", "content": '\\'})
+        backslash_chunk = MessageModel(message={"variant": "Code", "content": "\\"})
         output1 = stream_conv.process_chunk(backslash_chunk)
 
         # Should buffer, no output
@@ -762,15 +763,15 @@ class TestProcessCodeChunk:
         stream_conv.process_chunk(prefix_chunk)
 
         # Send backslash
-        backslash_chunk = MessageModel(message={"variant": "Code", "content": '\\'})
+        backslash_chunk = MessageModel(message={"variant": "Code", "content": "\\"})
         stream_conv.process_chunk(backslash_chunk)
 
         # Send n
-        n_chunk = MessageModel(message={"variant": "Code", "content": 'n'})
+        n_chunk = MessageModel(message={"variant": "Code", "content": "n"})
         output = stream_conv.process_chunk(n_chunk)
 
         # Should output newline
-        assert any('\n' == o or '\n' in o for o in output)
+        assert any("\n" == o or "\n" in o for o in output)
 
     def test_non_escape_backslash_preserved(self):
         """Test that backslash not part of escape sequence is preserved."""
@@ -784,15 +785,15 @@ class TestProcessCodeChunk:
         stream_conv.process_chunk(prefix_chunk)
 
         # Send backslash
-        backslash_chunk = MessageModel(message={"variant": "Code", "content": '\\'})
+        backslash_chunk = MessageModel(message={"variant": "Code", "content": "\\"})
         stream_conv.process_chunk(backslash_chunk)
 
         # Send x (not an escape sequence)
-        x_chunk = MessageModel(message={"variant": "Code", "content": 'x'})
+        x_chunk = MessageModel(message={"variant": "Code", "content": "x"})
         output = stream_conv.process_chunk(x_chunk)
 
         # Should output \x
-        assert any('\\x' in o for o in output)
+        assert any("\\x" in o for o in output)
 
     def test_suffix_detection(self):
         """Test that suffix '\"}' completes the code block."""
@@ -806,7 +807,7 @@ class TestProcessCodeChunk:
         output = stream_conv.process_chunk(chunk)
 
         # Should detect suffix and output code block end
-        assert any('```' in o for o in output)
+        assert any("```" in o for o in output)
 
 
 # =============================================================================
