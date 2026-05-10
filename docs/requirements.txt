@@ -1,0 +1,5 @@
+sphinx>=7.0
+pydata-sphinx-theme>=0.7
+sphinx-autodoc2>=0.5.0
+autodocsumm>=0.2.12
+myst-parser>=2.0

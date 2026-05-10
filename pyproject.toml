@@ -58,10 +58,11 @@ testsite = [
     "setuptools",
 ]
 docs = [
-    "autodocsumm",
-    "sphinx-rtd-theme",
-    "sphinx-design",
-    "myst_parser",
+    "sphinx>=7.0",
+    "sphinx-rtd-theme>=2.0",
+    "sphinx-autodoc2>=0.5.0",
+    "autodocsumm>=0.2.12",
+    "myst-parser>=2.0",
 ]
 dev = [
     "freva_gpt_client[testsite]",
