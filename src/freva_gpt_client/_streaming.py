@@ -1,5 +1,5 @@
 import json
-from typing import Any, AsyncGenerator, Generator
+from typing import Any, AsyncGenerator, Dict, Generator, List, Tuple
 
 import httpx
 
@@ -42,7 +42,7 @@ class StreamResponse:
         return self._response.is_closed
 
     @staticmethod
-    def _process_chunks(chunk: str, partial_response: str = "") -> tuple[list[dict], str]:
+    def _process_chunks(chunk: str, partial_response: str = "") -> Tuple[List[dict], str]:
         """Processes a chunk of string data containing JSON-like objects.
 
         Handles cases where JSON objects are split across chunks by tracking
@@ -57,7 +57,7 @@ class StreamResponse:
             A tuple of (list of complete JSON dicts, remaining partial string).
         """
 
-        def recurse_dict(d: dict[str, Any]) -> dict[str, Any]:
+        def recurse_dict(d: Dict[str, Any]) -> Dict[str, Any]:
             """Recursively parses JSON strings within a dictionary as dicts."""
             for key, value in d.items():
                 if isinstance(value, str):
@@ -134,7 +134,7 @@ class StreamResponse:
         Yields:
             dict: Complete JSON objects parsed from the stream.
         """
-        complete_parts: list[dict]
+        complete_parts: List[dict]
         partial_response: str
         complete_parts, partial_response = [], ""
         for chunk in self._response.iter_bytes():
@@ -143,7 +143,7 @@ class StreamResponse:
             for part in complete_parts:
                 yield part
 
-    async def aiter_json_objects(self) -> AsyncGenerator[dict, None]:
+    async def aiter_json_objects(self) -> AsyncGenerator[Dict[str, Any], None]:
         """Async generator that yields complete JSON dicts from the stream.
 
         Asynchronously iterates over the response bytes, processes chunks,
@@ -152,7 +152,7 @@ class StreamResponse:
         Yields:
             dict: Complete JSON objects parsed from the stream.
         """
-        complete_parts: list[dict]
+        complete_parts: List[dict]
         partial_response: str
         complete_parts, partial_response = [], ""
         async for chunk in self._response.aiter_bytes():
