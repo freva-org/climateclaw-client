@@ -54,7 +54,7 @@ class BaseClient(Generic[_HttpxClientT]):
         follow_redirects: bool = True,
         max_retries: int = DEFAULT_MAX_RETRIES,
         timeout: float = DEFAULT_TIMEOUT,
-        custom_headers: dict[str, str] | None = None,
+        custom_headers: Dict[str, str] | None = None,
     ):
         """Initializes the base client with configuration options.
 
@@ -81,7 +81,7 @@ class BaseClient(Generic[_HttpxClientT]):
         return TokenAuth(base_url=self.base_url, token_store_path=self._token_store_path)
 
     @cached_property
-    def default_headers(self) -> dict[str, Any]:
+    def default_headers(self) -> Dict[str, Any]:
         """Default headers for all API requests.
 
         Returns:
@@ -249,10 +249,10 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
                 res.raise_for_status()
                 return StreamResponse(res)
             except httpx.HTTPError as e:
-                if retries_taken < self.max_retries:
-                    await self._sleep_for_retry(retries_taken=retries_taken)
-                    continue
-                if isinstance(e, httpx.RequestError):
+                if isinstance(e, httpx.TimeoutException):
+                    if retries_taken < self.max_retries:
+                        await self._sleep_for_retry(retries_taken=retries_taken)
+                        continue
                     raise ConnectionError(
                         f"Failed to connect to url {self._parse_host(e.request.url)}. Please try again.",
                     ) from None
@@ -273,10 +273,10 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
                 r.raise_for_status()
                 break
             except httpx.HTTPError as e:
-                if retries_taken < self.max_retries:
-                    await self._sleep_for_retry(retries_taken=retries_taken)
-                    continue
-                if isinstance(e, httpx.RequestError):
+                if isinstance(e, httpx.TimeoutException):
+                    if retries_taken < self.max_retries:
+                        await self._sleep_for_retry(retries_taken=retries_taken)
+                        continue
                     raise ConnectionError(
                         f"Failed to connect to {self._parse_host(e.request.url)}. Please try again."
                     ) from None
@@ -414,10 +414,10 @@ class SyncAPIClient(BaseClient[httpx.Client]):
                 res.raise_for_status()
                 return StreamResponse(res)
             except httpx.HTTPError as e:
-                if retries_taken < self.max_retries:
-                    self._sleep_for_retry(retries_taken=retries_taken)
-                    continue
-                if isinstance(e, httpx.RequestError):
+                if isinstance(e, httpx.TimeoutException):
+                    if retries_taken < self.max_retries:
+                        self._sleep_for_retry(retries_taken=retries_taken)
+                        continue
                     raise ConnectionError(
                         f"Failed to connect to url {self._parse_host(e.request.url)}. Please try again.",
                     ) from None
@@ -438,10 +438,10 @@ class SyncAPIClient(BaseClient[httpx.Client]):
                 r.raise_for_status()
                 break
             except httpx.HTTPError as e:
-                if retries_taken < self.max_retries:
-                    self._sleep_for_retry(retries_taken=retries_taken)
-                    continue
-                if isinstance(e, httpx.RequestError):
+                if isinstance(e, httpx.TimeoutException):
+                    if retries_taken < self.max_retries:
+                        self._sleep_for_retry(retries_taken=retries_taken)
+                        continue
                     raise ConnectionError(
                         f"Failed to connect to {self._parse_host(e.request.url)}. Please try again."
                     ) from None

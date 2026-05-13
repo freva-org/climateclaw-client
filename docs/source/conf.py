@@ -10,10 +10,11 @@ import os
 import sys
 from datetime import datetime
 
+import freva_gpt_client
+
 # Add the project root to the Python path
 sys.path.insert(0, os.path.abspath("../../src"))
 
-import freva_gpt_client
 
 # debug that building expected version
 print(f"Building Documentation for FrevaGPT Client: {freva_gpt_client.__version__}")
@@ -21,7 +22,10 @@ print(f"Building Documentation for FrevaGPT Client: {freva_gpt_client.__version_
 project = "freva-gpt-client"
 copyright = f"{datetime.now().year}, DKRZ"
 author = "Felix Oertel"
-version = freva_gpt_client.__version__
+# extract version tag, label as "latest" if version string includes more than just a version tag
+full_version: str = str(freva_gpt_client.__version__)
+version_parts = full_version.split("+")
+version = "latest" if len(version_parts) > 1 else full_version
 release = version
 
 # -- General configuration ---------------------------------------------------
@@ -34,7 +38,7 @@ extensions = [
 ]
 
 templates_path = ["_templates"]
-clude_patterns = []
+clude_patterns = []  # type: ignore[var-annotated]
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
@@ -62,12 +66,8 @@ html_theme_options = {
     "secondary_sidebar_items": ["page-toc"],
 }
 
-html_sidebars = {
-  "**": []
-}
-html_context = {
-   "default_mode": "light"
-}
+html_sidebars = {"**": []}  # type: ignore[var-annotated]
+html_context = {"default_mode": "light"}
 
 # Custom CSS
 html_css_files = ["custom.css"]

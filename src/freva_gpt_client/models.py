@@ -5,7 +5,7 @@ import sys
 from contextlib import AbstractContextManager
 from functools import cached_property
 from pathlib import Path
-from typing import Any, Literal, Mapping, Optional, Sequence, TypedDict, Union
+from typing import Any, Callable, Dict, List, Literal, Mapping, Optional, Sequence, Union
 
 from pydantic import BaseModel, Field, computed_field, field_validator
 
@@ -60,7 +60,7 @@ class BaseMessage(BaseModel):
 
     @computed_field(repr=False)  # type: ignore[prop-decorator]
     @cached_property
-    def code_cells(self) -> list[str]:
+    def code_cells(self) -> List[str]:
         """Representation of code cells included in a given message.
 
         By default returns an empty list.
@@ -103,7 +103,7 @@ class Assistant(BaseMessage):
 
     @computed_field  # type: ignore[prop-decorator]
     @cached_property
-    def code_cells(self) -> list[str]:
+    def code_cells(self) -> List[str]:
         """Extracts python code cells from the assistant message.
 
         Finds all Python code blocks (between ```python and ``` markers)
@@ -124,9 +124,6 @@ class Assistant(BaseMessage):
         return result
 
 
-CodeContent = TypedDict("CodeContent", {"code": str})
-
-
 class Code(BaseMessage):
     """A code message containing Python code."""
 
@@ -135,7 +132,7 @@ class Code(BaseMessage):
 
     @computed_field(repr=False)  # type: ignore[prop-decorator]
     @property
-    def code_cells(self) -> list[str]:
+    def code_cells(self) -> List[str]:
         """Extracts code cells from the JSON content.
 
         Returns:
@@ -223,7 +220,7 @@ class ServerHint(BaseMessage):
     """A server hint message containing structured hint data."""
 
     variant: Literal["ServerHint"]
-    content: dict[str, str | int | float]
+    content: Dict[str, str | int | float]
 
     @field_validator("content", mode="before")
     @classmethod
@@ -409,7 +406,7 @@ class Conversation(BaseModel):
 
     @computed_field  # type: ignore[prop-decorator]
     @cached_property
-    def messages(self) -> list[MessageModel]:
+    def messages(self) -> List[MessageModel]:
         """Appends message chunks to create complete messages.
 
         Combines message chunks that have the same variant into complete messages.
@@ -441,7 +438,7 @@ class Conversation(BaseModel):
 
     @computed_field(repr=False)  # type: ignore[prop-decorator]
     @cached_property
-    def code_cells(self) -> list[str]:
+    def code_cells(self) -> List[str]:
         """Extracts python code cells from the conversation.
 
         Returns:
@@ -511,7 +508,7 @@ class StreamConversation(AbstractContextManager):
         _buffered_content: Any message content that needs to be buffered for delayed processing.
     """
 
-    def __init__(self, stream: StreamResponse):
+    def __init__(self, stream: StreamResponse, on_exit_callback: Callable | None = None):
         """Initializes the class with a StreamResponse.
 
         Args:
@@ -521,6 +518,7 @@ class StreamConversation(AbstractContextManager):
         self.conversation: Conversation | None = None
         self._current_message: MessageModel | None = None
         self._buffered_content: str = ""
+        self._on_exit_callback: Callable | None = on_exit_callback
 
     def __enter__(self) -> Self:
         """Enters the context manager.
@@ -534,11 +532,11 @@ class StreamConversation(AbstractContextManager):
         """Exits the context manager, closing the stream response.
 
         Args:
-            exc_type: Exception type if raised.
-            exc_value: Exception value if raised.
-            exc_traceback: Exception traceback if raised.
+            exc_details: Arguments describing exception, if raised
         """
         self.stream_response.close()
+        if self._on_exit_callback:
+            self._on_exit_callback()
 
     def translate_to_conversation(self) -> Conversation:
         """Converts the streamed messages to a Conversation instance.
@@ -555,7 +553,7 @@ class StreamConversation(AbstractContextManager):
         self.conversation = Conversation(raw_messages=raw_messages)
         return self.conversation
 
-    def process_chunk(self, message_chunk: MessageModel) -> list[str]:
+    def process_chunk(self, message_chunk: MessageModel) -> List[str]:
         """Process a streamed message chunk and return markdown-ready strings.
 
         Args:
@@ -568,7 +566,7 @@ class StreamConversation(AbstractContextManager):
         variant = message_chunk.variant
         content = str(message_chunk.content)
 
-        output: list[str] = []
+        output: List[str] = []
 
         # If first message chunk, set current message to message_chunk
         if not self._current_message:
@@ -596,13 +594,13 @@ class StreamConversation(AbstractContextManager):
             output.append(content)
         return output
 
-    def _flush_previous(self) -> list[str]:
+    def _flush_previous(self) -> List[str]:
         """Flush buffered content when variant changes.
 
         Returns:
             List of markdown strings for the completed previous message.
         """
-        output: list[str] = []
+        output: List[str] = []
         self._buffered_content = ""
         if (
             self._current_message
@@ -627,7 +625,7 @@ class StreamConversation(AbstractContextManager):
             string = string.replace(esc_char, non_esc)
         return string
 
-    def _process_code_chunk_for_md(self, code_chunk: str) -> list[str]:
+    def _process_code_chunk_for_md(self, code_chunk: str) -> List[str]:
         """Process Code message content, stripping prefix when detected.
 
         Handles case where prefix might be split across chunks by searching
@@ -639,7 +637,7 @@ class StreamConversation(AbstractContextManager):
         Returns:
             List of markdown strings (code content with prefix stripped).
         """
-        output: list[str] = []
+        output: List[str] = []
 
         content = str(self._current_message.content) if self._current_message else ""
         self._buffered_content += code_chunk
@@ -695,5 +693,9 @@ class StreamConversation(AbstractContextManager):
         Yields:
             Raw message dictionaries as they arrive from the stream.
         """
+        raw_messages = []
         for msg_dict in self.stream_response.iter_json_objects():
             yield msg_dict
+            raw_messages.append(MessageModel(message=msg_dict))
+        # save completed response as a conversation instance
+        self.conversation = Conversation(raw_messages=raw_messages)

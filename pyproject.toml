@@ -3,7 +3,7 @@ requires = ["setuptools", "versioneer[toml]"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "freva_gpt_client"
+name = "freva-gpt-client"
 dynamic = ["version"]
 description = "FrevaGPT Client library for connecting and interacting with an instance of the FrevaGPT chatbot."
 
@@ -59,7 +59,7 @@ testsite = [
 ]
 docs = [
     "sphinx>=7.0",
-    "sphinx-rtd-theme>=2.0",
+    "pydata-sphinx-theme>=0.7",
     "sphinx-autodoc2>=0.5.0",
     "autodocsumm>=0.2.12",
     "myst-parser>=2.0",
@@ -71,13 +71,14 @@ dev = [
 
 [tool.mypy]
 ignore_missing_imports = true
+exclude = "docs/*"
 
 [tool.setuptools]
 zip-safe = false
 license-files = ["LICENSES/*"]
 
 [tool.setuptools.package-data]
-recalibration = ["py.typed"]
+freva_gpt_client = ["py.typed"]
 
 [tool.setuptools.packages.find]
 namespaces = false

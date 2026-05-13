@@ -2,6 +2,7 @@ import logging
 import os
 from datetime import datetime
 from pathlib import Path
+from typing import Dict
 
 import httpx
 from py_oidc_auth_client import AuthError, Token, TokenStore, authenticate  # type: ignore
@@ -107,7 +108,7 @@ class TokenAuth(httpx.Auth):
                 )
         return self.auth_token
 
-    def get_auth_headers(self) -> dict[str, str]:
+    def get_auth_headers(self) -> Dict[str, str]:
         """Gets the authentication headers for HTTP requests.
 
         Returns:
