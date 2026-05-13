@@ -163,16 +163,14 @@ class FrevaGPT(SyncAPIClient):
         input: str,
         model: str | None = None,
         thread_id: str | None = None,
-        stream=False,
+        stream: bool = False,
     ) -> Conversation | StreamConversation:
         """Sends a prompt to the chatbot and gets the response.
 
         Args:
             input: The user input/prompt to send.
-            model: Optional model to use for this request. Falls back to
-                instance attribute if not specified.
-            thread_id: Optional thread ID for the conversation. Creates a
-                new thread if not specified and no active thread exists.
+            model: Optional model to use for this request. Falls back to instance attribute if not specified.
+            thread_id: Optional thread ID for the conversation. Creates a new thread if not specified and no active thread exists.
             stream: If True, returns a StreamConversation for streaming.
 
         Returns:
@@ -266,6 +264,7 @@ class FrevaGPT(SyncAPIClient):
             A tuple with two elements: 1. the total number of threads available for the user and 2. a list containing dictionaries
             that include information on each thread retrieved, such as "thread_id", "date", and "topic", as well as "content",
             which includes the thread's messages as a Conversation object.
+
         Raises:
             ValueError: Raised if integer num_threads is 0 or smaller.
         """
@@ -296,9 +295,9 @@ class FrevaGPT(SyncAPIClient):
     def deletethread(self, thread_id: str | None = None) -> None:
         """
         Delete a given thread by the authenticated user.
+
         Args:
-            thread_id (str | None, optional): The ID of the thread to be deleted on the backend. If not specified,
-                uses the current active thread ID.
+            thread_id (str | None, optional): The ID of the thread to be deleted on the backend. If not specified, uses the current active thread ID.
 
         Raises:
             TypeError: Raised, if no thread_id is specified and no previous conversation was started.
@@ -317,8 +316,7 @@ class FrevaGPT(SyncAPIClient):
 
         Args:
             new_topic (str): String describing the new thread topic.
-            thread_id (str | None, optional): The ID of the thread which topic should be changed. If not specified,
-                uses the current active thread ID:
+            thread_id (str | None, optional): The ID of the thread which topic should be changed. If not specified, uses the current active thread ID.
 
         Raises:
             TypeError: Raised, if no thread_id is specified and no previous conversation was started.
@@ -382,12 +380,11 @@ class FrevaGPT(SyncAPIClient):
         """Stop an active streaming conversation, cancels any in-flight tool executions on the backend.
 
         Args:
-            thread_id (str | None): The ID of the thread which topic should be stopped. If not specified,
-                uses the current active thread ID.
+            thread_id (str | None, optional): The ID of the thread which should be stopped. If not specified, uses the current active thread ID.
 
         Raises:
             TypeError: Raised if thread_id is not specified and no active thread exists.
-            RuntimeError: Raised if the request results in an internal server error.
+            ConnectionError: Raised if the request results in an internal server error.
 
         Returns:
             True if thread was stopped successfully (without an error).
@@ -420,8 +417,7 @@ class FrevaGPT(SyncAPIClient):
 
         Args:
             user_index (int): The (zero-based) index from which to fork the conversation.
-            source_thread_id (str | None): The ID of the thread which should be forked. If not specified,
-                uses the current active thread ID.
+            source_thread_id (str | None, optional): The ID of the thread which should be forked. If not specified, uses the current active thread ID.
 
         Raises:
             TypeError: Raised if thread_id is not specified and no active thread exists.
@@ -431,7 +427,7 @@ class FrevaGPT(SyncAPIClient):
             KeyError: Raised if the response does not include the keys 'new_thread_id' or 'history'.
 
         Returns:
-            str, Message: A tuple containing both the new thread id and a Conversation object that encapsulates the message history from which the new thread starts from.
+            Tuple[str, Conversation]: A tuple containing both the new thread id and a Conversation object that encapsulates the message history from which the new thread starts from.
         """
         if not source_thread_id and self._thread_id:
             source_thread_id = self._thread_id
@@ -477,17 +473,17 @@ class FrevaGPT(SyncAPIClient):
 
         Args:
             feedback_index (int): The (zero-based) index of the (Code, Assistant) message within a thread where feedback should be added or removed.
-            feedback (str): Feedback to be submitted. Options are 'up' (positive), 'down' (negative) or 'remove' (remove any existing feedback from message).
-            thread_id (str | None): The ID of the thread containing the message feedback should be submitted for. If not specified, uses the current active thread ID.
+            feedback (str): Feedback to be submitted. Must be one of 'up' (positive), 'down' (negative) or 'remove' (remove any existing feedback from message).
+            thread_id (str | None, optional): The ID of the thread containing the message feedback should be submitted for. If not specified, uses the current active thread ID.
 
         Raises:
             TypeError: Raised if thread_id is not specified and no active thread exists.
-            ValueError: Raised if feedback string is not one of 'up', 'down', 'remove' or if thread cannot be found by backend.
+            ValueError: Raised if feedback string is not one of 'up', 'down', 'remove', or if thread cannot be found by backend.
             IndexError: Raised if feedback cannot be found at given index (in case of removal) or if index is out of bounds.
             ConnectionError: Raised if feedback submission results in a internal server error on the backend.
 
         Returns:
-            Message returned by the backend. Defaults to a message warning the user if the response did not include the expected key.
+            Detail message returned by the backend, or warning if the response was empty.
 
         """
         if not thread_id and self._thread_id:
@@ -508,10 +504,11 @@ class FrevaGPT(SyncAPIClient):
                 },
             )
             response_dict: Dict[str, str] = response.json()
-            return response_dict.get(
+            message: str = response_dict.get(
                 "detail",
                 "Empty message was returned. User feedback was possibly not correctly processed by the backend.",
             )
+            return message
         except ConnectionError as e:
             if e.errno == 404:
                 if e.strerror and "thread not found" in e.strerror.lower():
