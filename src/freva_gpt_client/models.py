@@ -693,5 +693,9 @@ class StreamConversation(AbstractContextManager):
         Yields:
             Raw message dictionaries as they arrive from the stream.
         """
+        raw_messages = []
         for msg_dict in self.stream_response.iter_json_objects():
             yield msg_dict
+            raw_messages.append(MessageModel(message=msg_dict))
+        # save completed response as a conversation instance
+        self.conversation = Conversation(raw_messages=raw_messages)
