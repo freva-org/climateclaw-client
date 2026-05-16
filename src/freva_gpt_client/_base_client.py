@@ -70,7 +70,7 @@ class BaseClient(Generic[_HttpxClientT]):
         self._version = version
         self.base_url = self._validate_base_url(base_url)
         self.follow_redirects = follow_redirects
-        self.timeout = timeout
+        self.timeout = httpx.Timeout(DEFAULT_TIMEOUT, connect=timeout)
         self.max_retries = max_retries
         self._token_store_path = token_store_path
         self._custom_headers = custom_headers
@@ -262,6 +262,7 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
                         e.response.status_code,
                         f"Error connecting to url {self._parse_host(e.request.url)} with error: {e.response.text}",
                     ) from None
+            raise
         raise ConnectionError("Unexpected error in _stream retry logic")
 
     async def _request_raw(self, *args, **kwargs) -> httpx.Response:
@@ -286,6 +287,7 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
                         e.response.status_code,
                         f"Error connecting to url {self._parse_host(e.request.url)} with error: {e.response.text}",
                     ) from None
+            raise
         return r
 
     async def request(self, *args, stream=False, **kwargs) -> StreamResponse | httpx.Response:
@@ -412,7 +414,7 @@ class SyncAPIClient(BaseClient[httpx.Client]):
                 req: httpx.Request = self._client.build_request(*args, **kwargs)
                 res: httpx.Response = self._client.send(request=req, stream=True)
                 res.raise_for_status()
-                return StreamResponse(res)
+                break
             except httpx.HTTPError as e:
                 if isinstance(e, httpx.TimeoutException):
                     if retries_taken < self.max_retries:
@@ -427,7 +429,8 @@ class SyncAPIClient(BaseClient[httpx.Client]):
                         e.response.status_code,
                         f"Error connecting to url {self._parse_host(e.request.url)} with error: {e.response.text}",
                     ) from None
-        raise ConnectionError("Unexpected error in _stream retry logic")
+                raise
+        return StreamResponse(res)
 
     def _request_raw(self, *args, **kwargs) -> httpx.Response:
         """Makes a non-streaming HTTP request."""
@@ -451,6 +454,7 @@ class SyncAPIClient(BaseClient[httpx.Client]):
                         e.response.status_code,
                         f"Error connecting to url {self._parse_host(e.request.url)} with error: {e.response.text}",
                     ) from None
+                raise
         return r
 
     def request(self, *args, stream=False, **kwargs) -> StreamResponse | httpx.Response:
