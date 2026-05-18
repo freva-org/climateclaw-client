@@ -55,6 +55,7 @@ testsite = [
     "mypy",
     "pytest",
     "pytest-cov",
+    "pytest-httpx",
     "setuptools",
 ]
 docs = [

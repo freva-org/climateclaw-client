@@ -1,8 +1,7 @@
 import logging
-import os
 from datetime import datetime
 from pathlib import Path
-from typing import Dict
+from typing import Dict, cast
 
 import httpx
 from py_oidc_auth_client import AuthError, Token, TokenStore, authenticate  # type: ignore
@@ -42,13 +41,14 @@ class TokenAuth(httpx.Auth):
             timeout: Timeout in seconds for authentication requests.
             app_name: Application name for token storage identification.
         """
-        self.base_url = base_url
-        self.app_name = app_name
-        self.timeout = timeout
-        self.token_store = TokenStore(app_name=app_name, path=token_store_path)
-        self.token_store_path = (
+        self.base_url: httpx.URL = base_url
+        self.app_name: str = app_name
+        self.timeout: float = timeout
+        self.token_store: TokenStore = TokenStore(app_name=app_name, path=token_store_path)
+        self.token_store_path: str | Path = (
             token_store_path or TokenStore(app_name=app_name, path=token_store_path)._path
         )
+        self.auth_token: Token | None = None
 
     def _authenticate(self) -> Token:
         """Authenticates with the OIDC provider and returns a new token."""
@@ -59,7 +59,7 @@ class TokenAuth(httpx.Auth):
             timeout=self.timeout,
         )
 
-    def _update_token_or_store(self) -> Token:
+    def _update_token_or_store(self) -> None:
         """Updates the token store with the current auth token."""
         stored_token = self.token_store.get(str(self.base_url))
         if stored_token:
@@ -70,18 +70,14 @@ class TokenAuth(httpx.Auth):
     def _validate_token_store(self) -> TokenStore:
         """Validates and initializes the token store."""
         # load token store
-        token_store = (
-            self.token_store if hasattr(self, "token_store") else TokenStore(self.token_store_path)
-        )
-        auth_token = self.auth_token if hasattr(self, "auth_token") else None
-        # if freva token store does not exist but token does, write token to store
-        if not os.path.exists(token_store._path) and auth_token:
-            token_store.put(host=self.base_url, token=auth_token)
-        # if auth token is not set, but token store is, update token from token store
-        elif not auth_token and token_store.get(str(self.base_url)):
-            self.auth_token = token_store.get(str(self.base_url))
-        # otherwise, prompt user to authenticate
-        else:
+        token_store = self.token_store
+        auth_token = self.auth_token
+        test_token = token_store.get(str(self.base_url))
+        # if auth token is not set, but token store contains correct token, update token from token store
+        if not auth_token and test_token:
+            self.auth_token = test_token
+        # if both auth token and token store are not set, start oidc device flow
+        elif not (auth_token and test_token):
             self.auth_token = self._authenticate()
         self.token_store = token_store
         self._update_token_or_store()
@@ -90,6 +86,7 @@ class TokenAuth(httpx.Auth):
     def _validate_token(self) -> Token:
         """Validates the current authentication token."""
         self.token_store = self._validate_token_store()
+        self.auth_token = cast(Token, self.auth_token)
         token_expires_at = datetime.fromtimestamp(self.auth_token["expires"])
         token_refresh_expires_at = datetime.fromtimestamp(self.auth_token["refresh_expires"])
         now = datetime.now()
@@ -115,7 +112,8 @@ class TokenAuth(httpx.Auth):
             Dictionary containing authentication headers.
         """
         self._validate_token()
-        return self.auth_token["headers"]
+        self.auth_token = cast(Token, self.auth_token)
+        return self.auth_token.get("headers")
 
     def auth_flow(self, request: httpx.Request):
         """HTTP authentication flow handler.
