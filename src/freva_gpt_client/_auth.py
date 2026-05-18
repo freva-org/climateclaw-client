@@ -113,9 +113,8 @@ class TokenAuth(httpx.Auth):
         Returns:
             Dictionary containing authentication headers.
         """
-        self._validate_token()
-        self.auth_token = cast(Token, self.auth_token)
-        return self.auth_token.get("headers")
+        auth_token = self._validate_token()
+        return auth_token.get("headers")
 
     def auth_flow(self, request: httpx.Request):
         """HTTP authentication flow handler.
