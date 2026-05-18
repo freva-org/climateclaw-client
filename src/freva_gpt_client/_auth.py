@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, cast
 
@@ -62,7 +62,7 @@ class TokenAuth(httpx.Auth):
     def _update_token_or_store(self) -> None:
         """Updates the token store with the current auth token."""
         stored_token = self.token_store.get(str(self.base_url))
-        if stored_token:
+        if stored_token and not self.auth_token:
             self.auth_token = stored_token
         else:
             self.token_store.put(host=str(self.base_url), token=self.auth_token)
@@ -87,9 +87,11 @@ class TokenAuth(httpx.Auth):
         """Validates the current authentication token."""
         self.token_store = self._validate_token_store()
         self.auth_token = cast(Token, self.auth_token)
-        token_expires_at = datetime.fromtimestamp(self.auth_token["expires"])
-        token_refresh_expires_at = datetime.fromtimestamp(self.auth_token["refresh_expires"])
-        now = datetime.now()
+        token_expires_at = datetime.fromtimestamp(self.auth_token["expires"], tz=timezone.utc)
+        token_refresh_expires_at = datetime.fromtimestamp(
+            self.auth_token["refresh_expires"], tz=timezone.utc
+        )
+        now = datetime.now(timezone.utc)
         if now > token_refresh_expires_at:
             raise AuthError("Refresh token has expired.") from None
         elif now > token_expires_at:

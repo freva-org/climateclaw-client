@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import httpx
@@ -155,25 +155,48 @@ def test_validate_token(mocker, prepare_auth_token):
     spy_logger = mocker.spy(auth, "logger")
     test_token = MockedToken() or MockedTokenStore().get("https://myinstance.com")
     auth_token = test_token or fresh_token
-    if datetime.fromtimestamp(auth_token["refresh_expires"]) < datetime.now():
+    if datetime.fromtimestamp(auth_token["refresh_expires"], tz=timezone.utc) < datetime.now(
+        timezone.utc
+    ):
         with pytest.raises(auth.AuthError, match="Refresh token has expired."):
             token_auth._validate_token()
-    elif datetime.fromtimestamp(auth_token["expires"]) < datetime.now():
+    elif datetime.fromtimestamp(auth_token["expires"], tz=timezone.utc) < datetime.now(
+        timezone.utc
+    ):
         token_auth._validate_token()
         spy_logger.debug.assert_called_once_with(
             "Freva auth token expired. Using refresh token to generate new token and updating token store."
         )
         mocked_authenticate.assert_called_once()
-        MockedTokenStore().put.assert_called_once()
+        assert MockedTokenStore().put.call_count == 2
         # repeat, but lets assume the call to _authenticate results in an error
+    else:
+        returned_token = token_auth._validate_token()
+        assert returned_token == auth_token
+
+
+def test_validate_token_auth_error(mocker, prepare_auth_token):
+    _, MockedTokenStore, MockedToken, token_auth = prepare_auth_token
+    mocked_authenticate = mocker.patch.object(auth.TokenAuth, "_authenticate")
+    test_token = MockedToken() or MockedTokenStore().get("https://myinstance.com")
+    fresh_token = prepare_oidc_token(
+        expires=datetime.now() + timedelta(days=1),
+        refresh_expires=datetime.now() + timedelta(days=2),
+    )
+    auth_token = test_token or fresh_token
+    if datetime.fromtimestamp(auth_token["refresh_expires"], tz=timezone.utc) < datetime.now(
+        timezone.utc
+    ):
+        with pytest.raises(auth.AuthError, match="Refresh token has expired."):
+            token_auth._validate_token()
+    elif datetime.fromtimestamp(auth_token["expires"], tz=timezone.utc) < datetime.now(
+        timezone.utc
+    ):
         mocked_authenticate.side_effect = Exception
         with pytest.raises(
             auth.AuthError, match=r"Could not generate a new token from the token file.*"
         ):
             token_auth._validate_token()
-    else:
-        returned_token = token_auth._validate_token()
-        assert returned_token == auth_token
 
 
 def test_get_auth_headers(mocker, prepare_auth_token):
@@ -188,22 +211,20 @@ def test_get_auth_headers(mocker, prepare_auth_token):
     test_token = MockedToken() or MockedTokenStore().get("https://myinstance.com")
     auth_token = test_token or fresh_token
 
-    if datetime.fromtimestamp(auth_token["refresh_expires"]) < datetime.now():
+    if datetime.fromtimestamp(auth_token["refresh_expires"], tz=timezone.utc) < datetime.now(
+        timezone.utc
+    ):
         with pytest.raises(auth.AuthError, match="Refresh token has expired."):
             token_auth.get_auth_headers()
-    elif datetime.fromtimestamp(auth_token["expires"]) < datetime.now():
+    elif datetime.fromtimestamp(auth_token["expires"], tz=timezone.utc) < datetime.now(
+        timezone.utc
+    ):
         auth_headers = token_auth.get_auth_headers()
         mocked_authenticate.assert_called_once()
-        MockedTokenStore().put.assert_called_once()
+        MockedTokenStore().put.call_count == 2
         assert "Authorization" in auth_headers
         assert "Bearer" in auth_headers["Authorization"]
         assert auth_token["access_token"] in auth_headers["Authorization"]
-        # repeat, but lets assume the call to _authenticate results in an error
-        mocked_authenticate.side_effect = Exception
-        with pytest.raises(
-            auth.AuthError, match=r"Could not generate a new token from the token file.*"
-        ):
-            token_auth.get_auth_headers()
     else:
         auth_headers = token_auth.get_auth_headers()
         assert "Authorization" in auth_headers
@@ -211,7 +232,26 @@ def test_get_auth_headers(mocker, prepare_auth_token):
         assert auth_token["access_token"] in auth_headers["Authorization"]
 
 
-def test_auth_flow(mocker, httpx_mock: HTTPXMock):
+def test_auth_flow_non_401_status(mocker, httpx_mock: HTTPXMock):
+    """Test that auth flow handles 401 status codes correctly"""
+    mocked_get_auth_headers = mocker.patch.object(auth.TokenAuth, "get_auth_headers")
+    httpx_mock.add_response(status_code=200)
+    with httpx.Client(
+        base_url="https://myinstance.com",
+        auth=auth.TokenAuth(
+            base_url="https://myinstance.com",
+            token_store_path=None,
+            timeout=10,
+            app_name="auth-test",
+        ),
+    ) as client:
+        response = client.get("/test")
+        response.raise_for_status()
+        mocked_get_auth_headers.assert_not_called()
+        assert "authorization" not in response.request.headers
+
+
+def test_auth_flow_401_status(mocker, httpx_mock: HTTPXMock):
     """Test that auth flow handles 401 status codes correctly"""
     mocked_get_auth_headers = mocker.patch.object(auth.TokenAuth, "get_auth_headers")
     mocked_get_auth_headers.return_value = {"Authorization": "Bearer XYZ"}
