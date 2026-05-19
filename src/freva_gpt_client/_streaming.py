@@ -109,6 +109,10 @@ class StreamResponse:
                             recurse_dict(json.loads(partial_response))
                         )  # Add the completed object to the list
                         continue
+                    else:
+                        complete_parts.append(
+                            recurse_dict(json.loads(fixed_part))
+                        )  # the first part is a complete json object, append to result
 
                 elif i == len(chunk_split) - 1:
                     fixed_part = "{" + part  # Add opening brace to make it a complete object
@@ -116,13 +120,13 @@ class StreamResponse:
                     if part[-1] != "}":
                         partial_response = fixed_part
                     # If it is complete, add to the list and clear partial response
-                    complete_parts.append(recurse_dict(json.loads(fixed_part)))
-                    partial_response = ""
-
+                    else:
+                        complete_parts.append(recurse_dict(json.loads(fixed_part)))
+                        partial_response = ""
                 else:
                     fixed_part = "{" + part + "}"
+                    complete_parts.append(recurse_dict(json.loads(fixed_part)))
 
-                complete_parts.append(recurse_dict(json.loads(fixed_part)))
         return complete_parts, partial_response
 
     def iter_json_objects(self) -> Generator[dict, None, None]:
