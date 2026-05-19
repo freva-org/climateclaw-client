@@ -94,7 +94,7 @@ class BaseClient(Generic[_HttpxClientT]):
             for k, v in {
                 "Content-Type": "application/json",
                 "Accept": "application/json",
-                "User-Agent": f"frevagpt-python/{self._version} ({platform.machine()} {platform.system().lower()}) Python/{platform.python_version()}",
+                "User-Agent": f"freva-gpt-python/{self._version} ({platform.machine()} {platform.system().lower()}) Python/{platform.python_version()}",
                 "X-Freva-Vault-URL": f"{self.base_url}:5002",
                 "X-Freva-Rest-URL": f"{self.base_url}:7777",
                 "X-Freva-Config-Path": "/opt/freva/core/freva/evaluation_system.conf",
