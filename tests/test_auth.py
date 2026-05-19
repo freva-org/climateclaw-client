@@ -7,6 +7,10 @@ from pytest_httpx import HTTPXMock
 
 import freva_gpt_client._auth as auth
 
+# =============================================================================
+# Fixtures
+# =============================================================================
+
 
 def make_oidc_token(
     expires: datetime,
@@ -121,6 +125,11 @@ def token_auth_instance(request, mocker, base_url, mock_token_store, token_store
     )
 
 
+# =============================================================================
+# Tests for __init__
+# =============================================================================
+
+
 def test_token_auth_init(token_auth_instance, mock_token_store):
     """Test __init__ method sets up TokenAuth correctly with various configurations."""
     mock_cls, mock_instance = mock_token_store
@@ -137,6 +146,11 @@ def test_token_auth_init(token_auth_instance, mock_token_store):
     assert token_auth_instance.token_store_path == mock_instance._path
 
 
+# =============================================================================
+# Tests for _authenticate
+# =============================================================================
+
+
 def test_authenticate_calls_oidc_client(token_auth_instance, mock_token_store, mocker, base_url):
     """Test _authenticate calls the py_oidc_auth_client.authenticate function correctly."""
     _, mock_instance = mock_token_store
@@ -150,6 +164,11 @@ def test_authenticate_calls_oidc_client(token_auth_instance, mock_token_store, m
         app_name="auth-test",
         timeout=10,
     )
+
+
+# =============================================================================
+# Tests for Token and TokenStore validation
+# =============================================================================
 
 
 def test_update_token_or_store(token_auth_instance, mock_token_store, base_url):
@@ -276,6 +295,11 @@ def test_validate_token_raises_on_auth_failure(
             token_auth_instance._validate_token()
 
 
+# =============================================================================
+# Tests for Auth Header retrieval
+# =============================================================================
+
+
 def test_get_auth_headers(
     token_auth_instance, mock_token_store, mocker, base_url, token_store_content
 ):
@@ -315,6 +339,11 @@ def test_get_auth_headers(
         assert "Authorization" in auth_headers
         assert "Bearer" in auth_headers["Authorization"]
         assert auth_token["access_token"] in auth_headers["Authorization"]
+
+
+# =============================================================================
+# Tests for Auth Flow
+# =============================================================================
 
 
 def test_auth_flow_passes_through_non_401(mocker, httpx_mock: HTTPXMock):
