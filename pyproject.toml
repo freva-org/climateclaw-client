@@ -54,6 +54,7 @@ testsite = [
     "pre-commit",
     "mypy",
     "pytest",
+    "pytest-asyncio",
     "pytest-cov",
     "pytest-httpx",
     "setuptools",
