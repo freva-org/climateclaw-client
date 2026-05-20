@@ -54,7 +54,7 @@ class BaseClient(Generic[_HttpxClientT]):
         follow_redirects: bool = True,
         max_retries: int = DEFAULT_MAX_RETRIES,
         timeout: float = DEFAULT_TIMEOUT,
-        custom_headers: Dict[str, str] | None = None,
+        custom_headers: httpx.Headers | Dict[str, str] | None = None,
     ):
         """Initializes the base client with configuration options.
 
@@ -102,14 +102,15 @@ class BaseClient(Generic[_HttpxClientT]):
         }
         return headers
 
-    def _build_headers(self, custom_headers: Headers) -> httpx.Headers:
+    def _build_headers(self, custom_headers: Headers | Dict[str, str] = Headers()) -> httpx.Headers:
         """Builds request headers by merging default and custom headers."""
         headers = {**self.default_headers, **custom_headers}
         return httpx.Headers(headers)
 
-    def _validate_base_url(self, base_url) -> httpx.URL:
+    @classmethod
+    def _validate_base_url(cls, base_url: Union[str, httpx.URL]) -> httpx.URL:
         """Validates and normalizes the base URL."""
-        return httpx.URL(self._parse_host(base_url))
+        return httpx.URL(cls._parse_host(base_url))
 
     @staticmethod
     def _parse_host(host: Union[str, httpx.URL]) -> str:
@@ -173,6 +174,7 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
         follow_redirects: bool = True,
         max_retries: int = DEFAULT_MAX_RETRIES,
         timeout: float = DEFAULT_TIMEOUT,
+        custom_headers: httpx.Headers | Dict[str, str] | None = None,
         http_client: httpx.AsyncClient | None = None,
     ):
         """Initializes the async client.
@@ -184,6 +186,7 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
             follow_redirects: Whether to follow HTTP redirects.
             max_retries: Maximum number of retry attempts.
             timeout: Request timeout in seconds.
+            custom_headers: Optional custom headers to include in requests.
             http_client: Optional pre-configured httpx.AsyncClient.
 
         Raises:
@@ -202,6 +205,7 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
             follow_redirects=follow_redirects,
             max_retries=max_retries,
             timeout=timeout,
+            custom_headers=custom_headers,
         )
         if http_client:
             self._client = http_client
@@ -340,6 +344,7 @@ class SyncAPIClient(BaseClient[httpx.Client]):
         follow_redirects: bool = True,
         max_retries: int = DEFAULT_MAX_RETRIES,
         timeout: float = DEFAULT_TIMEOUT,
+        custom_headers: httpx.Headers | Dict[str, str] | None = None,
         http_client: httpx.Client | None = None,
     ):
         """Initializes the sync client.
@@ -351,6 +356,7 @@ class SyncAPIClient(BaseClient[httpx.Client]):
             follow_redirects: Whether to follow HTTP redirects.
             max_retries: Maximum number of retry attempts.
             timeout: Request timeout in seconds.
+            custom_headers: Optional custom headers to include in requests.
             http_client: Optional pre-configured httpx.Client.
 
         Raises:
@@ -369,6 +375,7 @@ class SyncAPIClient(BaseClient[httpx.Client]):
             follow_redirects=follow_redirects,
             max_retries=max_retries,
             timeout=timeout,
+            custom_headers=custom_headers,
         )
         if http_client:
             self._client = http_client
