@@ -149,13 +149,14 @@ class FrevaGPT(SyncAPIClient):
         self._auth._authenticate()
 
     def newthread(self) -> str:
-        """Creates a new conversation thread.
+        """Creates a new conversation thread and updates the current thread id.
 
         Returns:
             The ID of the newly created thread.
         """
         response = self.get(path=self._construct_path("newthread"))
         thread_id = response.json()
+        self._thread_id = thread_id
         return thread_id
 
     def prompt(
@@ -195,10 +196,7 @@ class FrevaGPT(SyncAPIClient):
 
         if not (self._thread_id or thread_id):
             thread_id = self.newthread()
-            self._thread_id = thread_id
-        elif thread_id:
-            self._thread_id = thread_id
-        else:
+        elif not thread_id:
             thread_id = self._thread_id
         try:
             response: httpx.Response | StreamResponse = self.get(
