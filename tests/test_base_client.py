@@ -53,6 +53,18 @@ def make_sync_api_client(mocker: MockerFixture, base_client_config):
     return prep_api_client
 
 
+@pytest.fixture
+def make_async_api_client(mocker: MockerFixture, base_client_config):
+    def prep_api_client(http_client: httpx.AsyncClient | None = None) -> AsyncAPIClient:
+        mocked_token_auth = mocker.patch.object(freva_gpt_client._base_client, "TokenAuth")
+        mocked_token_auth.return_value = None
+        mock_validate_base_url = mocker.patch.object(AsyncAPIClient, "_validate_base_url")
+        mock_validate_base_url.return_value = base_client_config["base_url"]
+        return AsyncAPIClient(**base_client_config, http_client=http_client)
+
+    return prep_api_client
+
+
 # =============================================================================
 # BaseClient Tests
 # =============================================================================
@@ -387,13 +399,12 @@ class TestSyncAPIClient:
         assert isinstance(response, httpx.Response)
         spy_request.assert_called_with(method="GET", url="/api")
         assert spy_request.call_count == 2
-        assert spy_request.call_count == 2
         api_client._sleep_for_retry.assert_called_once()
 
     def test_request_raw_http_status_error(
         self, mocker: MockerFixture, httpx_mock: HTTPXMock, make_sync_api_client
     ):
-        """Test that _stream handles status errors differently from timeouts."""
+        """Test that _request_raw handles status errors differently from timeouts."""
         api_client: SyncAPIClient = make_sync_api_client()
         api_client._sleep_for_retry = mocker.MagicMock()
         spy_request = mocker.spy(api_client._client, "request")
@@ -461,3 +472,276 @@ class TestSyncAPIClient:
 # =============================================================================
 # AsyncAPIClient Tests
 # =============================================================================
+
+
+class TestAsyncAPIClient:
+    """Tests for AsyncAPIClient"""
+
+    def test_init(self, make_async_api_client, base_client_config):
+        """Test init method of AsyncAPIClient"""
+        api_client: AsyncAPIClient = make_async_api_client()
+        assert api_client.base_url == base_client_config["base_url"]
+        assert api_client.follow_redirects == base_client_config["follow_redirects"]
+        assert api_client.max_retries == base_client_config["max_retries"]
+        assert api_client.timeout == base_client_config["timeout"]
+        assert api_client.headers == api_client._build_headers(base_client_config["custom_headers"])
+        assert api_client._version == base_client_config["version"]
+        assert api_client._client is not None
+
+    def test_init_with_client(self, make_async_api_client):
+        """Test that custom http client is passed correctly during init."""
+        test_client = httpx.AsyncClient(base_url="https://anotherinstance.com")
+        api_client: AsyncAPIClient = make_async_api_client(test_client)
+        assert api_client._client == test_client
+
+    def test_init_invalid_http_client(self, make_async_api_client):
+        """Test that type of custom http client is enforced by init method."""
+        not_a_client = "This is not a httpx.AsyncClient instance"
+        with pytest.raises(TypeError, match="Invalid `http_client`"):
+            make_async_api_client(not_a_client)
+
+    def test_default_client(self, mocker: MockerFixture, make_async_api_client):
+        """Test that default client is initialized correctly and cached."""
+        spy_client = mocker.spy(freva_gpt_client._base_client.httpx, "AsyncClient")
+        api_client: AsyncAPIClient = make_async_api_client()
+        default_client = api_client._default_client
+        assert api_client._client == default_client
+        api_client._default_client
+        # as default client is cached, httpx.AsyncClient should only be called once
+        spy_client.assert_called_once_with(
+            base_url=api_client.base_url,
+            follow_redirects=api_client.follow_redirects,
+            timeout=httpx.Timeout(DEFAULT_TIMEOUT, connect=api_client.timeout),
+            headers=api_client.headers,
+            auth=api_client._auth,
+        )
+
+    @pytest.mark.asyncio
+    async def test_is_closed(self, make_async_api_client):
+        """Test that AsyncAPIClient is_closed attribute correctly inherits underlying httpx.AsyncClient closed state."""
+        async with httpx.AsyncClient() as client:
+            api_client: AsyncAPIClient = make_async_api_client(client)
+            assert not api_client.is_closed
+        assert api_client.is_closed
+
+    @pytest.mark.asyncio
+    async def test_sleep_for_retry_first_attempt(
+        self, mocker: MockerFixture, make_async_api_client
+    ):
+        """Test that _sleep_for_retry takes the correct branch if the number of retries taken has not reached the maximum number."""
+        api_client: AsyncAPIClient = make_async_api_client()
+        spy_logger = mocker.spy(freva_gpt_client._base_client, "logger")
+        mocked_time = mocker.patch.object(freva_gpt_client._base_client, "asyncio", spec=True)
+
+        retries_taken = 0
+        await api_client._sleep_for_retry(retries_taken)
+        spy_logger.debug.assert_called_once()
+        assert "Retrying connection after sleeping" in spy_logger.debug.call_args.args[0]
+        mocked_time.sleep.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_sleep_for_retry_final_attempt(
+        self, mocker: MockerFixture, make_async_api_client
+    ):
+        """Test that _sleep_for_retry takes the correct branch if the number of retries taken has reached the maximum number."""
+        api_client: AsyncAPIClient = make_async_api_client()
+        spy_logger = mocker.spy(freva_gpt_client._base_client, "logger")
+        mocked_time = mocker.patch.object(freva_gpt_client._base_client, "asyncio", spec=True)
+
+        retries_taken = api_client.max_retries
+        await api_client._sleep_for_retry(retries_taken)
+        spy_logger.debug.assert_called_once()
+        assert "Retrying connection after sleeping" in spy_logger.debug.call_args.args[0]
+        assert "Final attempt." in spy_logger.debug.call_args.args[0]
+        mocked_time.sleep.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_stream_success(
+        self, mocker: MockerFixture, httpx_mock: HTTPXMock, make_async_api_client
+    ):
+        """Test that _stream returns a StreamResponse object in case of a successful request and output of stream is as expected."""
+        api_client: AsyncAPIClient = make_async_api_client()
+        spy_build_request = mocker.spy(api_client._client, "build_request")
+        spy_send_request = mocker.spy(api_client._client, "send")
+        stream_iterator = [b'{"a":1}', b'{"b":2}']
+        expected_output = [{"a": 1}, {"b": 2}]
+        httpx_mock.add_response(status_code=200, stream=IteratorStream(stream_iterator))
+        stream_response = await api_client._stream(method="GET", url="/api")
+        assert isinstance(stream_response, StreamResponse)
+        spy_build_request.assert_called_once_with(method="GET", url="/api")
+        spy_send_request.assert_called_once()
+
+        actual_output = []
+        async for response in stream_response.aiter_json_objects():
+            actual_output.append(response)
+        for response, expected in zip(actual_output, expected_output):
+            assert response == expected
+
+    @pytest.mark.asyncio
+    async def test_stream_success_with_retry(
+        self, mocker: MockerFixture, httpx_mock: HTTPXMock, make_async_api_client
+    ):
+        """Test that _stream handles temporary timeouts by sleeping and retrying."""
+        api_client: AsyncAPIClient = make_async_api_client()
+        api_client._sleep_for_retry = mocker.AsyncMock()
+        spy_build_request = mocker.spy(api_client._client, "build_request")
+        spy_send_request = mocker.spy(api_client._client, "send")
+        stream_iterator = [b'{"a":1}', b'{"b":2}']
+        httpx_mock.add_exception(httpx.TimeoutException(message="Temporary time out"))
+        httpx_mock.add_response(status_code=200, stream=IteratorStream(stream_iterator))
+        stream_response = await api_client._stream(method="GET", url="/api")
+        assert isinstance(stream_response, StreamResponse)
+        spy_build_request.assert_called_with(method="GET", url="/api")
+        assert spy_build_request.call_count == 2
+        assert spy_send_request.call_count == 2
+        api_client._sleep_for_retry.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_stream_http_status_error(
+        self, mocker: MockerFixture, httpx_mock: HTTPXMock, make_async_api_client
+    ):
+        """Test that _stream handles status errors differently from timeouts."""
+        api_client: AsyncAPIClient = make_async_api_client()
+        spy_build_request = mocker.spy(api_client._client, "build_request")
+        spy_send_request = mocker.spy(api_client._client, "send")
+        httpx_mock.add_response(status_code=401)
+        with pytest.raises(ConnectionError, match="Error connecting"):
+            await api_client._stream(method="GET", url="/api")
+        spy_build_request.assert_called_once_with(method="GET", url="/api")
+        spy_send_request.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_stream_http_general_error(
+        self, mocker: MockerFixture, httpx_mock: HTTPXMock, make_async_api_client
+    ):
+        """Test that _stream handles http errors that are neither status nor timeouts differently."""
+        api_client: AsyncAPIClient = make_async_api_client()
+        spy_build_request = mocker.spy(api_client._client, "build_request")
+        spy_send_request = mocker.spy(api_client._client, "send")
+        httpx_mock.add_exception(httpx.ProxyError("Proxy error."))
+        with pytest.raises(httpx.ProxyError, match="Proxy error."):
+            await api_client._stream(method="GET", url="/api")
+        spy_build_request.assert_called_once_with(method="GET", url="/api")
+        spy_send_request.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_stream_timeout_error_after_retries(
+        self, mocker: MockerFixture, httpx_mock: HTTPXMock, make_async_api_client
+    ):
+        """Test that _stream raises an error after encountering the maximum number of allowed timeouts."""
+        api_client: AsyncAPIClient = make_async_api_client()
+        api_client._sleep_for_retry = mocker.AsyncMock()
+        spy_build_request = mocker.spy(api_client._client, "build_request")
+        spy_send_request = mocker.spy(api_client._client, "send")
+        httpx_mock.add_exception(
+            httpx.TimeoutException(message="Temporary time out"), is_reusable=True
+        )
+        with pytest.raises(ConnectionError, match="Failed to connect"):
+            await api_client._stream(method="GET", url="/api")
+        spy_build_request.assert_called_with(method="GET", url="/api")
+        assert spy_build_request.call_count == api_client.max_retries + 1
+        assert spy_send_request.call_count == api_client.max_retries + 1
+        assert api_client._sleep_for_retry.call_count == api_client.max_retries
+
+    @pytest.mark.asyncio
+    async def test_request_raw_success(
+        self, mocker: MockerFixture, httpx_mock: HTTPXMock, make_async_api_client
+    ):
+        """Test that _request_raw returns a Response object in case of a successful request and output is as expected."""
+        api_client: AsyncAPIClient = make_async_api_client()
+        spy_request = mocker.spy(api_client._client, "request")
+        response_json = [{"a": 1}, {"b": 2}]
+        httpx_mock.add_response(status_code=200, json=response_json)
+        response = await api_client._request_raw(method="GET", url="/api")
+        assert isinstance(response, httpx.Response)
+        spy_request.assert_called_once_with(method="GET", url="/api")
+        assert response.json() == response_json
+
+    @pytest.mark.asyncio
+    async def test_request_raw_success_with_retry(
+        self, mocker: MockerFixture, httpx_mock: HTTPXMock, make_async_api_client
+    ):
+        """Test that _request_raw handles temporary timeouts by sleeping and retrying."""
+        api_client: AsyncAPIClient = make_async_api_client()
+        api_client._sleep_for_retry = mocker.AsyncMock()
+        spy_request = mocker.spy(api_client._client, "request")
+        httpx_mock.add_exception(httpx.TimeoutException(message="Temporary time out"))
+        httpx_mock.add_response(status_code=200)
+        response = await api_client._request_raw(method="GET", url="/api")
+        assert isinstance(response, httpx.Response)
+        spy_request.assert_called_with(method="GET", url="/api")
+        assert spy_request.call_count == 2
+        api_client._sleep_for_retry.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_request_raw_http_status_error(
+        self, mocker: MockerFixture, httpx_mock: HTTPXMock, make_async_api_client
+    ):
+        """Test that _request_raw handles status errors differently from timeouts."""
+        api_client: AsyncAPIClient = make_async_api_client()
+        api_client._sleep_for_retry = mocker.AsyncMock()
+        spy_request = mocker.spy(api_client._client, "request")
+        httpx_mock.add_response(status_code=401)
+        with pytest.raises(ConnectionError, match="Error connecting"):
+            await api_client._request_raw(method="GET", url="/api")
+        spy_request.assert_called_once_with(method="GET", url="/api")
+
+    @pytest.mark.asyncio
+    async def test_request_raw_http_general_error(
+        self, mocker: MockerFixture, httpx_mock: HTTPXMock, make_async_api_client
+    ):
+        """Test that _request_raw handles http errors that are neither status nor timeouts differently."""
+        api_client: AsyncAPIClient = make_async_api_client()
+        spy_request = mocker.spy(api_client._client, "request")
+        httpx_mock.add_exception(httpx.ProxyError("Proxy error."))
+        with pytest.raises(httpx.ProxyError, match="Proxy error."):
+            await api_client._request_raw(method="GET", url="/api")
+        spy_request.assert_called_once_with(method="GET", url="/api")
+
+    @pytest.mark.asyncio
+    async def test_request_raw_timeout_error_after_retries(
+        self, mocker: MockerFixture, httpx_mock: HTTPXMock, make_async_api_client
+    ):
+        """Test that _request_raw raises an error after encountering the maximum number of allowed timeouts."""
+        api_client: AsyncAPIClient = make_async_api_client()
+        api_client._sleep_for_retry = mocker.AsyncMock()
+        spy_request = mocker.spy(api_client._client, "request")
+        httpx_mock.add_exception(
+            httpx.TimeoutException(message="Temporary time out"), is_reusable=True
+        )
+        with pytest.raises(ConnectionError, match="Failed to connect"):
+            await api_client._request_raw(method="GET", url="/api")
+        spy_request.assert_called_with(method="GET", url="/api")
+        assert spy_request.call_count == api_client.max_retries + 1
+        assert spy_request.call_count == api_client.max_retries + 1
+        assert api_client._sleep_for_retry.call_count == api_client.max_retries
+
+    @pytest.mark.asyncio
+    async def test_request_stream(self, mocker: MockerFixture, make_async_api_client):
+        """Test request with stream=True takes the correct branch and passes arguments correctly to _stream"""
+        api_client: AsyncAPIClient = make_async_api_client()
+        api_client._stream = mocker.AsyncMock()
+        api_client._request_raw = mocker.AsyncMock()
+        await api_client.request(method="GET", url="/api", stream=True)
+        api_client._stream.assert_called_once_with(method="GET", url="/api")
+        api_client._request_raw.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_request_non_stream(self, mocker: MockerFixture, make_async_api_client):
+        """Test request with stream=False takes the correct branch and passes arguments correctly to _request_raw"""
+        api_client: AsyncAPIClient = make_async_api_client()
+        api_client._stream = mocker.AsyncMock()
+        api_client._request_raw = mocker.AsyncMock()
+        await api_client.request(method="GET", url="/api", stream=False)
+        api_client._request_raw.assert_called_once_with(method="GET", url="/api")
+        api_client._stream.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_get(self, mocker: MockerFixture, make_async_api_client):
+        """Test get triggers a call to get with method=GET and passes on arguments correctly"""
+        api_client: AsyncAPIClient = make_async_api_client()
+        api_client.request = mocker.AsyncMock()
+        await api_client.get(path="/api", stream=True, params={"test": "hello"})
+        api_client.request.assert_called_with(
+            url="/api", method="GET", stream=True, params={"test": "hello"}
+        )
