@@ -383,7 +383,7 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
         else:
             self._client = self._default_client
 
-    @property
+    @cached_property
     def _default_client(self) -> httpx.AsyncClient:
         """Creates a default httpx.AsyncClient with configured settings."""
         return httpx.AsyncClient(
@@ -422,7 +422,7 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
                 req: httpx.Request = self._client.build_request(*args, **kwargs)
                 res: httpx.Response = await self._client.send(request=req, stream=True)
                 res.raise_for_status()
-                return StreamResponse(res)
+                break
             except httpx.HTTPError as e:
                 if isinstance(e, httpx.TimeoutException):
                     if retries_taken < self.max_retries:
@@ -437,8 +437,8 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
                         e.response.status_code,
                         f"Error connecting to url {self._parse_host(e.request.url)} with error: {e.response.text}",
                     ) from None
-            raise
-        raise ConnectionError("Unexpected error in _stream retry logic")
+                raise
+        return StreamResponse(res)
 
     async def _request_raw(self, *args, **kwargs) -> httpx.Response:
         """Makes a non-streaming HTTP request."""
@@ -462,7 +462,7 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
                         e.response.status_code,
                         f"Error connecting to url {self._parse_host(e.request.url)} with error: {e.response.text}",
                     ) from None
-            raise
+                raise
         return r
 
     async def request(self, *args, stream=False, **kwargs) -> StreamResponse | httpx.Response:
@@ -472,23 +472,15 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
         else:
             return await self._request_raw(*args, **kwargs)
 
-    async def get(
-        self,
-        path: str,
-        *,
-        stream: bool = False,
-    ):
+    async def get(self, path: str, *, stream: bool = False, **kwargs):
         """Makes a GET request to the specified path.
 
         Args:
             path: URL path for the GET request.
             stream: If True, returns a StreamResponse for streaming.
+            **kwargs: Additional keyword arguments for the request.
 
         Returns:
             StreamResponse if stream=True, otherwise httpx.Response.
         """
-        return await self.request(
-            method="GET",
-            url=path,
-            stream=stream,
-        )
+        return await self.request(method="GET", url=path, stream=stream, **kwargs)
