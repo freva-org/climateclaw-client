@@ -361,17 +361,101 @@ class TestSyncAPIClient:
         assert spy_send_request.call_count == api_client.max_retries + 1
         assert api_client._sleep_for_retry.call_count == api_client.max_retries
 
-    def test_request_raw_success(self, httpx_mock):
-        pass
+    def test_request_raw_success(
+        self, mocker: MockerFixture, httpx_mock: HTTPXMock, make_sync_api_client
+    ):
+        """Test that _request_raw returns a Response object in case of a successful request and output is as expected."""
+        api_client: SyncAPIClient = make_sync_api_client()
+        spy_request = mocker.spy(api_client._client, "request")
+        response_json = [{"a": 1}, {"b": 2}]
+        httpx_mock.add_response(status_code=200, json=response_json)
+        response = api_client._request_raw(method="GET", url="/api")
+        assert isinstance(response, httpx.Response)
+        spy_request.assert_called_once_with(method="GET", url="/api")
+        assert response.json() == response_json
 
-    def test_request_raw_success_with_retry(self, httpx_mock):
-        pass
+    def test_request_raw_success_with_retry(
+        self, mocker: MockerFixture, httpx_mock: HTTPXMock, make_sync_api_client
+    ):
+        """Test that _request_raw handles temporary timeouts by sleeping and retrying."""
+        api_client: SyncAPIClient = make_sync_api_client()
+        api_client._sleep_for_retry = mocker.MagicMock()
+        spy_request = mocker.spy(api_client._client, "request")
+        httpx_mock.add_exception(httpx.TimeoutException(message="Temporary time out"))
+        httpx_mock.add_response(status_code=200)
+        response = api_client._request_raw(method="GET", url="/api")
+        assert isinstance(response, httpx.Response)
+        spy_request.assert_called_with(method="GET", url="/api")
+        assert spy_request.call_count == 2
+        assert spy_request.call_count == 2
+        api_client._sleep_for_retry.assert_called_once()
 
-    def test_request_raw_http_status_error(self, httpx_mock):
-        pass
+    def test_request_raw_http_status_error(
+        self, mocker: MockerFixture, httpx_mock: HTTPXMock, make_sync_api_client
+    ):
+        """Test that _stream handles status errors differently from timeouts."""
+        api_client: SyncAPIClient = make_sync_api_client()
+        api_client._sleep_for_retry = mocker.MagicMock()
+        spy_request = mocker.spy(api_client._client, "request")
+        httpx_mock.add_response(status_code=401)
+        with pytest.raises(ConnectionError, match="Error connecting"):
+            api_client._request_raw(method="GET", url="/api")
+        spy_request.assert_called_once_with(method="GET", url="/api")
 
-    def test_request_raw_timeout_error_after_retries(self, httpx_mock):
-        pass
+    def test_request_raw_http_general_error(
+        self, mocker: MockerFixture, httpx_mock: HTTPXMock, make_sync_api_client
+    ):
+        """Test that _request_raw handles http errors that are neither status nor timeouts differently."""
+        api_client: SyncAPIClient = make_sync_api_client()
+        spy_request = mocker.spy(api_client._client, "request")
+        httpx_mock.add_exception(httpx.ProxyError("Proxy error."))
+        with pytest.raises(httpx.ProxyError, match="Proxy error."):
+            api_client._request_raw(method="GET", url="/api")
+        spy_request.assert_called_once_with(method="GET", url="/api")
+
+    def test_request_raw_timeout_error_after_retries(
+        self, mocker: MockerFixture, httpx_mock: HTTPXMock, make_sync_api_client
+    ):
+        """Test that _request_raw raises an error after encountering the maximum number of allowed timeouts."""
+        api_client: SyncAPIClient = make_sync_api_client()
+        api_client._sleep_for_retry = mocker.MagicMock()
+        spy_request = mocker.spy(api_client._client, "request")
+        httpx_mock.add_exception(
+            httpx.TimeoutException(message="Temporary time out"), is_reusable=True
+        )
+        with pytest.raises(ConnectionError, match="Failed to connect"):
+            api_client._request_raw(method="GET", url="/api")
+        spy_request.assert_called_with(method="GET", url="/api")
+        assert spy_request.call_count == api_client.max_retries + 1
+        assert spy_request.call_count == api_client.max_retries + 1
+        assert api_client._sleep_for_retry.call_count == api_client.max_retries
+
+    def test_request_stream(self, mocker: MockerFixture, make_sync_api_client):
+        """Test request with stream=True takes the correct branch and passes arguments correctly to _stream"""
+        api_client: SyncAPIClient = make_sync_api_client()
+        api_client._stream = mocker.MagicMock()
+        api_client._request_raw = mocker.MagicMock()
+        api_client.request(method="GET", url="/api", stream=True)
+        api_client._stream.assert_called_once_with(method="GET", url="/api")
+        api_client._request_raw.assert_not_called()
+
+    def test_request_non_stream(self, mocker: MockerFixture, make_sync_api_client):
+        """Test request with stream=False takes the correct branch and passes arguments correctly to _request_raw"""
+        api_client: SyncAPIClient = make_sync_api_client()
+        api_client._stream = mocker.MagicMock()
+        api_client._request_raw = mocker.MagicMock()
+        api_client.request(method="GET", url="/api", stream=False)
+        api_client._request_raw.assert_called_once_with(method="GET", url="/api")
+        api_client._stream.assert_not_called()
+
+    def test_get(self, mocker: MockerFixture, make_sync_api_client):
+        """Test get triggers a call to get with method=GET and passes on arguments correctly"""
+        api_client: SyncAPIClient = make_sync_api_client()
+        api_client.request = mocker.MagicMock()
+        api_client.get(path="/api", stream=True, params={"test": "hello"})
+        api_client.request.assert_called_with(
+            url="/api", method="GET", stream=True, params={"test": "hello"}
+        )
 
 
 # =============================================================================
