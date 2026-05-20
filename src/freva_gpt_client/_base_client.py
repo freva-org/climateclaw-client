@@ -18,7 +18,7 @@ from ._streaming import StreamResponse
 logger: logging.Logger = logging.getLogger(__name__)
 
 _HttpxClientT = TypeVar("_HttpxClientT", bound=Union[httpx.Client, httpx.AsyncClient])
-Headers = TypeVar("Headers", bound=Union[Dict[str, str], httpx.Headers])
+Headers = Union[Dict, httpx.Headers]
 
 
 class BaseClient(Generic[_HttpxClientT]):
@@ -54,7 +54,7 @@ class BaseClient(Generic[_HttpxClientT]):
         follow_redirects: bool = True,
         max_retries: int = DEFAULT_MAX_RETRIES,
         timeout: float = DEFAULT_TIMEOUT,
-        custom_headers: Headers | None = None,
+        custom_headers: Headers = {},
     ):
         """Initializes the base client with configuration options.
 
@@ -102,7 +102,7 @@ class BaseClient(Generic[_HttpxClientT]):
         }
         return headers
 
-    def _build_headers(self, custom_headers: Headers = httpx.Headers()) -> httpx.Headers:
+    def _build_headers(self, custom_headers: Headers = {}) -> httpx.Headers:
         """Builds request headers by merging default and custom headers."""
         headers = {**self.default_headers, **custom_headers}
         return httpx.Headers(headers)
@@ -174,7 +174,7 @@ class SyncAPIClient(BaseClient[httpx.Client]):
         follow_redirects: bool = True,
         max_retries: int = DEFAULT_MAX_RETRIES,
         timeout: float = DEFAULT_TIMEOUT,
-        custom_headers: Headers | None = None,
+        custom_headers: Headers = {},
         http_client: httpx.Client | None = None,
     ):
         """Initializes the sync client.
@@ -345,7 +345,7 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
         follow_redirects: bool = True,
         max_retries: int = DEFAULT_MAX_RETRIES,
         timeout: float = DEFAULT_TIMEOUT,
-        custom_headers: Headers | None = None,
+        custom_headers: Headers = {},
         http_client: httpx.AsyncClient | None = None,
     ):
         """Initializes the async client.
