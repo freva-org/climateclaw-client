@@ -321,8 +321,6 @@ class SyncAPIClient(BaseClient[httpx.Client]):
         Returns:
             StreamResponse if stream=True, otherwise httpx.Response.
         """
-        # cast is required because mypy complains about returning Any even though
-        # it understands the type variables
         return self.request(method="GET", url=path, stream=stream, **kwargs)
 
 
