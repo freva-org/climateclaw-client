@@ -76,10 +76,9 @@ class TokenAuth(httpx.Auth):
         # if auth token is not set, but token store contains correct token, update token from token store
         if not auth_token and test_token:
             self.auth_token = test_token
-        # if both auth token and token store are not set, start oidc device flow
-        elif not (auth_token and test_token):
+        # otherwise, start oidc device flow
+        else:
             self.auth_token = self._authenticate()
-        self.token_store = token_store
         self._update_token_or_store()
         return token_store
 
