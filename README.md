@@ -1,7 +1,7 @@
 # FrevaGPT Client
 
 [![License](https://github.com/eClip-/EUPL-badge/blob/master/eupl_1.2.svg)](LICENSE)
-[![docs](https://readthedocs.org/projects/freva-gpt-client/badge/?version=latest)](https://freva-gpt-client.readthedocs.io/en/latest/?badge=latest)
+[![docs](https://readthedocs.org/projects/freva-gpt-client/badge/?version=latest)](https://freva-gpt-client.readthedocs.io/latest/?badge=latest)
 [![codecov](https://codecov.io/github/freva-org/freva-gpt-client/graph/badge.svg?token=kDsGq9llcK)](https://codecov.io/github/freva-org/freva-gpt-client)
 
 A Python client library for interacting with the [FrevaGPT backend](https://github.com/freva-org/freva-gpt-backend-py). This library provides both synchronous and asynchronous (not yet fully implemented) interfaces for communicating with a FrevaGPT chatbot instance.
@@ -10,8 +10,10 @@ A Python client library for interacting with the [FrevaGPT backend](https://gith
 - Synchronous client with full API support
 - Asynchronous client (placeholder, async methods coming soon)
 - OIDC authentication via [py-oidc-auth-client](https://pypi.org/project/py-oidc-auth-client/)
-- Thread management (create, retrieve, interact with conversation threads)
+- Thread management (create, retrieve, list, search, fork, and delete conversation threads)
 - Streaming and non-streaming prompt responses
+- Thread operations (stop active conversations, set thread topics, edit/fork threads)
+- User feedback (submit positive/negative feedback on assistant messages)
 - Rich message types with markdown rendering support
 
 ## Requirements
@@ -77,8 +79,10 @@ frevagpt.model = "gpt-4.1"
 conversation = client.prompt(
     "Please calculate the average temperature over Germany for the years 1990-2020!"
 )
+# Render the entire answer as a human-readable string
+print(conversation)
 
-# Access the conversation messages
+# Access the individual messages
 for message in conversation.messages:
     print(f"{message.variant}: {message.content}")
 
@@ -137,6 +141,37 @@ response = client.prompt(
     "Please explain how the SOI can be calculated and run an example analysis.",
     thread_id=thread_id,  # optional: uses thread of active conversation otherwise
 )
+```
+
+#### List User Threads
+
+```python
+# List all your conversation threads
+total_threads, user_threads = client.getuserthreads(num_threads=10)
+print(f"A total number of {total_threads} threads was retrieved.")
+# access individual threads (which are Conversation objects)
+print(user_threads[0])
+```
+
+#### Search Threads
+
+```python
+# Search for threads by topic
+total_results, matching_threads = client.searchthreads(query="climate analysis", num_threads=5)
+```
+
+#### Set Thread Topic
+
+```python
+# Set a topic for a thread (useful for searching later)
+client.setthreadtopic("ENSO analysis", thread_id=thread_id)
+```
+
+#### Delete a Thread
+
+```python
+# Delete a thread on the backend when you're done with it
+client.deletethread(thread_id=thread_id)
 ```
 
 ### Working with Message Types

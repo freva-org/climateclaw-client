@@ -34,26 +34,28 @@ Basic Usage Example
 
 .. code-block:: python
 
-   from freva_gpt_client.client import FrevaGPT
+    from freva_gpt_client.client import FrevaGPT
 
-   # Create a client instance
-   client = FrevaGPT(
-       base_url="https://your-freva-gpt-backend.com",
-       token_store_path="~/.cache/freva-gpt-client/token-store.json"
-   )
+    # Create a client instance
+    client = FrevaGPT(
+        base_url="https://your-freva-gpt-backend.com",
+        token_store_path="~/.cache/freva-gpt-client/token-store.json",
+    )
 
-   # Authenticate with the backend
-   client.authenticate()
+    # Authenticate with the backend
+    client.authenticate()
 
-   # List available models
-   print(f"Available models: {client.available_models}")
+    # List available models
+    print(f"Available models: {client.available_models}")
 
-   # Send a prompt
-   conversation = client.prompt("Please calculate the average temperature over Germany for 1990-2020!")
+    # Send a prompt
+    conversation = client.prompt(
+        "Please calculate the average temperature over Germany for 1990-2020!"
+    )
 
-   # Access messages
-   for message in conversation.messages:
-       print(f"{message.variant}: {message.content}")
+    # Access messages
+    for message in conversation.messages:
+        print(f"{message.variant}: {message.content}")
 
 
 Streaming Example
@@ -61,16 +63,13 @@ Streaming Example
 
 .. code-block:: python
 
-   # Send a prompt with streaming enabled
-   stream_conv = client.prompt(
-       "Please explain the ENSO phenomenon to me!",
-       stream=True
-   )
+    # Send a prompt with streaming enabled
+    stream_conv = client.prompt("Please explain the ENSO phenomenon to me!", stream=True)
 
-   # Iterate over markdown chunks as they arrive
-   with stream_conv as stream:
-       for markdown_chunk in stream.iter_for_markdown():
-           print(markdown_chunk)
+    # Iterate over markdown chunks as they arrive
+    with stream_conv as stream:
+        for markdown_chunk in stream.iter_for_markdown():
+            print(markdown_chunk)
 
 
 Thread Management Example
@@ -78,14 +77,26 @@ Thread Management Example
 
 .. code-block:: python
 
-   # Create a new conversation thread
-   thread_id = client.newthread()
+    # Create a new conversation thread
+    thread_id = client.newthread()
 
-   # Continue a conversation in an existing thread
-   response = client.prompt(
-       "Please explain how the SOI can be calculated.",
-       thread_id=thread_id
-   )
+    # Continue a conversation in an existing thread
+    response = client.prompt("Please explain how the SOI can be calculated.", thread_id=thread_id)
+
+    # List all your conversation threads
+    total_threads, user_threads = client.getuserthreads(num_threads=10)
+    print(f"A total number of {total_threads} threads was retrieved.")
+    # access individual threads (which are Conversation objects)
+    print(user_threads[0])
+
+    # Search for threads by topic
+    total_results, matching_threads = client.searchthreads(query="climate analysis", num_threads=5)
+
+    # Set a topic for a thread (useful for searching later)
+    client.setthreadtopic("ENSO analysis", thread_id=thread_id)
+
+    # Delete a thread when you're done with it
+    client.deletethread(thread_id=thread_id)
 
 
 Features
@@ -93,8 +104,10 @@ Features
 
 - **Synchronous client** with full API support
 - **OIDC authentication** via `py-oidc-auth-client <https://pypi.org/project/py-oidc-auth-client/>`_
-- **Thread management**: create, retrieve, interact with conversation threads
+- **Thread management**: create, retrieve, list, search, fork, and delete conversation threads
 - **Streaming and non-streaming** prompt responses
+- **Thread operations**: stop active conversations, set thread topics, edit/fork threads
+- **User feedback**: submit positive/negative feedback on assistant messages
 - **Rich message types** with markdown rendering support
 - **Message variants**: Prompt, User, Assistant, Code, CodeOutput, Image, ServerError, OpenAIError, CodeError, StreamEnd, ServerHint
 
