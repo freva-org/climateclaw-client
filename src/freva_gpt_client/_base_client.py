@@ -241,6 +241,9 @@ class SyncAPIClient(BaseClient[httpx.Client]):
             )
         elif retries_taken == self.max_retries:
             logger.debug(f"Retrying connection after sleeping {timeout} seconds. Final attempt.")
+        else:
+            logger.debug("Maximum number of retries exceeded. Skipping timeout.")
+            return
         time.sleep(timeout)
 
     def _stream(self, *args, **kwargs) -> StreamResponse:
