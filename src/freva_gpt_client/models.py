@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field, computed_field, field_validator
 
 from ._streaming import StreamResponse
 
-if sys.version_info.minor < 11:
+if sys.version_info.minor < 11:  # pragma: no cover
     from typing_extensions import Self
 else:
     from typing import Self
@@ -142,7 +142,7 @@ class Code(BaseMessage):
         try:
             decoded_str = json.loads(self.content)
             if isinstance(decoded_str, dict):
-                return [json.loads(self.content)["code"]]
+                return [decoded_str.get("code", "")] if "code" in decoded_str else []
             return []
         except json.JSONDecodeError:
             return []
@@ -184,8 +184,9 @@ class CodeOutput(BaseMessage):
             Markdown string with output in blockquotes.
         """
         markdown_str = ""
-        for line in self.content.split("\n"):
-            markdown_str += f"\n> {line}"
+        if self.content:
+            for line in self.content.split("\n"):
+                markdown_str += f"\n> {line}"
         return markdown_str
 
 
@@ -220,7 +221,7 @@ class ServerHint(BaseMessage):
     """A server hint message containing structured hint data."""
 
     variant: Literal["ServerHint"]
-    content: Dict[str, str | int | float]
+    content: Dict[str, str | int | float | Dict[str, Any]]
 
     @field_validator("content", mode="before")
     @classmethod
@@ -370,6 +371,15 @@ class MessageModel(BaseModel):
         """
         self.message.variant = variant
 
+    @property
+    def code_cells(self) -> List[str]:
+        """Gets the code_cells of the underlying message (valid for Assistant or Code type messages)
+
+        Returns
+            A list of individual code cells contained in a given message.
+        """
+        return self.message.code_cells
+
     def repr_markdown(self) -> str:
         """Returns a markdown representation of the message.
 
@@ -446,7 +456,7 @@ class Conversation(BaseModel):
         """
         result = []
         for mm in self.messages:
-            result += mm.message.code_cells
+            result += mm.code_cells
         return result
 
     def repr_markdown(self) -> str:
@@ -506,6 +516,8 @@ class StreamConversation(AbstractContextManager):
         conversation: Cached Conversation instance after stream completes.
         _current_message: The current MessageModel being accumulated.
         _buffered_content: Any message content that needs to be buffered for delayed processing.
+        _code_started: Flag indicating if a code message has been started in the stream.
+        _on_exit_callback: Callable that is called on exit of the context.
     """
 
     def __init__(self, stream: StreamResponse, on_exit_callback: Callable | None = None):
@@ -518,6 +530,7 @@ class StreamConversation(AbstractContextManager):
         self.conversation: Conversation | None = None
         self._current_message: MessageModel | None = None
         self._buffered_content: str = ""
+        self._code_started: bool = False
         self._on_exit_callback: Callable | None = on_exit_callback
 
     def __enter__(self) -> Self:
@@ -640,30 +653,33 @@ class StreamConversation(AbstractContextManager):
         output: List[str] = []
 
         content = str(self._current_message.content) if self._current_message else ""
+        code_content = ""
         self._buffered_content += code_chunk
-        prefix = '{"code":"'
+        prefix = '{"code":'
         suffix = '"}'
         prefix_idx = content.find(prefix)
         # Check if we have the complete prefix
         if prefix_idx >= 0:
-            # Extract everything after the prefix
-            valid_content = content[prefix_idx + len(prefix) :]
-            # if valid content is empty, indicates start of actual code content
-            if not valid_content:
+            # if prefix is found, but code not started yet, set flag to true and add markdown python code-wrapper prefix
+            if not self._code_started:
+                self._code_started = True
                 code_content = "\n\n```python\n"
             # if buffered content ends with suffix, indicates end of code
-            elif self._buffered_content.endswith(suffix):
-                code_content = f"{self._buffered_content.lstrip(prefix).rstrip(suffix)}\n```\n\n"
+            if self._buffered_content.endswith(suffix):
+                code_content += (
+                    self._buffered_content.lstrip(prefix).rstrip(suffix).lstrip(' "') + "\n```\n\n"
+                )
+                self._code_started = False  # reset code-started flag
             # parse buffered content if it does not end with a (potentially) incomplete escape sequence
             elif self._buffered_content[-1] != "\\":
-                code_content = (
-                    self._parse_escaped_chars(self._buffered_content).lstrip(prefix).rstrip(suffix)
+                code_content += (
+                    self._parse_escaped_chars(self._buffered_content)
+                    .lstrip(prefix)
+                    .rstrip(suffix)
+                    .lstrip(' "')
                 )
                 # reset buffered content
                 self._buffered_content = ""
-            # skip content if it includes incomplete escape sequence
-            else:
-                code_content = ""
             if code_content:
                 output.append(code_content)
         return output

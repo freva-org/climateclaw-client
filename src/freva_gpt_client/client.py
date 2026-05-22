@@ -3,7 +3,7 @@ import json
 import logging
 from functools import cached_property
 from importlib import metadata
-from typing import Any, Dict, List, Literal, Tuple, Union, cast
+from typing import Any, Dict, List, Literal, Tuple, cast
 
 import httpx
 from httpx import URL
@@ -16,11 +16,11 @@ from ._constants import (
     OPENAPI_SPEC_PATH,
 )
 from ._streaming import StreamResponse
-from .models import Conversation, Image, MessageModel, StreamConversation
+from .models import Conversation, MessageModel, StreamConversation
 
 try:
     __version__ = metadata.version("freva-gpt-client")
-except metadata.PackageNotFoundError:
+except metadata.PackageNotFoundError:  # pragma: no cover
     __version__ = "0.0.0"
 
 logger = logging.getLogger(__name__)
@@ -149,13 +149,14 @@ class FrevaGPT(SyncAPIClient):
         self._auth._authenticate()
 
     def newthread(self) -> str:
-        """Creates a new conversation thread.
+        """Creates a new conversation thread and updates the current thread id.
 
         Returns:
             The ID of the newly created thread.
         """
         response = self.get(path=self._construct_path("newthread"))
         thread_id = response.json()
+        self._thread_id = thread_id
         return thread_id
 
     def prompt(
@@ -190,15 +191,12 @@ class FrevaGPT(SyncAPIClient):
             )
         elif not model and not self.model:
             raise TypeError(
-                f"Argument 'model' has to specified, unless instance attribute '{self.__class__.__name__}.model' is set."
+                f"Argument 'model' has to be specified, unless instance attribute '{self.__class__.__name__}.model' is set."
             )
 
         if not (self._thread_id or thread_id):
             thread_id = self.newthread()
-            self._thread_id = thread_id
-        elif thread_id:
-            self._thread_id = thread_id
-        else:
+        elif not thread_id:
             thread_id = self._thread_id
         try:
             response: httpx.Response | StreamResponse = self.get(
@@ -243,7 +241,7 @@ class FrevaGPT(SyncAPIClient):
             thread_id = self._thread_id
         elif not (thread_id or self._thread_id):
             raise TypeError(
-                "Argument 'thread_id' has to specified, if no conversation was started previously."
+                "Argument 'thread_id' has to be specified, if no conversation was started previously."
             )
         response = self.get(
             path=self._construct_path("getthread"),
@@ -297,7 +295,7 @@ class FrevaGPT(SyncAPIClient):
         Delete a given thread by the authenticated user.
 
         Args:
-            thread_id (str | None, optional): The ID of the thread to be deleted on the backend. If not specified, uses the current active thread ID.
+            thread_id (str | None, optional): The ID of the thread to be deleted on the backend. If not specified, uses the current active thread ID (and resets active thread ID to None).
 
         Raises:
             TypeError: Raised, if no thread_id is specified and no previous conversation was started.
@@ -306,9 +304,11 @@ class FrevaGPT(SyncAPIClient):
             thread_id = self._thread_id
         elif not (thread_id or self._thread_id):
             raise TypeError(
-                "Argument 'thread_id' has to specified, if no conversation was started previously."
+                "Argument 'thread_id' has to be specified, if no conversation was started previously."
             )
         self.get(path=self._construct_path("deletethread"), params={"thread_id": thread_id})
+        # reset self._thread_id in case it is identical to id of deleted thread
+        self._thread_id = None if self._thread_id == thread_id else self._thread_id
 
     def setthreadtopic(self, new_topic: str, thread_id: str | None = None) -> str:
         """Sets the topic of a given thread.
@@ -328,7 +328,7 @@ class FrevaGPT(SyncAPIClient):
             thread_id = self._thread_id
         elif not (thread_id or self._thread_id):
             raise TypeError(
-                "Argument 'thread_id' has to specified, if no conversation was started previously."
+                "Argument 'thread_id' has to be specified, if no conversation was started previously."
             )
         self.get(
             path=self._construct_path("setthreadtopic"),
@@ -393,7 +393,7 @@ class FrevaGPT(SyncAPIClient):
             thread_id = self._thread_id
         elif not (thread_id or self._thread_id):
             raise TypeError(
-                "Argument 'thread_id' has to specified, if no conversation was started previously."
+                "Argument 'thread_id' has to be specified, if no conversation was started previously."
             )
         try:
             self.get(path=self._construct_path("stop"), params={"thread_id": thread_id})
@@ -433,7 +433,7 @@ class FrevaGPT(SyncAPIClient):
             source_thread_id = self._thread_id
         elif not (source_thread_id or self._thread_id):
             raise TypeError(
-                "Argument 'source_thread_id' has to specified, if no conversation was started previously."
+                "Argument 'source_thread_id' has to be specified, if no conversation was started previously."
             )
         try:
             response: httpx.Response = self.get(
@@ -490,7 +490,7 @@ class FrevaGPT(SyncAPIClient):
             thread_id = self._thread_id
         elif not (thread_id or self._thread_id):
             raise TypeError(
-                "Argument 'thread_id' has to specified, if no conversation was started previously."
+                "Argument 'thread_id' has to be specified, if no conversation was started previously."
             )
         if feedback not in (allowed_feedback := ["up", "down", "remove"]):
             raise ValueError(f"Feedback string must be one of {allowed_feedback}.")
@@ -522,17 +522,6 @@ class FrevaGPT(SyncAPIClient):
             elif e.errno in (500, 503):
                 raise ConnectionError("Error on the backend saving/modifying feedback.")
             raise
-
-    def _cast_message(self, message: MessageModel) -> Union[MessageModel, Image]:
-        """Casts a message to the appropriate type.
-
-        Args:
-            message: The message to cast.
-
-        Returns:
-            The message cast to the appropriate type (MessageModel or Image).
-        """
-        return message
 
     def _construct_path(self, endpoint_name: str) -> str:
         """Constructs the full API path for an endpoint.

@@ -18,7 +18,7 @@ from ._streaming import StreamResponse
 logger: logging.Logger = logging.getLogger(__name__)
 
 _HttpxClientT = TypeVar("_HttpxClientT", bound=Union[httpx.Client, httpx.AsyncClient])
-Headers = Dict[str, str]
+Headers = Union[Dict, httpx.Headers]
 
 
 class BaseClient(Generic[_HttpxClientT]):
@@ -54,7 +54,7 @@ class BaseClient(Generic[_HttpxClientT]):
         follow_redirects: bool = True,
         max_retries: int = DEFAULT_MAX_RETRIES,
         timeout: float = DEFAULT_TIMEOUT,
-        custom_headers: Dict[str, str] | None = None,
+        custom_headers: Headers = {},
     ):
         """Initializes the base client with configuration options.
 
@@ -72,8 +72,8 @@ class BaseClient(Generic[_HttpxClientT]):
         self.follow_redirects = follow_redirects
         self.timeout = timeout
         self.max_retries = max_retries
+        self.headers = self._build_headers(custom_headers)
         self._token_store_path = token_store_path
-        self._custom_headers = custom_headers
 
     @cached_property
     def _auth(self) -> TokenAuth:
@@ -94,7 +94,7 @@ class BaseClient(Generic[_HttpxClientT]):
             for k, v in {
                 "Content-Type": "application/json",
                 "Accept": "application/json",
-                "User-Agent": f"frevagpt-python/{self._version} ({platform.machine()} {platform.system().lower()}) Python/{platform.python_version()}",
+                "User-Agent": f"freva-gpt-python/{self._version} ({platform.machine()} {platform.system().lower()}) Python/{platform.python_version()}",
                 "X-Freva-Vault-URL": f"{self.base_url}:5002",
                 "X-Freva-Rest-URL": f"{self.base_url}:7777",
                 "X-Freva-Config-Path": "/opt/freva/core/freva/evaluation_system.conf",
@@ -102,14 +102,15 @@ class BaseClient(Generic[_HttpxClientT]):
         }
         return headers
 
-    def _build_headers(self, custom_headers: Headers) -> httpx.Headers:
+    def _build_headers(self, custom_headers: Headers = {}) -> httpx.Headers:
         """Builds request headers by merging default and custom headers."""
         headers = {**self.default_headers, **custom_headers}
         return httpx.Headers(headers)
 
-    def _validate_base_url(self, base_url) -> httpx.URL:
+    @classmethod
+    def _validate_base_url(cls, base_url: Union[str, httpx.URL]) -> httpx.URL:
         """Validates and normalizes the base URL."""
-        return httpx.URL(self._parse_host(base_url))
+        return httpx.URL(cls._parse_host(base_url))
 
     @staticmethod
     def _parse_host(host: Union[str, httpx.URL]) -> str:
@@ -152,6 +153,180 @@ class BaseClient(Generic[_HttpxClientT]):
         return f"{scheme}://{host}:{port}"
 
 
+class SyncAPIClient(BaseClient[httpx.Client]):
+    """Synchronous API client for FrevaGPT.
+
+    Provides sync methods for making HTTP requests to the FrevaGPT API,
+    including streaming support and automatic retry logic.
+
+    Attributes:
+        _client: The underlying httpx.Client instance.
+    """
+
+    _client: httpx.Client
+
+    def __init__(
+        self,
+        *,
+        version: str,
+        base_url: str | httpx.URL,
+        token_store_path: str = "",
+        follow_redirects: bool = True,
+        max_retries: int = DEFAULT_MAX_RETRIES,
+        timeout: float = DEFAULT_TIMEOUT,
+        custom_headers: Headers = {},
+        http_client: httpx.Client | None = None,
+    ):
+        """Initializes the sync client.
+
+        Args:
+            version: Client version string.
+            base_url: Base URL for the FrevaGPT API.
+            token_store_path: Path to store authentication tokens.
+            follow_redirects: Whether to follow HTTP redirects.
+            max_retries: Maximum number of retry attempts.
+            timeout: Request timeout in seconds.
+            custom_headers: Optional custom headers to include in requests.
+            http_client: Optional pre-configured httpx.Client.
+
+        Raises:
+            TypeError: If http_client is not an httpx.Client instance.
+        """
+
+        if http_client and not isinstance(http_client, httpx.Client):
+            raise TypeError(
+                f"Invalid `http_client` argument; Expected an instance of `httpx.Client`, but got {type(http_client)}."
+            )
+
+        super().__init__(
+            version=version,
+            base_url=base_url,
+            token_store_path=token_store_path,
+            follow_redirects=follow_redirects,
+            max_retries=max_retries,
+            timeout=timeout,
+            custom_headers=custom_headers,
+        )
+        if http_client:
+            self._client = http_client
+        else:
+            self._client = self._default_client
+
+    @cached_property
+    def _default_client(self) -> httpx.Client:
+        """Creates a default httpx.Client with configured settings."""
+        return httpx.Client(
+            base_url=self.base_url,
+            follow_redirects=self.follow_redirects,
+            timeout=httpx.Timeout(DEFAULT_TIMEOUT, connect=self.timeout),
+            headers=self.headers,
+            auth=self._auth,
+        )
+
+    @property
+    def is_closed(self) -> bool:
+        """Whether the underlying HTTP client is closed.
+
+        Returns:
+            True if the client is closed, False otherwise.
+        """
+        return self._client.is_closed
+
+    def _sleep_for_retry(self, retries_taken: int):
+        """Sleeps for the given timeout, plus a random buffer, resulting in a maximum of 2*timeout wait."""
+        timeout = self.timeout * (1 + random.random())
+        if retries_taken < self.max_retries:
+            logger.debug(
+                f"Retrying connection after sleeping {timeout} seconds. Attempt {retries_taken + 1}."
+            )
+        elif retries_taken == self.max_retries:
+            logger.debug(f"Retrying connection after sleeping {timeout} seconds. Final attempt.")
+        else:
+            logger.debug("Maximum number of retries exceeded. Skipping timeout.")
+            return
+        time.sleep(timeout)
+
+    def _stream(self, *args, **kwargs) -> StreamResponse:
+        """Makes a streaming HTTP request and returns a StreamResponse."""
+        retries_taken = 0
+        for retries_taken in range(self.max_retries + 1):
+            try:
+                req: httpx.Request = self._client.build_request(*args, **kwargs)
+                res: httpx.Response = self._client.send(request=req, stream=True)
+                res.raise_for_status()
+                break
+            except httpx.HTTPError as e:
+                if isinstance(e, httpx.TimeoutException):
+                    if retries_taken < self.max_retries:
+                        self._sleep_for_retry(retries_taken)
+                        continue
+                    raise ConnectionError(
+                        f"Failed to connect to url {self._parse_host(e.request.url)}. Please try again.",
+                    ) from None
+                elif isinstance(e, httpx.HTTPStatusError):
+                    e.response.read()
+                    raise ConnectionError(
+                        e.response.status_code,
+                        f"Error connecting to url {self._parse_host(e.request.url)} with error: {e.response.text}",
+                    ) from None
+                raise
+        return StreamResponse(res)
+
+    def _request_raw(self, *args, **kwargs) -> httpx.Response:
+        """Makes a non-streaming HTTP request."""
+        retries_taken = 0
+        for retries_taken in range(self.max_retries + 1):
+            try:
+                r: httpx.Response = self._client.request(*args, **kwargs)
+                r.raise_for_status()
+                break
+            except httpx.HTTPError as e:
+                if isinstance(e, httpx.TimeoutException):
+                    if retries_taken < self.max_retries:
+                        self._sleep_for_retry(retries_taken=retries_taken)
+                        continue
+                    raise ConnectionError(
+                        f"Failed to connect to {self._parse_host(e.request.url)}. Please try again."
+                    ) from None
+                elif isinstance(e, httpx.HTTPStatusError):
+                    e.response.read()
+                    raise ConnectionError(
+                        e.response.status_code,
+                        f"Error connecting to url {self._parse_host(e.request.url)} with error: {e.response.text}",
+                    ) from None
+                raise
+        return r
+
+    def request(self, *args, stream=False, **kwargs) -> StreamResponse | httpx.Response:
+        """Makes an HTTP request, either streaming or non-streaming.
+
+        Args:
+            *args: Positional arguments passed to the request method.
+            stream: If True, returns a StreamResponse for streaming JSON objects.
+            **kwargs: Keyword arguments passed to the request method.
+
+        Returns:
+            StreamResponse if stream=True, otherwise httpx.Response.
+        """
+        if stream:
+            return self._stream(*args, **kwargs)
+        else:
+            return self._request_raw(*args, **kwargs)
+
+    def get(self, path: str, *, stream: bool = False, **kwargs):
+        """Makes a GET request to the specified path.
+
+        Args:
+            path: URL path for the GET request.
+            stream: If True, returns a StreamResponse for streaming.
+            **kwargs: Additional keyword arguments for the request.
+
+        Returns:
+            StreamResponse if stream=True, otherwise httpx.Response.
+        """
+        return self.request(method="GET", url=path, stream=stream, **kwargs)
+
+
 class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
     """Asynchronous API client for FrevaGPT.
 
@@ -173,6 +348,7 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
         follow_redirects: bool = True,
         max_retries: int = DEFAULT_MAX_RETRIES,
         timeout: float = DEFAULT_TIMEOUT,
+        custom_headers: Headers = {},
         http_client: httpx.AsyncClient | None = None,
     ):
         """Initializes the async client.
@@ -184,6 +360,7 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
             follow_redirects: Whether to follow HTTP redirects.
             max_retries: Maximum number of retry attempts.
             timeout: Request timeout in seconds.
+            custom_headers: Optional custom headers to include in requests.
             http_client: Optional pre-configured httpx.AsyncClient.
 
         Raises:
@@ -202,21 +379,22 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
             follow_redirects=follow_redirects,
             max_retries=max_retries,
             timeout=timeout,
+            custom_headers=custom_headers,
         )
         if http_client:
             self._client = http_client
         else:
             self._client = self._default_client
 
-    @property
+    @cached_property
     def _default_client(self) -> httpx.AsyncClient:
         """Creates a default httpx.AsyncClient with configured settings."""
         return httpx.AsyncClient(
             base_url=self.base_url,
-            headers=self.default_headers,
-            auth=self._auth,
             follow_redirects=self.follow_redirects,
-            timeout=self.timeout,
+            timeout=httpx.Timeout(DEFAULT_TIMEOUT, connect=self.timeout),
+            headers=self.headers,
+            auth=self._auth,
         )
 
     @property
@@ -247,11 +425,11 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
                 req: httpx.Request = self._client.build_request(*args, **kwargs)
                 res: httpx.Response = await self._client.send(request=req, stream=True)
                 res.raise_for_status()
-                return StreamResponse(res)
+                break
             except httpx.HTTPError as e:
                 if isinstance(e, httpx.TimeoutException):
                     if retries_taken < self.max_retries:
-                        await self._sleep_for_retry(retries_taken=retries_taken)
+                        await self._sleep_for_retry(retries_taken)
                         continue
                     raise ConnectionError(
                         f"Failed to connect to url {self._parse_host(e.request.url)}. Please try again.",
@@ -262,7 +440,8 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
                         e.response.status_code,
                         f"Error connecting to url {self._parse_host(e.request.url)} with error: {e.response.text}",
                     ) from None
-        raise ConnectionError("Unexpected error in _stream retry logic")
+                raise
+        return StreamResponse(res)
 
     async def _request_raw(self, *args, **kwargs) -> httpx.Response:
         """Makes a non-streaming HTTP request."""
@@ -286,6 +465,7 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
                         e.response.status_code,
                         f"Error connecting to url {self._parse_host(e.request.url)} with error: {e.response.text}",
                     ) from None
+                raise
         return r
 
     async def request(self, *args, stream=False, **kwargs) -> StreamResponse | httpx.Response:
@@ -295,181 +475,7 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
         else:
             return await self._request_raw(*args, **kwargs)
 
-    async def get(
-        self,
-        path: str,
-        *,
-        stream: bool = False,
-    ):
-        """Makes a GET request to the specified path.
-
-        Args:
-            path: URL path for the GET request.
-            stream: If True, returns a StreamResponse for streaming.
-
-        Returns:
-            StreamResponse if stream=True, otherwise httpx.Response.
-        """
-        return await self.request(
-            method="GET",
-            url=path,
-            stream=stream,
-        )
-
-
-class SyncAPIClient(BaseClient[httpx.Client]):
-    """Synchronous API client for FrevaGPT.
-
-    Provides sync methods for making HTTP requests to the FrevaGPT API,
-    including streaming support and automatic retry logic.
-
-    Attributes:
-        _client: The underlying httpx.Client instance.
-    """
-
-    _client: httpx.Client
-
-    def __init__(
-        self,
-        *,
-        version: str,
-        base_url: str | httpx.URL,
-        token_store_path: str = "",
-        follow_redirects: bool = True,
-        max_retries: int = DEFAULT_MAX_RETRIES,
-        timeout: float = DEFAULT_TIMEOUT,
-        http_client: httpx.Client | None = None,
-    ):
-        """Initializes the sync client.
-
-        Args:
-            version: Client version string.
-            base_url: Base URL for the FrevaGPT API.
-            token_store_path: Path to store authentication tokens.
-            follow_redirects: Whether to follow HTTP redirects.
-            max_retries: Maximum number of retry attempts.
-            timeout: Request timeout in seconds.
-            http_client: Optional pre-configured httpx.Client.
-
-        Raises:
-            TypeError: If http_client is not an httpx.Client instance.
-        """
-
-        if http_client and not isinstance(http_client, httpx.Client):
-            raise TypeError(
-                f"Invalid `http_client` argument; Expected an instance of `httpx.Client`, but got {type(http_client)}."
-            )
-
-        super().__init__(
-            version=version,
-            base_url=base_url,
-            token_store_path=token_store_path,
-            follow_redirects=follow_redirects,
-            max_retries=max_retries,
-            timeout=timeout,
-        )
-        if http_client:
-            self._client = http_client
-        else:
-            self._client = self._default_client
-
-    @cached_property
-    def _default_client(self) -> httpx.Client:
-        """Creates a default httpx.Client with configured settings."""
-        return httpx.Client(
-            base_url=self.base_url,
-            follow_redirects=self.follow_redirects,
-            timeout=self.timeout,
-            headers=self.default_headers,
-            auth=self._auth,
-        )
-
-    @property
-    def is_closed(self) -> bool:
-        """Whether the underlying HTTP client is closed.
-
-        Returns:
-            True if the client is closed, False otherwise.
-        """
-        return self._client.is_closed
-
-    def _sleep_for_retry(self, retries_taken: int):
-        """Sleeps for the given timeout, plus a random buffer, resulting in a maximum of 2*timeout wait."""
-        timeout = self.timeout * (1 + random.random())
-        if retries_taken < self.max_retries:
-            logger.debug(
-                f"Retrying connection after sleeping {timeout} seconds. Attempt {retries_taken + 1}."
-            )
-        elif retries_taken == self.max_retries:
-            logger.debug(f"Retrying connection after sleeping {timeout} seconds. Final attempt.")
-        time.sleep(timeout)
-
-    def _stream(self, *args, **kwargs) -> StreamResponse:
-        """Makes a streaming HTTP request and returns a StreamResponse."""
-        retries_taken = 0
-        for retries_taken in range(self.max_retries + 1):
-            try:
-                req: httpx.Request = self._client.build_request(*args, **kwargs)
-                res: httpx.Response = self._client.send(request=req, stream=True)
-                res.raise_for_status()
-                return StreamResponse(res)
-            except httpx.HTTPError as e:
-                if isinstance(e, httpx.TimeoutException):
-                    if retries_taken < self.max_retries:
-                        self._sleep_for_retry(retries_taken=retries_taken)
-                        continue
-                    raise ConnectionError(
-                        f"Failed to connect to url {self._parse_host(e.request.url)}. Please try again.",
-                    ) from None
-                elif isinstance(e, httpx.HTTPStatusError):
-                    e.response.read()
-                    raise ConnectionError(
-                        e.response.status_code,
-                        f"Error connecting to url {self._parse_host(e.request.url)} with error: {e.response.text}",
-                    ) from None
-        raise ConnectionError("Unexpected error in _stream retry logic")
-
-    def _request_raw(self, *args, **kwargs) -> httpx.Response:
-        """Makes a non-streaming HTTP request."""
-        retries_taken = 0
-        for retries_taken in range(self.max_retries + 1):
-            try:
-                r: httpx.Response = self._client.request(*args, **kwargs)
-                r.raise_for_status()
-                break
-            except httpx.HTTPError as e:
-                if isinstance(e, httpx.TimeoutException):
-                    if retries_taken < self.max_retries:
-                        self._sleep_for_retry(retries_taken=retries_taken)
-                        continue
-                    raise ConnectionError(
-                        f"Failed to connect to {self._parse_host(e.request.url)}. Please try again."
-                    ) from None
-                elif isinstance(e, httpx.HTTPStatusError):
-                    e.response.read()
-                    raise ConnectionError(
-                        e.response.status_code,
-                        f"Error connecting to url {self._parse_host(e.request.url)} with error: {e.response.text}",
-                    ) from None
-        return r
-
-    def request(self, *args, stream=False, **kwargs) -> StreamResponse | httpx.Response:
-        """Makes an HTTP request, either streaming or non-streaming.
-
-        Args:
-            *args: Positional arguments passed to the request method.
-            stream: If True, returns a StreamResponse for streaming JSON objects.
-            **kwargs: Keyword arguments passed to the request method.
-
-        Returns:
-            StreamResponse if stream=True, otherwise httpx.Response.
-        """
-        if stream:
-            return self._stream(*args, **kwargs)
-        else:
-            return self._request_raw(*args, **kwargs)
-
-    def get(self, path: str, *, stream: bool = False, **kwargs):
+    async def get(self, path: str, *, stream: bool = False, **kwargs):
         """Makes a GET request to the specified path.
 
         Args:
@@ -480,6 +486,4 @@ class SyncAPIClient(BaseClient[httpx.Client]):
         Returns:
             StreamResponse if stream=True, otherwise httpx.Response.
         """
-        # cast is required because mypy complains about returning Any even though
-        # it understands the type variables
-        return self.request(method="GET", url=path, stream=stream, **kwargs)
+        return await self.request(method="GET", url=path, stream=stream, **kwargs)

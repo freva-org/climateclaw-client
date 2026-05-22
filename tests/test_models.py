@@ -30,25 +30,19 @@ from freva_gpt_client.models import (
 class TestBaseMessage:
     """Tests for BaseMessage class."""
 
-    def test_repr_content_string(self):
+    @pytest.mark.parametrize(
+        "input_arg, expected_output",
+        [
+            ("Hello", "Hello"),
+            (["a", "b", "c"], "['a', 'b', 'c']"),
+            ({"key": "value", "num": 42}, "{'key': 'value', 'num': 42}"),
+            ("", ""),
+        ],
+    )
+    def test_repr_content(self, input_arg, expected_output):
         """Test repr_content with string content."""
-        msg = BaseMessage(variant="Assistant", content="Hello")
-        assert msg.repr_content() == "Hello"
-
-    def test_repr_content_list(self):
-        """Test repr_content with list content."""
-        msg = BaseMessage(variant="Assistant", content=["a", "b", "c"])
-        assert msg.repr_content() == "['a', 'b', 'c']"
-
-    def test_repr_content_dict(self):
-        """Test repr_content with dict content."""
-        msg = BaseMessage(variant="Assistant", content={"key": "value", "num": 42})
-        assert msg.repr_content() == "{'key': 'value', 'num': 42}"
-
-    def test_repr_content_empty_string(self):
-        """Test repr_content with empty string."""
-        msg = BaseMessage(variant="Assistant", content="")
-        assert msg.repr_content() == ""
+        msg = BaseMessage(variant="Assistant", content=input_arg)
+        assert msg.repr_content() == expected_output
 
     def test_repr_markdown(self):
         """Test repr_markdown returns string content."""
@@ -94,7 +88,7 @@ class TestBaseMessage:
 
 
 # =============================================================================
-# Simple Variant Tests (Prompt, User, Assistant, ServerError, OpenAIError, CodeError, StreamEnd)
+# Simple Variant Tests (Prompt, User, ServerError, OpenAIError, CodeError, StreamEnd)
 # =============================================================================
 
 
@@ -106,7 +100,6 @@ class TestSimpleVariants:
         [
             (Prompt, "Prompt"),
             (User, "User"),
-            (Assistant, "Assistant"),
             (ServerError, "ServerError"),
             (OpenAIError, "OpenAIError"),
             (CodeError, "CodeError"),
@@ -131,8 +124,42 @@ class TestSimpleVariants:
 
     def test_stream_end_repr_markdown(self):
         """Test StreamEnd has empty repr_markdown."""
-        msg = StreamEnd(variant="StreamEnd", content="")
+        msg = StreamEnd(variant="StreamEnd", content="Stream Ended.")
         assert msg.repr_markdown() == ""
+
+
+# =============================================================================
+# Assistant Message Tests
+# =============================================================================
+
+
+class TestAssistantMessage:
+    """Tests for Assistant message variant."""
+
+    def test_assistant_instantiation(self):
+        """Test instantiation with valid variant."""
+        msg = Assistant(variant="Assistant", content="test")
+        assert msg.variant == "Assistant"
+        assert msg.content == "test"
+
+    def test_valid_content_single_cell(self):
+        """Test code_cells with a valid code cell."""
+        msg = Assistant(
+            variant="Assistant",
+            content="Code is as follows\n```python\nimport xarray as xr\n```\nCode is complete!",
+        )
+        assert len(msg.code_cells) == 1
+        assert "\nimport xarray as xr\n" == msg.code_cells[0]
+
+    def test_valid_content_multiple_cells(self):
+        """Test code_cells with 2 valid code cells with non-code text before and after."""
+        msg = Assistant(
+            variant="Assistant",
+            content="Code is as follows\n```python\nimport xarray as xr\n```\nSome more code\n```python\nimport matplotlib.pyplot as plt\n```\nCode is complete!",
+        )
+        assert len(msg.code_cells) == 2
+        assert "\nimport xarray as xr\n" == msg.code_cells[0]
+        assert "\nimport matplotlib.pyplot as plt\n" == msg.code_cells[1]
 
 
 # =============================================================================
@@ -148,20 +175,12 @@ class TestCodeMessage:
         msg = Code(variant="Code", content=sample_code_content)
         assert len(msg.code_cells) == 1
         assert "import xarray" in msg.code_cells[0]
-        assert "print(xarray)" in msg.code_cells[0]
+        assert 'print("hello!")' in msg.code_cells[0]
 
     def test_code_cells_empty_code(self, sample_code_content_empty):
         """Test code_cells with empty code string."""
         msg = Code(variant="Code", content=sample_code_content_empty)
         assert msg.code_cells == [""]
-
-    def test_code_cells_multiline(self, sample_code_content_multiline):
-        """Test code_cells with multi-line code."""
-        msg = Code(variant="Code", content=sample_code_content_multiline)
-        assert len(msg.code_cells) == 1
-        assert "x = 1" in msg.code_cells[0]
-        assert "y = 2" in msg.code_cells[0]
-        assert "z = 3" in msg.code_cells[0]
 
     def test_code_cells_invalid_json(self):
         """Test code_cells with invalid JSON returns empty list."""
@@ -176,6 +195,11 @@ class TestCodeMessage:
     def test_code_cells_non_object_json(self):
         """Test code_cells with JSON string returns empty list."""
         msg = Code(variant="Code", content='"just a string"')
+        assert msg.code_cells == []
+
+    def test_code_cells_code_key_missing(self):
+        """Test code_cells with JSON string that does not include the key 'code'"""
+        msg = Code(variant="Code", content='{"not_code": "hello"}')
         assert msg.code_cells == []
 
     def test_repr_content_valid(self, sample_code_content):
@@ -229,8 +253,7 @@ class TestCodeOutputMessage:
     def test_repr_markdown_empty(self):
         """Test repr_markdown with empty content."""
         msg = CodeOutput(variant="CodeOutput", content="")
-        # Empty content split by newlines results in [""] which gives "> "
-        assert msg.repr_markdown() == "\n> "
+        assert msg.repr_markdown() == ""
 
     def test_repr_markdown_with_special_chars(self):
         """Test repr_markdown with special characters."""
@@ -254,9 +277,29 @@ class TestServerHintMessage:
 
     def test_dict_content(self):
         """Test ServerHint accepts dict content."""
-        content = {"thread_id": "123", "status": "ok"}
+        content = {
+            "variant": "ServerHint",
+            "content": {
+                "memory": 12039000064,
+                "total_memory": 538932101120,
+                "cpu_usage": 0.0,
+                "cpu_last_minute": 0.0,
+                "process_cpu": 0.1,
+                "process_memory": 94654464,
+            },
+        }
         msg = ServerHint(variant="ServerHint", content=content)
-        assert msg.content == {"thread_id": "123", "status": "ok"}
+        assert msg.content == {
+            "variant": "ServerHint",
+            "content": {
+                "memory": 12039000064,
+                "total_memory": 538932101120,
+                "cpu_usage": 0.0,
+                "cpu_last_minute": 0.0,
+                "process_cpu": 0.1,
+                "process_memory": 94654464,
+            },
+        }
         assert isinstance(msg.content, dict)
 
     def test_json_string_content(self):
@@ -267,8 +310,21 @@ class TestServerHintMessage:
 
     def test_single_quoted_json(self):
         """Test ServerHint handles single-quoted JSON strings."""
-        msg = ServerHint(variant="ServerHint", content="{'thread_id': '123'}")
-        assert msg.content == {"thread_id": "123"}
+        msg = ServerHint(
+            variant="ServerHint",
+            content="{'variant': 'ServerHint', 'content': {'memory': 12039000064, 'total_memory': 538932101120, 'cpu_usage': 0.0, 'cpu_last_minute': 0.0, 'process_cpu': 0.1, 'process_memory': 94654464}}",
+        )
+        assert msg.content == {
+            "variant": "ServerHint",
+            "content": {
+                "memory": 12039000064,
+                "total_memory": 538932101120,
+                "cpu_usage": 0.0,
+                "cpu_last_minute": 0.0,
+                "process_cpu": 0.1,
+                "process_memory": 94654464,
+            },
+        }
 
     def test_invalid_json_raises(self):
         """Test ServerHint raises ValueError for invalid JSON."""
@@ -324,27 +380,31 @@ class TestImageMessage:
         """Test repr_markdown returns valid markdown image tag."""
         msg = Image(variant="Image", content=sample_base64)
         markdown = msg.repr_markdown()
-        assert "![Image]" in markdown
-        assert sample_base64 in markdown
-        assert "data:image/png;base64," in markdown
+        assert f"![Image](data:image/png;base64,{sample_base64})" in markdown
         assert markdown.startswith("\n")
         assert markdown.endswith("\n")
 
-    def test_save_to_file_success(self, temp_dir, sample_base64):
+    def test_save_to_file_success(self, tmp_path, sample_base64):
         """Test save_to_file saves valid base64 to file."""
         msg = Image(variant="Image", content=sample_base64)
-        output_path = temp_dir / "test.png"
+        output_path = tmp_path / "test.png"
         msg.save_to_file(output_path)
         assert output_path.exists()
         with output_path.open("rb") as f:
             saved_data = f.read()
-        assert saved_data == b"test image data"
+        assert (
+            saved_data
+            == b"iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO9TXL0Y4OHwAAAABJRU5ErkJggg=="
+        )
 
     def test_save_to_file_nonexistent_dir(self, sample_base64):
         """Test save_to_file raises ValueError for non-existent directory."""
         msg = Image(variant="Image", content=sample_base64)
         output_path = Path("/nonexistent/dir/test.png")
-        with pytest.raises(ValueError, match="does not exist"):
+        with pytest.raises(
+            ValueError,
+            match="The directory .* does not exist. Please make sure you are saving the image to an existing directory.",
+        ):
             msg.save_to_file(output_path)
 
     def test_repr(self, sample_base64):
@@ -353,12 +413,6 @@ class TestImageMessage:
         repr_str = repr(msg)
         assert "variant=Image" in repr_str
         assert "..." in repr_str
-
-    def test_empty_content(self):
-        """Test Image with empty content."""
-        msg = Image(variant="Image", content="")
-        assert msg.repr_content() == ""
-        assert msg.repr_markdown() == "\n![Image](data:image/png;base64,)\n"
 
 
 # =============================================================================
@@ -383,7 +437,7 @@ class TestMessageModel:
                 '{"key": "val"}',
                 ServerHint,
                 {"key": "val"},
-            ),  # ServerHint parses JSON string to dict
+            ),
             ("Prompt", "prompt", Prompt, "prompt"),
             ("OpenAIError", "error", OpenAIError, "error"),
             ("CodeError", "error", CodeError, "error"),
@@ -421,6 +475,13 @@ class TestMessageModel:
         msg.variant = "User"
         assert msg.message.variant == "User"
         assert msg.variant == "User"
+
+    def test_code_cells_getter(self):
+        """Test code_cells getter delegates to message"""
+        msg = MessageModel(
+            message={"variant": "Code", "content": '{"code": "import xarray as xr"}'}
+        )
+        assert all(code1 == code2 for code1, code2 in zip(msg.code_cells, msg.message.code_cells))
 
     def test_repr_markdown_delegation(self):
         """Test repr_markdown delegates to message."""
@@ -495,21 +556,39 @@ class TestConversation:
         assert conv.messages[2].variant == "User"
         assert conv.messages[2].content == "third"
 
+    def test_assistant_code_cell_aggregation(self):
+        messages = [
+            MessageModel(message={"variant": "Assistant", "content": "Hello!\n```python\n"})
+        ]
+        conv = Conversation(raw_messages=messages)
+        # no code messages (incomplete markdown python code-block)
+        assert conv.code_cells == []
+        # complete markdown python code-block
+        messages.append(
+            MessageModel(message={"variant": "Assistant", "content": "import xarray as xr\n```"})
+        )
+        conv = Conversation(raw_messages=messages)
+        assert len(conv.code_cells) == 1
+        assert "import xarray as xr" in conv.code_cells[0]
+
     def test_code_cells_aggregation(self):
         """Test code_cells aggregates from all messages."""
-        # Use separate Code messages (not combined) by using different approach
         messages = [
-            MessageModel(message={"variant": "Code", "content": '{"code": "x=1"}'}),
+            MessageModel(
+                message={"variant": "Code", "content": '{"code": "import xarray as xr\\n'}
+            ),
+            MessageModel(message={"variant": "Code", "content": 'x=1"}'}),
         ]
         conv = Conversation(raw_messages=messages)
         # Single code message
         assert len(conv.code_cells) == 1
+        assert "import xarray as xr" in conv.code_cells[0]
         assert "x=1" in conv.code_cells[0]
 
-    def test_code_cells_empty_no_code_messages(self):
-        """Test code_cells returns empty list with no Code messages."""
+    def test_code_cells_incomplete_code_messages(self):
+        """Test code_cells returns empty list with incomplete messages."""
         messages = [
-            MessageModel(message={"variant": "Assistant", "content": "no code"}),
+            MessageModel(message={"variant": "Assistant", "content": '{"code": import xarray as'}),
         ]
         conv = Conversation(raw_messages=messages)
         assert conv.code_cells == []
@@ -569,7 +648,7 @@ class TestConversation:
         ]
         conv = Conversation(raw_messages=messages)
         # All same variant, so combined into one message
-        assert len(conv[0:1]) == 1
+        assert len(conv[:]) == 1
 
     def test_len(self):
         """Test __len__ returns correct count."""
@@ -589,48 +668,52 @@ class TestConversation:
 class TestStreamConversation:
     """Tests for StreamConversation class."""
 
-    def test_initialization(self):
+    def test_initialization(self, mocker):
         """Test StreamConversation initialization."""
-        from unittest.mock import MagicMock
 
-        mock_response = MagicMock()
-        mock_response.is_closed = False
-        stream_conv = StreamConversation(mock_response)
+        mock_stream_response = mocker.MagicMock()
+        mock_stream_response.is_closed = False
+        mock_on_exit_callback = mocker.MagicMock()
+        stream_conv = StreamConversation(
+            stream=mock_stream_response, on_exit_callback=mock_on_exit_callback
+        )
 
-        assert stream_conv.stream_response == mock_response
+        assert stream_conv.stream_response == mock_stream_response
+        assert stream_conv._on_exit_callback == mock_on_exit_callback
         assert stream_conv.conversation is None
         assert stream_conv._current_message is None
         assert stream_conv._buffered_content == ""
 
-    def test_context_manager_enter(self):
+    def test_context_manager_enter(self, mocker):
         """Test context manager __enter__ returns self."""
-        from unittest.mock import MagicMock
 
-        mock_response = MagicMock()
+        mock_response = mocker.MagicMock()
         mock_response.is_closed = False
         stream_conv = StreamConversation(mock_response)
 
         with stream_conv:
             assert stream_conv is not None
 
-    def test_context_manager_exit_closes_stream(self):
+    def test_context_manager_exit_closes_stream(self, mocker):
         """Test context manager __exit__ closes stream."""
-        from unittest.mock import MagicMock
 
-        mock_response = MagicMock()
-        mock_response.is_closed = False
-        stream_conv = StreamConversation(mock_response)
+        mock_stream_response = mocker.MagicMock()
+        mock_stream_response.is_closed = False
+        mock_on_exit_callback = mocker.MagicMock()
+        stream_conv = StreamConversation(
+            stream=mock_stream_response, on_exit_callback=mock_on_exit_callback
+        )
 
         with stream_conv:
             pass
 
-        mock_response.close.assert_called_once()
+        mock_stream_response.close.assert_called_once()
+        mock_on_exit_callback.assert_called_once()
 
-    def test_process_chunk_first_message(self):
+    def test_process_chunk_first_message(self, mocker):
         """Test process_chunk sets _current_message on first chunk."""
-        from unittest.mock import MagicMock
 
-        mock_response = MagicMock()
+        mock_response = mocker.MagicMock()
         stream_conv = StreamConversation(mock_response)
 
         first_chunk = MessageModel(message={"variant": "Assistant", "content": "Hello"})
@@ -640,11 +723,10 @@ class TestStreamConversation:
         assert stream_conv._current_message.variant == "Assistant"
         assert "Hello" in output
 
-    def test_process_chunk_same_variant_accumulates(self):
+    def test_process_chunk_same_variant_accumulates(self, mocker):
         """Test process_chunk accumulates content for same variant."""
-        from unittest.mock import MagicMock
 
-        mock_response = MagicMock()
+        mock_response = mocker.MagicMock()
         stream_conv = StreamConversation(mock_response)
 
         chunk1 = MessageModel(message={"variant": "Assistant", "content": "Hello"})
@@ -657,11 +739,10 @@ class TestStreamConversation:
         # For Assistant variant, content is yielded immediately
         assert " world" in output
 
-    def test_process_chunk_different_variant_flushes(self):
+    def test_process_chunk_different_variant_flushes(self, mocker):
         """Test process_chunk flushes previous message on variant change."""
-        from unittest.mock import MagicMock
 
-        mock_response = MagicMock()
+        mock_response = mocker.MagicMock()
         stream_conv = StreamConversation(mock_response)
 
         chunk1 = MessageModel(message={"variant": "Assistant", "content": "Hello"})
@@ -676,11 +757,10 @@ class TestStreamConversation:
         # The flush output should contain the previous content
         assert len(output) > 0
 
-    def test_process_chunk_image_buffers(self):
+    def test_process_chunk_image_buffers(self, mocker):
         """Test Image variant buffers without output."""
-        from unittest.mock import MagicMock
 
-        mock_response = MagicMock()
+        mock_response = mocker.MagicMock()
         stream_conv = StreamConversation(mock_response)
 
         chunk = MessageModel(message={"variant": "Image", "content": "base64data"})
@@ -690,11 +770,10 @@ class TestStreamConversation:
         assert output == []
         assert stream_conv._current_message.variant == "Image"
 
-    def test_process_chunk_code_output_skipped(self):
+    def test_process_chunk_code_output_skipped(self, mocker):
         """Test CodeOutput variant is skipped in incremental output."""
-        from unittest.mock import MagicMock
 
-        mock_response = MagicMock()
+        mock_response = mocker.MagicMock()
         stream_conv = StreamConversation(mock_response)
 
         chunk = MessageModel(message={"variant": "CodeOutput", "content": "output"})
@@ -702,6 +781,94 @@ class TestStreamConversation:
 
         # CodeOutput should be skipped
         assert output == []
+
+    @pytest.mark.parametrize(
+        "flushed_variant, content", [("Image", "base64encodedImage"), ("CodeOutput", "code_output")]
+    )
+    def test_flush_previous(self, mocker, flushed_variant, content):
+        """Test that certain messages (CodeOutput, Image) are flushed and returned correctly"""
+        mock_response = mocker.MagicMock()
+        stream_conv = StreamConversation(mock_response)
+        stream_conv._buffered_content = "base64encodedImage"
+        stream_conv._current_message = MessageModel(
+            message={"variant": flushed_variant, "content": content}
+        )
+        output = stream_conv._flush_previous()
+        assert stream_conv._buffered_content == ""
+        assert content in output[0]
+
+    def test_iter_for_markdown(self, mocker):
+        """Test that iter_for_markdown yields chunks ready for rendering in markdown"""
+        mock_response = mocker.MagicMock()
+        message_dicts = [
+            dict(variant="Assistant", content="Running the code!"),
+            dict(variant="Code", content='{"code": "import xarray as xr"}'),
+            dict(variant="ServerHint", content='{"id": 123}'),
+            dict(variant="Image", content="base64encodedImage"),
+            dict(variant="Assistant", content="Code execution complete!"),
+            dict(variant="StreamEnd", content="Stream ended."),
+        ]
+        mock_response.iter_json_objects = mocker.MagicMock(return_value=message_dicts)
+        messages = [MessageModel(message=m) for m in message_dicts]
+        stream_conv = StreamConversation(mock_response)
+        assert stream_conv.conversation is None
+        markdown_result = [md for md in stream_conv.iter_for_markdown()]
+        for message in messages:
+            if message.variant in ["ServerHint", "StreamEnd"]:
+                assert all(str(message.content) not in md for md in markdown_result)
+            elif message.variant == "Code":
+                assert any(
+                    f"```python\n{message.code_cells[0]}\n```" in md for md in markdown_result
+                )
+            elif message.variant == "Image":
+                assert any(
+                    f"![Image](data:image/png;base64,{message.content})" in md
+                    for md in markdown_result
+                )
+            else:
+                assert any(message.content in md for md in markdown_result)
+        conversation = Conversation(raw_messages=messages)
+        assert stream_conv.conversation == conversation
+
+    def test_iter_raw(self, mocker):
+        """Test that iter_raw returns dictionaries ready for use in MessageModel"""
+        mock_response = mocker.MagicMock()
+        message_dicts = [
+            dict(variant="Assistant", content="Running the code!"),
+            dict(variant="Code", content='{"code": "import xarray as xr"}'),
+            dict(variant="ServerHint", content='{"id": 123}'),
+            dict(variant="Image", content="base64encodedImage"),
+            dict(variant="Assistant", content="Code execution complete!"),
+            dict(variant="StreamEnd", content="Stream ended."),
+        ]
+        mock_response.iter_json_objects = mocker.MagicMock(return_value=message_dicts)
+        messages = [MessageModel(message=m) for m in message_dicts]
+        stream_conv = StreamConversation(mock_response)
+        assert stream_conv.conversation is None
+        raw_result = [raw_dict for raw_dict in stream_conv.iter_raw()]
+        assert all(
+            input_dict == output_dict for input_dict, output_dict in zip(message_dicts, raw_result)
+        )
+        conversation = Conversation(raw_messages=messages)
+        assert stream_conv.conversation == conversation
+
+    def test_translate_to_conversation(self, mocker):
+        """Test that given a set of message chunks translate_to_conversation returns a Conversation object containing these messages"""
+        mock_response = mocker.MagicMock()
+        messages = [
+            dict(variant="Assistant", content="Hello "),
+            dict(variant="Assistant", content="world!"),
+        ]
+        mock_response.iter_json_objects = mocker.MagicMock(return_value=messages)
+        stream_conv = StreamConversation(mock_response)
+        assert stream_conv.conversation is None
+        conv = stream_conv.translate_to_conversation()
+        assert conv.messages[0].content == "Hello world!"
+        mock_response.iter_json_objects.assert_called_once()
+        # check that a second call to the same method just returns the already processed conversation object
+        mock_response.iter_json_objects.reset_mock()
+        assert stream_conv.translate_to_conversation() == conv
+        assert mock_response.iter_json_objects.call_count == 0
 
 
 # =============================================================================
@@ -713,23 +880,24 @@ class TestProcessCodeChunk:
     """Isolated tests for _process_code_chunk logic."""
 
     def test_prefix_split_across_chunks(self):
-        """Test prefix '{\"code\":\"' split across multiple chunks."""
+        """Test prefix '{\"code\":' split across multiple chunks."""
         from unittest.mock import MagicMock
 
         mock_response = MagicMock()
         stream_conv = StreamConversation(mock_response)
 
         # Simulate prefix arriving in chunks
-        chunk1 = MessageModel(message={"variant": "Code", "content": '{"'})
-        chunk2 = MessageModel(message={"variant": "Code", "content": "code"})
-        chunk3 = MessageModel(message={"variant": "Code", "content": '":"'})
-
-        stream_conv.process_chunk(chunk1)
-        stream_conv.process_chunk(chunk2)
-        output = stream_conv.process_chunk(chunk3)
+        chunks = [
+            MessageModel(message={"variant": "Code", "content": '{"'}),
+            MessageModel(message={"variant": "Code", "content": "code"}),
+            MessageModel(message={"variant": "Code", "content": '":'}),
+        ]
+        for chunk in chunks[:-1]:
+            stream_conv.process_chunk(chunk)
+        output = stream_conv.process_chunk(chunks[-1])
 
         # After prefix is complete, should output code block start
-        assert any("```python" in o for o in output)
+        assert "```python" in output[0]
 
     def test_backslash_buffering(self):
         """Test that chunks ending with backslash are buffered."""
