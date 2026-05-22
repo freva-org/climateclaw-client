@@ -666,18 +666,22 @@ class StreamConversation(AbstractContextManager):
                 code_content = "\n\n```python\n"
             # if buffered content ends with suffix, indicates end of code
             if self._buffered_content.endswith(suffix):
+                # fmt: off
                 code_content += (
-                    f"{self._buffered_content.lstrip(prefix).rstrip(suffix).lstrip(' "')}\n```\n\n"
+                    f"{self._buffered_content.lstrip(prefix).rstrip(suffix).lstrip(" \"")}\n```\n\n"
                 )
+                # fmt: on
                 self._code_started = False  # reset code-started flag
             # parse buffered content if it does not end with a (potentially) incomplete escape sequence
             elif self._buffered_content[-1] != "\\":
+                # fmt: off
                 code_content += (
                     self._parse_escaped_chars(self._buffered_content)
                     .lstrip(prefix)
                     .rstrip(suffix)
                     .lstrip(' "')
                 )
+                # fmt: on
                 # reset buffered content
                 self._buffered_content = ""
             if code_content:
