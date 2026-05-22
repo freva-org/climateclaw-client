@@ -2,6 +2,7 @@
 
 [![License](https://github.com/eClip-/EUPL-badge/blob/master/eupl_1.2.svg)](LICENSE)
 [![docs](https://readthedocs.org/projects/freva-gpt-client/badge/?version=latest)](https://freva-gpt-client.readthedocs.io/en/latest/?badge=latest)
+[![codecov](https://codecov.io/github/freva-org/freva-gpt-client/graph/badge.svg?token=kDsGq9llcK)](https://codecov.io/github/freva-org/freva-gpt-client)
 
 A Python client library for interacting with the [FrevaGPT backend](https://github.com/freva-org/freva-gpt-backend-py). This library provides both synchronous and asynchronous (not yet fully implemented) interfaces for communicating with a FrevaGPT chatbot instance.
 
@@ -49,7 +50,7 @@ from freva_gpt_client.client import FrevaGPT
 # Create a client instance
 frevagpt = FrevaGPT(
     base_url="https://your-freva-gpt-backend.com",
-    token_store_path="~/.cache/freva-gpt-client/token-store.json"  # Optional: path to store auth tokens
+    token_store_path="~/.cache/freva-gpt-client/token-store.json",  # Optional: path to store auth tokens
 )
 
 # Authenticate with the backend (triggers OIDC flow)
@@ -73,7 +74,9 @@ frevagpt.model = "gpt-4.1"
 
 ```python
 # Send a prompt and get the complete conversation
-conversation = client.prompt("Please calculate the average temperature over Germany for the years 1990-2020!")
+conversation = client.prompt(
+    "Please calculate the average temperature over Germany for the years 1990-2020!"
+)
 
 # Access the conversation messages
 for message in conversation.messages:
@@ -88,7 +91,9 @@ print(markdown)
 
 ```python
 # Send a prompt with streaming enabled
-stream_conv = client.prompt("Please explain the ENSO phenomenon to me and give examples of how to quantify it!", stream=True)
+stream_conv = client.prompt(
+    "Please explain the ENSO phenomenon to me and give examples of how to quantify it!", stream=True
+)
 
 # Iterate over markdown-ready chunks as they arrive
 with stream_conv as stream:
@@ -118,7 +123,7 @@ thread_id = "your-thread-id"
 conversation = client.getthread(thread_id=thread_id)
 
 # Or use the current active thread
-conversation = client.getthread() 
+conversation = client.getthread()
 
 # Print all messages
 print(conversation)
@@ -130,7 +135,7 @@ print(conversation)
 # Continue a conversation in an existing thread
 response = client.prompt(
     "Please explain how the SOI can be calculated and run an example analysis.",
-    thread_id=thread_id # optional: uses thread of active conversation otherwise
+    thread_id=thread_id,  # optional: uses thread of active conversation otherwise
 )
 ```
 
@@ -145,7 +150,9 @@ client = FrevaGPT(base_url="https://your-freva-gpt-backend.com")
 client.authenticate()
 
 # Get a conversation
-conversation = client.prompt("Show me a code example of using the xarray library for analysing climate data!")
+conversation = client.prompt(
+    "Show me a code example of using the xarray library for analysing climate data!"
+)
 
 # Access individual messages
 initial_response = conversation[0]
@@ -172,10 +179,10 @@ Image messages have special methods:
 # If the response contains an image
 if conversation.messages[1].variant == "Image":
     image_message = conversation.messages[1]
-    
+
     # Get markdown representation (base64 embedded)
     md = image_message.repr_markdown()
-    
+
     # Save to file
     image_message.save_to_file("output.png")
 ```
@@ -217,12 +224,14 @@ The library includes an `AsyncFrevaGPT` class for async operations:
 ```python
 from freva_gpt_client.client import AsyncFrevaGPT
 
+
 async def main():
     client = AsyncFrevaGPT(base_url="https://your-freva-gpt-backend.com")
     await client.authenticate()
-    
+
     # Async methods will be available in future versions
     # response = await client.prompt("Hi FrevaGPT! Can you help me with a climate analysis task today?")
+
 
 # Note: Async methods are not yet fully implemented
 ```
