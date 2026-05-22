@@ -1,8 +1,7 @@
 name: Unit Tests
 
 on:
-  pull_request:
-    branches: [main]
+  push
 
 jobs:
   test:
@@ -13,6 +12,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
@@ -28,8 +29,8 @@ jobs:
         run: |
           pytest -v --cov --cov-branch --cov-report=xml --cov-fail-under=80
 
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+      - name: Upload results to Codecov
+        uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          verbose: true
+          slug: freva-org/freva-gpt-client
