@@ -148,6 +148,7 @@ class TestBaseClient:
             "http://127.0.0.1:5802",
             "https://[1080::8:800:200c:417a]:1234",
             "http://[::1]:5682/api",
+            "ftp://myftpserver.com:21",
         ],
         ids=[
             "url with https",
@@ -156,6 +157,7 @@ class TestBaseClient:
             "ipv4 address with http and port",
             "ipv6 address with https and port",
             "ipv6 localhost address with http, port and path",
+            "url with ftp protocol and port",
         ],
     )
     def test_validate_base_url_with_protocol(self, mocker: MockerFixture, url):
@@ -292,6 +294,21 @@ class TestSyncAPIClient:
         assert "Retrying connection after sleeping" in spy_logger.debug.call_args.args[0]
         assert "Final attempt." in spy_logger.debug.call_args.args[0]
         mocked_time.sleep.assert_called_once()
+
+    def test_sleep_for_retry_exceeded_maximum(self, mocker: MockerFixture, make_sync_api_client):
+        """Test that _sleep_for_retry takes the correct branch if the number of retries taken has exceeded the maximum number."""
+        api_client: SyncAPIClient = make_sync_api_client()
+        spy_logger = mocker.spy(freva_gpt_client._base_client, "logger")
+        mocked_time = mocker.patch.object(freva_gpt_client._base_client, "time", spec=True)
+
+        retries_taken = api_client.max_retries + 1
+        api_client._sleep_for_retry(retries_taken)
+        spy_logger.debug.assert_called_once()
+        assert (
+            "Maximum number of retries exceeded. Skipping timeout."
+            in spy_logger.debug.call_args.args[0]
+        )
+        mocked_time.sleep.assert_not_called()
 
     def test_stream_success(
         self, mocker: MockerFixture, httpx_mock: HTTPXMock, make_sync_api_client
