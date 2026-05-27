@@ -234,14 +234,14 @@ class TestInit:
             model="gpt-4.1",
         )
         assert client.base_url == httpx.URL(base_url)
-        assert client._thread_id == "test_thread"
+        assert client.thread_id == "test_thread"
         assert client.model == "gpt-4.1"
 
     def test_init_minimal_params(self, base_url, create_freva_gpt_client):
         """Test initialization with minimal parameters."""
         client: FrevaGPT = create_freva_gpt_client()
         assert client.base_url == httpx.URL(base_url)
-        assert client._thread_id is None
+        assert client.thread_id is None
         assert client.model is None
 
     def test_init_with_http_client(self, base_url, create_freva_gpt_client):
@@ -383,16 +383,16 @@ class TestThreadManagement:
     def test_newthread_success(self, create_freva_gpt_client, mock_request, mock_thread_id):
         """Test creating a new thread."""
         client: FrevaGPT = create_freva_gpt_client()
-        assert client._thread_id is None
+        assert client.thread_id is None
         mock_request("newthread")
         thread_id = client.newthread()
         assert thread_id == mock_thread_id
-        assert client._thread_id == thread_id
+        assert client.thread_id == thread_id
 
     def test_getthread_success(self, create_freva_gpt_client, mock_request, mock_thread_id):
         """Test retrieving a thread by ID."""
         client: FrevaGPT = create_freva_gpt_client()
-        client._thread_id = mock_thread_id
+        client.thread_id = mock_thread_id
         mock_request("getthread", is_reusable=True)
         thread = client.getthread()
         assert len(thread.messages) == 2
@@ -421,10 +421,10 @@ class TestThreadManagement:
         """Test that setthreadtopic correctly uses instance thread id when setting new topic."""
         client: FrevaGPT = create_freva_gpt_client()
         mock_request("setthreadtopic")
-        client._thread_id = mock_thread_id
+        client.thread_id = mock_thread_id
         spy_get = mocker.spy(client, "get")
         client.setthreadtopic("Test topic")
-        assert spy_get.call_args_list[-1].kwargs["params"]["thread_id"] == client._thread_id
+        assert spy_get.call_args_list[-1].kwargs["params"]["thread_id"] == client.thread_id
 
     def test_setthreadtopic_no_thread_raises_typeerror(self, create_freva_gpt_client):
         """Test that setthreadtopic raises TypeError if no thread_id provided."""
@@ -445,21 +445,21 @@ class TestThreadManagement:
     ):
         """Test deleting an existing thread without specifying thread, results in instance thread being deleted and reset."""
         client: FrevaGPT = create_freva_gpt_client()
-        client._thread_id = mock_thread_id
+        client.thread_id = mock_thread_id
         mock_request("deletethread")
         client.deletethread()
-        assert client._thread_id is None
+        assert client.thread_id is None
 
     def test_deletethread_another_thread_specified_success(
         self, create_freva_gpt_client, mock_request, mock_thread_id
     ):
         """Test deleting an existing thread that is not the instance thread is successful but does not reset instance thread id."""
         client: FrevaGPT = create_freva_gpt_client()
-        client._thread_id = mock_thread_id
+        client.thread_id = mock_thread_id
         mock_request("deletethread")
         client.deletethread("another_thread_id")
-        assert client._thread_id is not None
-        assert client._thread_id == mock_thread_id
+        assert client.thread_id is not None
+        assert client.thread_id == mock_thread_id
 
     def test_deletethread_no_thread_raises_error(self, create_freva_gpt_client):
         """Test that calling deletethread raises a TypeError if no thread is specified and no instance thread id set."""
@@ -472,7 +472,7 @@ class TestThreadManagement:
     ):
         """Test that editthread passes successfully and returns with expected result for minimal parameters."""
         client: FrevaGPT = create_freva_gpt_client()
-        client._thread_id = mock_thread_id
+        client.thread_id = mock_thread_id
         mock_request("editthread")
         new_thread_id, branched_conv = client.editthread(user_index=1)
         assert new_thread_id == mock_new_thread_id
@@ -501,7 +501,7 @@ class TestThreadManagement:
     ):
         """Test that editthread raises a ValueError if backend returns a 404 status error."""
         client: FrevaGPT = create_freva_gpt_client()
-        client._thread_id = mock_thread_id
+        client.thread_id = mock_thread_id
         mock_request("editthread", status_code=404)
         # mock _parse_host as it is called in the error raised in get, which would trigger another http request
         client._parse_host = mocker.MagicMock()
@@ -513,7 +513,7 @@ class TestThreadManagement:
     ):
         """Test that editthread raises an IndexError if backend returns a 422 error (indicating user index is out of bounds)."""
         client: FrevaGPT = create_freva_gpt_client()
-        client._thread_id = mock_thread_id
+        client.thread_id = mock_thread_id
         mock_request("editthread", status_code=422)
         # mock _parse_host as it is called in the error raised in get, which would trigger another http request
         client._parse_host = mocker.MagicMock()
@@ -525,7 +525,7 @@ class TestThreadManagement:
     ):
         """Test that editthread raises a ConnectionError if backend returns a status code other than 200, 404, 422."""
         client: FrevaGPT = create_freva_gpt_client()
-        client._thread_id = mock_thread_id
+        client.thread_id = mock_thread_id
         mock_request("editthread", status_code=500)
         # mock _parse_host as it is called in the error raised in get, which would trigger another http request
         client._parse_host = mocker.MagicMock()
@@ -539,7 +539,7 @@ class TestThreadManagement:
     ):
         """Test that editthread raises a KeyError if returned json does not contain expected keys."""
         client: FrevaGPT = create_freva_gpt_client()
-        client._thread_id = mock_thread_id
+        client.thread_id = mock_thread_id
         mock_request("editthread", json={"wrong_key": "value"})
         # mock _parse_host as it is called in the error raised in get, which would trigger another http request
         client._parse_host = mocker.MagicMock()
@@ -554,7 +554,7 @@ class TestThreadManagement:
     ):
         """Test that user feedback can be successfully submitted using minimal allowd amount of params."""
         client: FrevaGPT = create_freva_gpt_client()
-        client._thread_id = mock_thread_id
+        client.thread_id = mock_thread_id
         mock_request("userfeedback")
         client.userfeedback(feedback_index=2, feedback="up")
 
@@ -577,7 +577,7 @@ class TestThreadManagement:
     ):
         """Test that user feedback raises ValueError if string describing feedback is not valid."""
         client: FrevaGPT = create_freva_gpt_client()
-        client._thread_id = mock_thread_id
+        client.thread_id = mock_thread_id
         with pytest.raises(ValueError, match="Feedback string must be one of"):
             client.userfeedback(feedback_index=2, feedback="invalid_feedback")
 
@@ -586,7 +586,7 @@ class TestThreadManagement:
     ):
         """Test that userfeedback raises a ValueError if backend returns a 404 status error with a 'thread not found' message."""
         client: FrevaGPT = create_freva_gpt_client()
-        client._thread_id = mock_thread_id
+        client.thread_id = mock_thread_id
         mock_request("userfeedback", status_code=404, text="thread not found")
         # mock _parse_host as it is called in the error raised in get, which would trigger another http request
         client._parse_host = mocker.MagicMock()
@@ -598,7 +598,7 @@ class TestThreadManagement:
     ):
         """Test that userfeedback raises an IndexError if backend returns a 404 status error with a 'feedback not found' message."""
         client: FrevaGPT = create_freva_gpt_client()
-        client._thread_id = mock_thread_id
+        client.thread_id = mock_thread_id
         mock_request("userfeedback", status_code=404, text="feedback not found")
         # mock _parse_host as it is called in the error raised in get, which would trigger another http request
         client._parse_host = mocker.MagicMock()
@@ -610,7 +610,7 @@ class TestThreadManagement:
     ):
         """Test that userfeedback raises an IndexError if backend returns a 422 status error (feedback index out of bounds)."""
         client: FrevaGPT = create_freva_gpt_client()
-        client._thread_id = mock_thread_id
+        client.thread_id = mock_thread_id
         mock_request("userfeedback", status_code=422)
         # mock _parse_host as it is called in the error raised in get, which would trigger another http request
         client._parse_host = mocker.MagicMock()
@@ -622,7 +622,7 @@ class TestThreadManagement:
     ):
         """Test that userfeedback raises a ConnectionError if backend responds with a internal server error status code (500/503)."""
         client: FrevaGPT = create_freva_gpt_client()
-        client._thread_id = mock_thread_id
+        client.thread_id = mock_thread_id
         mock_request("userfeedback", status_code=500)
         # mock _parse_host as it is called in the error raised in get, which would trigger another http request
         client._parse_host = mocker.MagicMock()
@@ -641,7 +641,7 @@ class TestThreadManagement:
     ):
         """Test that userfeedback raises an IndexError if backend returns a 422 status error (feedback index out of bounds)."""
         client: FrevaGPT = create_freva_gpt_client()
-        client._thread_id = mock_thread_id
+        client.thread_id = mock_thread_id
         mock_request("userfeedback", status_code=401)
         # mock _parse_host as it is called in the error raised in get, which would trigger another http request
         client._parse_host = mocker.MagicMock()
@@ -663,7 +663,7 @@ class TestPrompting:
         """Test non-streaming prompt returns Conversation."""
         client: FrevaGPT = create_freva_gpt_client()
         client.model = mock_available_models[0]
-        client._thread_id = mock_thread_id
+        client.thread_id = mock_thread_id
         mock_request("streamresponse", stream=False)
         result = client.prompt("Test prompt", model=client.model, stream=False)
 
@@ -680,7 +680,7 @@ class TestPrompting:
         client: FrevaGPT = create_freva_gpt_client(
             model=mock_available_models[0]
         )  # set model, so it can be skipped in the prompt
-        assert client._thread_id is None
+        assert client.thread_id is None
         mock_request("newthread")
         mock_request("streamresponse", stream=False)
         result = client.prompt(
@@ -699,7 +699,7 @@ class TestPrompting:
         """Test non-streaming prompt with minimal parameters and set thread id."""
         client: FrevaGPT = create_freva_gpt_client(model=mock_available_models[0])
 
-        client._thread_id = mock_thread_id
+        client.thread_id = mock_thread_id
         mock_request("streamresponse", stream=False)
         result = client.prompt(
             "Test prompt",
@@ -731,7 +731,7 @@ class TestPrompting:
     def test_prompt_no_model_raises_typeerror(self, create_freva_gpt_client, mock_thread_id):
         """Test that prompt raises TypeError if no model specified."""
         client: FrevaGPT = create_freva_gpt_client()
-        client._thread_id = mock_thread_id
+        client.thread_id = mock_thread_id
 
         with pytest.raises(TypeError, match="Argument 'model' has to be specified"):
             client.prompt(input="Test", thread_id=mock_thread_id)
@@ -739,7 +739,7 @@ class TestPrompting:
     def test_prompt_invalid_model_raises_valueerror(self, create_freva_gpt_client, mock_thread_id):
         """Test that prompt raises ValueError for invalid model."""
         client: FrevaGPT = create_freva_gpt_client()
-        client._thread_id = mock_thread_id
+        client.thread_id = mock_thread_id
 
         with pytest.raises(ValueError, match=r"Value .* is not a valid selection"):
             client.prompt(input="Test", model="invalid_model", thread_id=mock_thread_id)
@@ -749,7 +749,7 @@ class TestPrompting:
     ):
         "Test that a KeyboardInterrupt event leads to a call to the stop method."
         client: FrevaGPT = create_freva_gpt_client(model=mock_available_models[0])
-        client._thread_id = mock_thread_id
+        client.thread_id = mock_thread_id
         client.stop = mocker.MagicMock()
         client.get = mocker.Mock(side_effect=KeyboardInterrupt)
         with pytest.raises(KeyboardInterrupt):
@@ -775,12 +775,12 @@ class TestPrompting:
     ):
         """Test that stop for a specified thread is executed as expected."""
         client: FrevaGPT = create_freva_gpt_client()
-        client._thread_id = mock_thread_id
+        client.thread_id = mock_thread_id
         mock_request("stop")
         spy_get = mocker.spy(client, "get")
         result = client.stop()
         assert result is True
-        assert spy_get.call_args_list[-1].kwargs["params"]["thread_id"] == client._thread_id
+        assert spy_get.call_args_list[-1].kwargs["params"]["thread_id"] == client.thread_id
 
     def test_stop_no_thread_raises_type_error(self, create_freva_gpt_client):
         """Test that stop raises a TypeError if no thread is specified and no instance thread id is set."""
@@ -793,7 +793,7 @@ class TestPrompting:
     ):
         """Test that stop triggers a warning message if no active thread can be found for given thread id."""
         client: FrevaGPT = create_freva_gpt_client()
-        client._thread_id = mock_thread_id
+        client.thread_id = mock_thread_id
         # mock _parse_host as it is called in the error raised in get, which would trigger another http request
         client._parse_host = mocker.MagicMock()
         mock_request("stop", status_code=404)
@@ -809,7 +809,7 @@ class TestPrompting:
     ):
         """Test that stop triggers an error if backend responds with a 505 internal-error status message."""
         client: FrevaGPT = create_freva_gpt_client()
-        client._thread_id = mock_thread_id
+        client.thread_id = mock_thread_id
         # mock _parse_host as it is called in the error raised in get, which would trigger another http request
         client._parse_host = mocker.MagicMock()
         mock_request("stop", status_code=505)
@@ -823,7 +823,7 @@ class TestPrompting:
     ):
         """Test that stop handles http statuses that are not 200, 404, 505 differently"""
         client: FrevaGPT = create_freva_gpt_client()
-        client._thread_id = mock_thread_id
+        client.thread_id = mock_thread_id
         # mock _parse_host as it is called in the error raised in get, which would trigger another http request
         client._parse_host = mocker.MagicMock()
         mock_request("stop", status_code=401)
