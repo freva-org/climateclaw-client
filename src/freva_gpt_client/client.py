@@ -36,13 +36,13 @@ class FrevaGPT(SyncAPIClient):
     Attributes:
         _root_api_path: Base path for API endpoints.
         _user: Current system user.
-        _thread_id: Current active thread ID.
+        thread_id: Current active thread ID.
         model: Selected chatbot model.
     """
 
     _root_api_path: str = "/api/chatbot"
     _user: str = getpass.getuser()
-    _thread_id: str | None
+    thread_id: str | None
     model: str | None
 
     def __init__(
@@ -82,11 +82,7 @@ class FrevaGPT(SyncAPIClient):
             http_client=http_client,
         )
         self._validate_backend_endpoints()
-        self._thread_id = thread_id
-        if model and model not in self.available_models:
-            raise ValueError(
-                f"Model {model} is not a valid selection. Please select from available models: {self.available_models} instead."
-            )
+        self.thread_id = thread_id
         self.model = model
 
     @cached_property
@@ -99,6 +95,18 @@ class FrevaGPT(SyncAPIClient):
         response = self.get(path=self._construct_path("chatbots"))
         available_models = response.json()
         return available_models
+
+    @property  # type: ignore[no-redef]
+    def model(self) -> str:
+        return self._model
+
+    @model.setter
+    def model(self, new_model: str):
+        if new_model and new_model not in self.available_models:
+            raise ValueError(
+                f"Model {new_model} is not a valid selection. Please select from available models: {self.available_models} instead."
+            )
+        self._model = new_model
 
     def _validate_backend_endpoints(self) -> None:
         """Validates chatbot endpoints available on the backend against those expected by the client.
@@ -156,7 +164,7 @@ class FrevaGPT(SyncAPIClient):
         """
         response = self.get(path=self._construct_path("newthread"))
         thread_id = response.json()
-        self._thread_id = thread_id
+        self.thread_id = thread_id
         return thread_id
 
     def prompt(
@@ -194,10 +202,10 @@ class FrevaGPT(SyncAPIClient):
                 f"Argument 'model' has to be specified, unless instance attribute '{self.__class__.__name__}.model' is set."
             )
 
-        if not (self._thread_id or thread_id):
+        if not (self.thread_id or thread_id):
             thread_id = self.newthread()
         elif not thread_id:
-            thread_id = self._thread_id
+            thread_id = self.thread_id
         try:
             response: httpx.Response | StreamResponse = self.get(
                 path=self._construct_path("streamresponse"),
@@ -237,9 +245,9 @@ class FrevaGPT(SyncAPIClient):
         Raises:
             TypeError: If thread_id is not specified and no active thread exists.
         """
-        if not thread_id and self._thread_id:
-            thread_id = self._thread_id
-        elif not (thread_id or self._thread_id):
+        if not thread_id and self.thread_id:
+            thread_id = self.thread_id
+        elif not (thread_id or self.thread_id):
             raise TypeError(
                 "Argument 'thread_id' has to be specified, if no conversation was started previously."
             )
@@ -300,15 +308,15 @@ class FrevaGPT(SyncAPIClient):
         Raises:
             TypeError: Raised, if no thread_id is specified and no previous conversation was started.
         """
-        if not thread_id and self._thread_id:
-            thread_id = self._thread_id
-        elif not (thread_id or self._thread_id):
+        if not thread_id and self.thread_id:
+            thread_id = self.thread_id
+        elif not (thread_id or self.thread_id):
             raise TypeError(
                 "Argument 'thread_id' has to be specified, if no conversation was started previously."
             )
         self.get(path=self._construct_path("deletethread"), params={"thread_id": thread_id})
-        # reset self._thread_id in case it is identical to id of deleted thread
-        self._thread_id = None if self._thread_id == thread_id else self._thread_id
+        # reset self.thread_id in case it is identical to id of deleted thread
+        self.thread_id = None if self.thread_id == thread_id else self.thread_id
 
     def setthreadtopic(self, new_topic: str, thread_id: str | None = None) -> str:
         """Sets the topic of a given thread.
@@ -324,9 +332,9 @@ class FrevaGPT(SyncAPIClient):
         Returns:
             str: The new thread topic.
         """
-        if not thread_id and self._thread_id:
-            thread_id = self._thread_id
-        elif not (thread_id or self._thread_id):
+        if not thread_id and self.thread_id:
+            thread_id = self.thread_id
+        elif not (thread_id or self.thread_id):
             raise TypeError(
                 "Argument 'thread_id' has to be specified, if no conversation was started previously."
             )
@@ -389,9 +397,9 @@ class FrevaGPT(SyncAPIClient):
         Returns:
             True if thread was stopped successfully (without an error).
         """
-        if not thread_id and self._thread_id:
-            thread_id = self._thread_id
-        elif not (thread_id or self._thread_id):
+        if not thread_id and self.thread_id:
+            thread_id = self.thread_id
+        elif not (thread_id or self.thread_id):
             raise TypeError(
                 "Argument 'thread_id' has to be specified, if no conversation was started previously."
             )
@@ -429,9 +437,9 @@ class FrevaGPT(SyncAPIClient):
         Returns:
             Tuple[str, Conversation]: A tuple containing both the new thread id and a Conversation object that encapsulates the message history from which the new thread starts from.
         """
-        if not source_thread_id and self._thread_id:
-            source_thread_id = self._thread_id
-        elif not (source_thread_id or self._thread_id):
+        if not source_thread_id and self.thread_id:
+            source_thread_id = self.thread_id
+        elif not (source_thread_id or self.thread_id):
             raise TypeError(
                 "Argument 'source_thread_id' has to be specified, if no conversation was started previously."
             )
@@ -486,9 +494,9 @@ class FrevaGPT(SyncAPIClient):
             Detail message returned by the backend, or warning if the response was empty.
 
         """
-        if not thread_id and self._thread_id:
-            thread_id = self._thread_id
-        elif not (thread_id or self._thread_id):
+        if not thread_id and self.thread_id:
+            thread_id = self.thread_id
+        elif not (thread_id or self.thread_id):
             raise TypeError(
                 "Argument 'thread_id' has to be specified, if no conversation was started previously."
             )
