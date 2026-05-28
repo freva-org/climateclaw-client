@@ -33,6 +33,7 @@ dependencies = [
     "httpx",
     "pydantic",
     "py_oidc_auth_client",
+    "nest_asyncio",
 ]
 
 [project.urls]
