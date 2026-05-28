@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import pytest
+from pytest_mock import MockerFixture
 
 from freva_gpt_client.models import (
     Assistant,
@@ -694,21 +695,46 @@ class TestStreamConversation:
         with stream_conv:
             assert stream_conv is not None
 
+    @pytest.mark.asyncio
+    async def test_async_context_manager_aenter(self, mocker: MockerFixture):
+        """Test async context manager __aenter__ returns self."""
+        mock_response = mocker.MagicMock()
+        mock_response.is_closed = False
+        stream_conv = StreamConversation(mock_response)
+
+        async with stream_conv:
+            assert stream_conv is not None
+
     def test_context_manager_exit_closes_stream(self, mocker):
         """Test context manager __exit__ closes stream."""
-
         mock_stream_response = mocker.MagicMock()
         mock_stream_response.is_closed = False
         mock_on_exit_callback = mocker.MagicMock()
         stream_conv = StreamConversation(
             stream=mock_stream_response, on_exit_callback=mock_on_exit_callback
         )
-
         with stream_conv:
             pass
-
         mock_stream_response.close.assert_called_once()
         mock_on_exit_callback.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_async_context_manager_aexit_closes_stream(self, mocker: MockerFixture):
+        """Test async context manager __aexit__ closes stream."""
+        mock_stream_response = mocker.MagicMock()
+        mock_stream_response.is_closed = False
+        mock = mocker.AsyncMock()
+
+        async def _exit_callback():
+            await mock()
+
+        stream_conv = StreamConversation(
+            stream=mock_stream_response, on_exit_callback=_exit_callback
+        )
+        async with stream_conv:
+            pass
+        mock_stream_response.close.assert_called_once()
+        mock.assert_awaited_once()
 
     def test_process_chunk_first_message(self, mocker):
         """Test process_chunk sets _current_message on first chunk."""

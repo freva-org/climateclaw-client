@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import json
 import re
@@ -584,7 +585,9 @@ class StreamConversation(AbstractContextManager, AbstractAsyncContextManager):
         """
         self.stream_response.close()
         if self._on_exit_callback:
-            self._on_exit_callback()
+            callback_result = self._on_exit_callback()
+            if asyncio.iscoroutine(callback_result):
+                await callback_result
 
     def translate_to_conversation(self) -> Conversation:
         """Converts the streamed messages to a Conversation instance.
