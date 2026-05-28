@@ -224,7 +224,7 @@ class TestModels:
         """Test model setter raises a ValueError if an invalid model is set."""
         client: FrevaGPT = create_client()
         client.available_models = ["test_model", "test_model2"]
-        with pytest.raises(ValueError, match=r"Value .* is not a valid selection.*"):
+        with pytest.raises(ValueError, match=r"Model .* is not a valid selection.*"):
             client.model = "invalid_model"
 
 
