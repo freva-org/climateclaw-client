@@ -260,7 +260,7 @@ class TestThreadManagement:
 
     @pytest.mark.asyncio
     async def test_deletethread_success(self, create_async_client, mock_thread_id, mock_request):
-        """Test deletethread deletes a thread by ID."""
+        """Test deleting an existing thread without specifying thread, results in instance thread being deleted and reset."""
         client: AsyncFrevaGPT = create_async_client()
         client.thread_id = mock_thread_id
         mock_request("deletethread")
@@ -269,15 +269,29 @@ class TestThreadManagement:
 
     @pytest.mark.asyncio
     async def test_deletethread_with_explicit_thread_id(
-        self, create_async_client, mock_thread_id, mock_request
+        self, create_async_client, mock_request, mock_thread_id, mock_new_thread_id
     ):
         """Test deletethread deletes thread by explicit thread_id parameter."""
         client: AsyncFrevaGPT = create_async_client()
-        client.thread_id = "different_thread"
         mock_request("deletethread")
         await client.deletethread(thread_id=mock_thread_id)
+
+    @pytest.mark.asyncio
+    async def test_deletethread_different_thread_success(
+        self,
+        create_async_client,
+        mock_request,
+        mock_thread_id,
+        mock_new_thread_id,
+    ):
+        """Test deleting an existing thread that is not the instance thread is successful but does not reset instance thread id."""
+        client: AsyncFrevaGPT = create_async_client()
+        client.thread_id = mock_thread_id
+        mock_request("deletethread")
+        await client.deletethread(mock_new_thread_id)
         # Should not reset client.thread_id since it's different
-        assert client.thread_id == "different_thread"
+        assert client.thread_id is not None
+        assert client.thread_id == mock_thread_id
 
     @pytest.mark.asyncio
     async def test_deletethread_no_thread_raises_type_error(self, create_async_client):
@@ -290,10 +304,21 @@ class TestThreadManagement:
     async def test_setthreadtopic_success(self, create_async_client, mock_thread_id, mock_request):
         """Test setthreadtopic sets topic for a thread."""
         client: AsyncFrevaGPT = create_async_client()
-        client.thread_id = mock_thread_id
         mock_request("setthreadtopic")
-        result = await client.setthreadtopic("New Topic")
+        result = await client.setthreadtopic(new_topic="New Topic", thread_id=mock_thread_id)
         assert result == "New Topic"
+
+    @pytest.mark.asyncio
+    async def test_setthreadtopic_with_instance_thread_success(
+        self, mocker: MockerFixture, create_async_client, mock_request, mock_thread_id
+    ):
+        """Test that setthreadtopic correctly uses instance thread id when setting new topic."""
+        client: AsyncFrevaGPT = create_async_client()
+        mock_request("setthreadtopic")
+        client.thread_id = mock_thread_id
+        spy_get = mocker.spy(client, "get")
+        await client.setthreadtopic("Test topic")
+        assert spy_get.call_args_list[-1].kwargs["params"]["thread_id"] == client.thread_id
 
     @pytest.mark.asyncio
     async def test_setthreadtopic_no_thread_raises_type_error(self, create_async_client):
@@ -368,17 +393,29 @@ class TestThreadManagement:
             await client.stop()
 
     @pytest.mark.asyncio
-    async def test_editthread_success(
-        self, create_async_client, mock_thread_id, mock_new_thread_id, mock_request
+    async def test_editthread_minimal_params_success(
+        self, create_async_client, mock_request, mock_thread_id, mock_new_thread_id
     ):
-        """Test editthread forks a thread at a given message index."""
+        """Test that editthread passes successfully and returns with expected result for minimal parameters."""
         client: AsyncFrevaGPT = create_async_client()
         client.thread_id = mock_thread_id
         mock_request("editthread")
-        new_thread_id, history = await client.editthread(user_index=0)
+        new_thread_id, branched_conv = await client.editthread(user_index=1)
         assert new_thread_id == mock_new_thread_id
-        assert isinstance(history, Conversation)
-        assert len(history.messages) == 2
+        assert isinstance(branched_conv, Conversation)
+
+    @pytest.mark.asyncio
+    async def test_editthread_thread_specified_success(
+        self, create_async_client, mock_request, mock_thread_id, mock_new_thread_id
+    ):
+        """Test that editthread passes successfully and returns with expected result if source_thread_id is specified."""
+        client: AsyncFrevaGPT = create_async_client()
+        mock_request("editthread")
+        new_thread_id, branched_conv = await client.editthread(
+            user_index=1, source_thread_id=mock_thread_id
+        )
+        assert new_thread_id == mock_new_thread_id
+        assert isinstance(branched_conv, Conversation)
 
     @pytest.mark.asyncio
     async def test_editthread_no_thread_raises_type_error(self, create_async_client):
@@ -485,9 +522,8 @@ class TestPrompting:
     ):
         """Test prompt with stream=True returns StreamConversation."""
         client: AsyncFrevaGPT = create_async_client(model=mock_available_models[0])
-        client.thread_id = mock_thread_id
         mock_request("streamresponse", stream=True)
-        result = await client.prompt("test", stream=True)
+        result = await client.prompt("test", thread_id=mock_thread_id, stream=True)
         assert isinstance(result, StreamConversation)
 
     @pytest.mark.asyncio
@@ -609,17 +645,6 @@ class TestUserFeedback:
         assert result == "Successfully submitted feedback."
 
     @pytest.mark.asyncio
-    async def test_userfeedback_minimal_params_success(
-        self, create_async_client, mock_thread_id, mock_request
-    ):
-        """Test userfeedback with minimal params."""
-        client: AsyncFrevaGPT = create_async_client()
-        client.thread_id = mock_thread_id
-        mock_request("userfeedback")
-        result = await client.userfeedback(feedback_index=0, feedback="up")
-        assert result == "Successfully submitted feedback."
-
-    @pytest.mark.asyncio
     async def test_userfeedback_thread_specified_success(
         self, create_async_client, mock_thread_id, mock_request
     ):
@@ -673,6 +698,17 @@ class TestUserFeedback:
         mock_request("userfeedback", status_code=404, text="feedback not found")
         with pytest.raises(IndexError, match="Feedback not found at index "):
             await client.userfeedback(feedback_index=2, feedback="remove")
+
+    @pytest.mark.asyncio
+    async def test_userfeedback_general_404_error_raises(
+        self, mocker: MockerFixture, create_async_client, mock_request, mock_thread_id
+    ):
+        """Test that userfeedback raises an Connection if backend returns a 404 status that's not related to previous two cases."""
+        client: AsyncFrevaGPT = create_async_client()
+        client.thread_id = mock_thread_id
+        mock_request("userfeedback", status_code=404, text="resource not found")
+        with pytest.raises(ConnectionError):
+            await client.userfeedback(feedback_index=2, feedback="up")
 
     @pytest.mark.asyncio
     async def test_userfeedback_index_oob_raises_index_error(
