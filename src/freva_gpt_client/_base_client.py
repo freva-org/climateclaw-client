@@ -249,7 +249,7 @@ class SyncAPIClient(BaseClient[httpx.Client]):
     def _stream(self, *args, **kwargs) -> StreamResponse:
         """Makes a streaming HTTP request and returns a StreamResponse."""
         retries_taken = 0
-        for retries_taken in range(self.max_retries + 1):
+        for retries_taken in range(self.max_retries + 1):  # pragma: no branch
             try:
                 req: httpx.Request = self._client.build_request(*args, **kwargs)
                 res: httpx.Response = self._client.send(request=req, stream=True)
@@ -275,7 +275,7 @@ class SyncAPIClient(BaseClient[httpx.Client]):
     def _request_raw(self, *args, **kwargs) -> httpx.Response:
         """Makes a non-streaming HTTP request."""
         retries_taken = 0
-        for retries_taken in range(self.max_retries + 1):
+        for retries_taken in range(self.max_retries + 1):  # pragma: no branch
             try:
                 r: httpx.Response = self._client.request(*args, **kwargs)
                 r.raise_for_status()
@@ -415,12 +415,15 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
             )
         elif retries_taken == self.max_retries:
             logger.debug(f"Retrying connection after sleeping {timeout} seconds. Final attempt.")
+        else:
+            logger.debug("Maximum number of retries exceeded. Skipping timeout.")
+            return
         await asyncio.sleep(timeout)
 
     async def _stream(self, *args, **kwargs) -> StreamResponse:
         """Makes a streaming HTTP request and returns a StreamResponse."""
         retries_taken = 0
-        for retries_taken in range(self.max_retries + 1):
+        for retries_taken in range(self.max_retries + 1):  # pragma: no branch
             try:
                 req: httpx.Request = self._client.build_request(*args, **kwargs)
                 res: httpx.Response = await self._client.send(request=req, stream=True)
@@ -446,7 +449,7 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
     async def _request_raw(self, *args, **kwargs) -> httpx.Response:
         """Makes a non-streaming HTTP request."""
         retries_taken = 0
-        for retries_taken in range(self.max_retries + 1):
+        for retries_taken in range(self.max_retries + 1):  # pragma: no branch
             try:
                 r: httpx.Response = await self._client.request(*args, **kwargs)
                 r.raise_for_status()
