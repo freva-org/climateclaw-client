@@ -173,6 +173,19 @@ class TestModels:
         client: AsyncFrevaGPT = create_async_client()
         assert hasattr(client, "available_models")
 
+    def test_available_models_success(self, create_async_client, mock_available_models):
+        """Test retrieving available models."""
+        client: AsyncFrevaGPT = create_async_client()
+        models = client.available_models
+        assert models == mock_available_models
+
+    def test_available_models_cached(self, create_async_client):
+        """Test that available_models is cached."""
+        client: AsyncFrevaGPT = create_async_client()
+        models1 = client.available_models
+        models2 = client.available_models
+        assert models1 is models2
+
     def test_model_getter(self, create_async_client):
         """Test model property getter returns _model attribute."""
         client: AsyncFrevaGPT = create_async_client()
@@ -250,6 +263,26 @@ class TestThreadManagement:
         mock_request("getthread")
         result = await client.getthread(thread_id=mock_thread_id)
         assert isinstance(result, Conversation)
+
+    @pytest.mark.asyncio
+    async def test_getthread_instance_thread_success(
+        self,
+        mocker: MockerFixture,
+        create_async_client,
+        mock_request,
+        mock_thread_id,
+        mock_new_thread_id,
+    ):
+        """Test retrieving a thread by ID when instance has different thread_id."""
+        client: AsyncFrevaGPT = create_async_client()
+        spy = mocker.spy(client, "get")
+        client.thread_id = mock_thread_id
+        mock_request("getthread", is_reusable=True)
+        thread = await client.getthread(mock_new_thread_id)
+        assert spy.call_args_list[-1].kwargs["params"].get("thread_id") == mock_new_thread_id
+        assert len(thread.messages) == 2
+        assert thread.messages[0].message.variant == "User"
+        assert thread.messages[1].message.variant == "Assistant"
 
     @pytest.mark.asyncio
     async def test_getthread_no_thread_raises_type_error(self, create_async_client):
