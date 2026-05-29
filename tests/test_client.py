@@ -302,7 +302,7 @@ class TestThreadManagement:
         client.setthreadtopic("Test topic")
         assert spy_get.call_args_list[-1].kwargs["params"]["thread_id"] == client.thread_id
 
-    def test_setthreadtopic_no_thread_raises_typeerror(self, create_client):
+    def test_setthreadtopic_no_thread_raises_type_error(self, create_client):
         """Test that setthreadtopic raises TypeError if no thread_id provided."""
         client: FrevaGPT = create_client()
         with pytest.raises(TypeError, match="Argument 'thread_id' has to be specified"):
@@ -340,7 +340,7 @@ class TestThreadManagement:
         assert client.thread_id is not None
         assert client.thread_id == mock_thread_id
 
-    def test_deletethread_no_thread_raises_error(self, create_client):
+    def test_deletethread_no_thread_raises_type_error(self, create_client):
         """Test that calling deletethread raises a TypeError if no thread is specified and no instance thread id set."""
         client: FrevaGPT = create_client()
         with pytest.raises(TypeError, match=r"Argument 'thread_id' has to be specified.*"):
@@ -369,13 +369,13 @@ class TestThreadManagement:
         assert new_thread_id == mock_new_thread_id
         assert isinstance(branched_conv, Conversation)
 
-    def test_editthread_not_thread_raises_type_error(self, create_client):
+    def test_editthread_no_thread_raises_type_error(self, create_client):
         """Test that calling editthread raises a TypeError if no thread is specified and no instance thread set."""
         client: FrevaGPT = create_client()
         with pytest.raises(TypeError, match="Argument 'source_thread_id' has to be specified"):
             client.editthread(user_index=1)
 
-    def test_editthread_no_thread_found_raises_value_error(
+    def test_editthread_thread_not_found_raises_value_error(
         self, mocker: MockerFixture, create_client, mock_request, mock_thread_id
     ):
         """Test that editthread raises a ValueError if backend returns a 404 status error."""
@@ -504,7 +504,7 @@ class TestUserFeedback:
         with pytest.raises(ConnectionError):
             client.userfeedback(feedback_index=2, feedback="up")
 
-    def test_userfeedback_index_oob_raises_index_error(
+    def test_userfeedback_index_out_of_bounds_raises_index_error(
         self, mocker: MockerFixture, create_client, mock_request, mock_thread_id
     ):
         """Test that userfeedback raises an IndexError if backend returns a 422 status error (feedback index out of bounds)."""
