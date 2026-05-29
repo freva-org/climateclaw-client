@@ -82,6 +82,11 @@ class TestInit:
         client: AsyncFrevaGPT = create_async_client(http_client=custom_client)
         assert client._client == custom_client
 
+    def test_init_invalid_model(self, create_async_client):
+        """Test that invalid model raises ValueError."""
+        with pytest.raises(ValueError, match="is not a valid selection"):
+            create_async_client(model="invalid_model")
+
     def test_root_api_path(self, create_async_client):
         """Test that _root_api_path is set correctly."""
         client = create_async_client()
@@ -161,6 +166,25 @@ class TestEndpointValidation:
 
 
 # =============================================================================
+# TestAuthenticate - Tests for available_models
+# =============================================================================
+
+
+class TestAuthenticate:
+    """Test client authentication method"""
+
+    @pytest.mark.asyncio
+    async def test_authenticate(self, mocker: MockerFixture, create_async_client):
+        """Test that authenticate calls TokenAuth _authenticate method."""
+        client: AsyncFrevaGPT = create_async_client()
+        mock_authenticate = mocker.patch.object(
+            client._auth, "_async_authenticate", new_callable=mocker.AsyncMock
+        )
+        await client.authenticate()
+        mock_authenticate.assert_called_once()
+
+
+# =============================================================================
 # TestModels - Tests for model property and available_models
 # =============================================================================
 
@@ -209,25 +233,6 @@ class TestModels:
 
 
 # =============================================================================
-# TestAuthenticate - Tests for available_models
-# =============================================================================
-
-
-class TestAuthenticate:
-    """Test client authentication method"""
-
-    @pytest.mark.asyncio
-    async def test_authenticate(self, mocker: MockerFixture, create_async_client):
-        """Test that authenticate calls TokenAuth _authenticate method."""
-        client: AsyncFrevaGPT = create_async_client()
-        mock_authenticate = mocker.patch.object(
-            client._auth, "_async_authenticate", new_callable=mocker.AsyncMock
-        )
-        await client.authenticate()
-        mock_authenticate.assert_called_once()
-
-
-# =============================================================================
 # TestThreadManagement - Tests for thread management methods
 # =============================================================================
 
@@ -273,7 +278,7 @@ class TestThreadManagement:
         mock_thread_id,
         mock_new_thread_id,
     ):
-        """Test retrieving a thread by ID when instance has different thread_id."""
+        """Test retrieving a thread by ID."""
         client: AsyncFrevaGPT = create_async_client()
         spy = mocker.spy(client, "get")
         client.thread_id = mock_thread_id
@@ -290,6 +295,33 @@ class TestThreadManagement:
         client: AsyncFrevaGPT = create_async_client()
         with pytest.raises(TypeError, match="Argument 'thread_id' has to be specified"):
             await client.getthread()
+
+    @pytest.mark.asyncio
+    async def test_setthreadtopic_success(self, create_async_client, mock_thread_id, mock_request):
+        """Test setthreadtopic sets topic for a thread."""
+        client: AsyncFrevaGPT = create_async_client()
+        mock_request("setthreadtopic")
+        result = await client.setthreadtopic(new_topic="New Topic", thread_id=mock_thread_id)
+        assert result == "New Topic"
+
+    @pytest.mark.asyncio
+    async def test_setthreadtopic_with_instance_thread_success(
+        self, mocker: MockerFixture, create_async_client, mock_request, mock_thread_id
+    ):
+        """Test that setthreadtopic correctly uses instance thread id when setting new topic."""
+        client: AsyncFrevaGPT = create_async_client()
+        mock_request("setthreadtopic")
+        client.thread_id = mock_thread_id
+        spy_get = mocker.spy(client, "get")
+        await client.setthreadtopic("Test topic")
+        assert spy_get.call_args_list[-1].kwargs["params"]["thread_id"] == client.thread_id
+
+    @pytest.mark.asyncio
+    async def test_setthreadtopic_no_thread_raises_type_error(self, create_async_client):
+        """Test setthreadtopic raises TypeError when no thread_id is specified."""
+        client: AsyncFrevaGPT = create_async_client()
+        with pytest.raises(TypeError, match="Argument 'thread_id' has to be specified"):
+            await client.setthreadtopic("New Topic")
 
     @pytest.mark.asyncio
     async def test_deletethread_success(self, create_async_client, mock_thread_id, mock_request):
@@ -332,98 +364,6 @@ class TestThreadManagement:
         client: AsyncFrevaGPT = create_async_client()
         with pytest.raises(TypeError, match="Argument 'thread_id' has to be specified"):
             await client.deletethread()
-
-    @pytest.mark.asyncio
-    async def test_setthreadtopic_success(self, create_async_client, mock_thread_id, mock_request):
-        """Test setthreadtopic sets topic for a thread."""
-        client: AsyncFrevaGPT = create_async_client()
-        mock_request("setthreadtopic")
-        result = await client.setthreadtopic(new_topic="New Topic", thread_id=mock_thread_id)
-        assert result == "New Topic"
-
-    @pytest.mark.asyncio
-    async def test_setthreadtopic_with_instance_thread_success(
-        self, mocker: MockerFixture, create_async_client, mock_request, mock_thread_id
-    ):
-        """Test that setthreadtopic correctly uses instance thread id when setting new topic."""
-        client: AsyncFrevaGPT = create_async_client()
-        mock_request("setthreadtopic")
-        client.thread_id = mock_thread_id
-        spy_get = mocker.spy(client, "get")
-        await client.setthreadtopic("Test topic")
-        assert spy_get.call_args_list[-1].kwargs["params"]["thread_id"] == client.thread_id
-
-    @pytest.mark.asyncio
-    async def test_setthreadtopic_no_thread_raises_type_error(self, create_async_client):
-        """Test setthreadtopic raises TypeError when no thread_id is specified."""
-        client: AsyncFrevaGPT = create_async_client()
-        with pytest.raises(TypeError, match="Argument 'thread_id' has to be specified"):
-            await client.setthreadtopic("New Topic")
-
-    @pytest.mark.asyncio
-    async def test_stop_success(self, create_async_client, mock_thread_id, mock_request):
-        """Test stop stops a streaming conversation."""
-        client: AsyncFrevaGPT = create_async_client()
-        client.thread_id = mock_thread_id
-        mock_request("stop")
-        result = await client.stop()
-        assert result is True
-
-    @pytest.mark.asyncio
-    async def test_stop_with_explicit_thread_id(
-        self, create_async_client, mock_thread_id, mock_request
-    ):
-        """Test stop stops thread by explicit thread_id parameter."""
-        client: AsyncFrevaGPT = create_async_client()
-        mock_request("stop")
-        result = await client.stop(thread_id=mock_thread_id)
-        assert result is True
-
-    @pytest.mark.asyncio
-    async def test_stop_no_thread_raises_type_error(self, create_async_client):
-        """Test stop raises TypeError when no thread_id is specified."""
-        client: AsyncFrevaGPT = create_async_client()
-        with pytest.raises(TypeError, match="Argument 'thread_id' has to be specified"):
-            await client.stop()
-
-    @pytest.mark.asyncio
-    async def test_stop_no_active_thread_success(
-        self, mocker: MockerFixture, create_async_client, mock_thread_id, mock_request
-    ):
-        """Test stop returns True even if no active thread is found on the backend."""
-        client: AsyncFrevaGPT = create_async_client()
-        client.thread_id = mock_thread_id
-        mock_request("stop", status_code=404)
-        spy_logger = mocker.spy(logger, "warning")
-        result = await client.stop()
-        spy_logger.assert_called_with(
-            f"No active thread could be found under thread_id {mock_thread_id}."
-        )
-        assert result is True
-
-    @pytest.mark.asyncio
-    async def test_stop_internal_server_error_raises(
-        self, create_async_client, mock_thread_id, mock_request
-    ):
-        """Test that stop raises ConnectionError when backend responds with 505 internal server error."""
-        client: AsyncFrevaGPT = create_async_client()
-        client.thread_id = mock_thread_id
-        mock_request("stop", status_code=505, json={"detail": "Internal server error"})
-        with pytest.raises(
-            ConnectionError, match="Could not stop thread due to an internal server error."
-        ):
-            await client.stop()
-
-    @pytest.mark.asyncio
-    async def test_stop_other_http_error_raises(
-        self, mocker: MockerFixture, create_async_client, mock_request, mock_thread_id
-    ):
-        """Test that stop handles http statuses that are not 200, 404, 505 differently"""
-        client: AsyncFrevaGPT = create_async_client()
-        client.thread_id = mock_thread_id
-        mock_request("stop", status_code=401)
-        with pytest.raises(ConnectionError, match=r"\[Errno 401\] Error connecting to url.*"):
-            await client.stop()
 
     @pytest.mark.asyncio
     async def test_editthread_minimal_params_success(
@@ -505,137 +445,6 @@ class TestThreadManagement:
             match=f"The response to editing thread '{mock_thread_id}' did not include keys",
         ):
             await client.editthread(user_index=1)
-
-
-# =============================================================================
-# TestPrompting - Tests for prompt method
-# =============================================================================
-
-
-class TestPrompting:
-    """Tests for the prompt method."""
-
-    @pytest.mark.asyncio
-    async def test_prompt_non_stream_success(
-        self, create_async_client, mock_available_models, mock_thread_id, mock_request
-    ):
-        """Test prompt with stream=False returns Conversation."""
-        client: AsyncFrevaGPT = create_async_client(model=mock_available_models[0])
-        client.thread_id = mock_thread_id
-        mock_request("streamresponse", stream=False)
-        result = await client.prompt("test", stream=False)
-
-        assert isinstance(result, Conversation)
-
-    @pytest.mark.asyncio
-    async def test_prompt_non_stream_minimal_params_success(
-        self, create_async_client, mock_available_models, mock_request
-    ):
-        """Test prompt with stream=False and minimal params returns Conversation."""
-        client: AsyncFrevaGPT = create_async_client(model=mock_available_models[0])
-        mock_request("newthread")
-        mock_request("streamresponse", stream=False)
-        result = await client.prompt(input="test", stream=False)
-        assert isinstance(result, Conversation)
-
-    @pytest.mark.asyncio
-    async def test_prompt_non_stream_minimal_params_set_thread_success(
-        self, create_async_client, mock_available_models, mock_thread_id, mock_request
-    ):
-        """Test prompt with stream=False uses set thread_id when available."""
-        client: AsyncFrevaGPT = create_async_client(model=mock_available_models[0])
-        client.thread_id = mock_thread_id
-        mock_request("streamresponse", stream=False)
-        result = await client.prompt(input="test", stream=False)
-        assert isinstance(result, Conversation)
-
-    @pytest.mark.asyncio
-    async def test_prompt_stream_success(
-        self, create_async_client, mock_available_models, mock_thread_id, mock_request
-    ):
-        """Test prompt with stream=True returns StreamConversation."""
-        client: AsyncFrevaGPT = create_async_client(model=mock_available_models[0])
-        mock_request("streamresponse", stream=True)
-        result = await client.prompt("test", thread_id=mock_thread_id, stream=True)
-        assert isinstance(result, StreamConversation)
-
-    @pytest.mark.asyncio
-    async def test_prompt_no_model_raises_typeerror(self, create_async_client):
-        """Test prompt raises TypeError when model is not specified."""
-        client: AsyncFrevaGPT = create_async_client()
-        with pytest.raises(TypeError, match="Argument 'model' has to be specified"):
-            await client.prompt("test")
-
-    @pytest.mark.asyncio
-    async def test_prompt_invalid_model_raises_valueerror(
-        self, create_async_client, mock_available_models, httpx_mock: HTTPXMock
-    ):
-        """Test prompt raises ValueError when model is invalid."""
-        client: AsyncFrevaGPT = create_async_client()
-        with pytest.raises(ValueError, match="is not a valid selection for param 'model'"):
-            await client.prompt("test", model="invalid_model")
-
-    @pytest.mark.asyncio
-    async def test_prompt_keyboard_interrupt_sends_stop(
-        self, mocker: MockerFixture, create_async_client, mock_available_models, mock_thread_id
-    ):
-        "Test that a KeyboardInterrupt event leads to a call to the stop method."
-        client: AsyncFrevaGPT = create_async_client(model=mock_available_models[0])
-        client.thread_id = mock_thread_id
-        client.stop = mocker.AsyncMock()
-        client.get = mocker.Mock(side_effect=KeyboardInterrupt)
-        with pytest.raises(KeyboardInterrupt):
-            await client.prompt("Test prompt", model=client.model, stream=False)
-        client.get.assert_called_once()
-        client.stop.assert_called_once()
-
-
-# =============================================================================
-# TestThreadSearch - Tests for getuserthreads and searchthreads
-# =============================================================================
-
-
-class TestThreadSearch:
-    """Tests for user thread search methods."""
-
-    @pytest.mark.asyncio
-    async def test_getuserthreads_success(
-        self, create_async_client, mock_thread_list, mock_thread_id, mock_request
-    ):
-        """Test retrieving user threads."""
-        client: AsyncFrevaGPT = create_async_client()
-        mock_request("getuserthreads")
-        total, threads = await client.getuserthreads(num_threads=5)
-
-        assert total == min(5, len(mock_thread_list))
-        assert len(threads) == total
-        assert threads[0]["thread_id"] == mock_thread_id
-        assert threads[0]["topic"] == "Test Topic"
-        assert isinstance(threads[0]["content"], Conversation)
-
-    @pytest.mark.asyncio
-    async def test_getuserthreads_zero_num_threads_raises_valueerror(self, create_async_client):
-        """Test that getuserthreads raises ValueError for num_threads <= 0."""
-        client: AsyncFrevaGPT = create_async_client()
-        with pytest.raises(ValueError, match="has to be at least 1"):
-            await client.getuserthreads(num_threads=0)
-
-    @pytest.mark.asyncio
-    async def test_searchthreads_success(self, create_async_client, mock_request, mock_thread_list):
-        """Test searching user threads."""
-        client: AsyncFrevaGPT = create_async_client()
-        mock_request("searchthreads")
-        total, results = await client.searchthreads(query="test", num_threads=5)
-        assert total == min(5, len(mock_thread_list))
-        assert len(results) == total
-        assert results[1]["topic"] == "ENSO Discussion"
-
-    @pytest.mark.asyncio
-    async def test_searchthreads_zero_num_threads_raises_valueerror(self, create_async_client):
-        """Test that searchthreads raises ValueError for num_threads <= 0."""
-        client: AsyncFrevaGPT = create_async_client()
-        with pytest.raises(ValueError, match="has to be at least 1"):
-            await client.searchthreads(query="test", num_threads=0)
 
 
 # =============================================================================
@@ -786,3 +595,207 @@ class TestUserFeedback:
         mock_request("userfeedback", status_code=401)
         with pytest.raises(ConnectionError, match=r"\[Errno 401\] Error connecting to url.*"):
             await client.userfeedback(feedback_index=20, feedback="remove")
+
+
+# =============================================================================
+# TestPrompting - Tests for prompt method
+# =============================================================================
+
+
+class TestPrompting:
+    """Tests for the prompt method."""
+
+    @pytest.mark.asyncio
+    async def test_prompt_non_stream_success(
+        self, create_async_client, mock_available_models, mock_thread_id, mock_request
+    ):
+        """Test prompt with stream=False returns Conversation."""
+        client: AsyncFrevaGPT = create_async_client(model=mock_available_models[0])
+        client.thread_id = mock_thread_id
+        mock_request("streamresponse", stream=False)
+        result = await client.prompt("test", stream=False)
+
+        assert isinstance(result, Conversation)
+
+    @pytest.mark.asyncio
+    async def test_prompt_non_stream_minimal_params_success(
+        self, create_async_client, mock_available_models, mock_request
+    ):
+        """Test prompt with stream=False and minimal params returns Conversation."""
+        client: AsyncFrevaGPT = create_async_client(model=mock_available_models[0])
+        mock_request("newthread")
+        mock_request("streamresponse", stream=False)
+        result = await client.prompt(input="test", stream=False)
+        assert isinstance(result, Conversation)
+
+    @pytest.mark.asyncio
+    async def test_prompt_non_stream_minimal_params_set_thread_success(
+        self, create_async_client, mock_available_models, mock_thread_id, mock_request
+    ):
+        """Test prompt with stream=False uses set thread_id when available."""
+        client: AsyncFrevaGPT = create_async_client(model=mock_available_models[0])
+        client.thread_id = mock_thread_id
+        mock_request("streamresponse", stream=False)
+        result = await client.prompt(input="test", stream=False)
+        assert isinstance(result, Conversation)
+
+    @pytest.mark.asyncio
+    async def test_prompt_stream_success(
+        self, create_async_client, mock_available_models, mock_thread_id, mock_request
+    ):
+        """Test prompt with stream=True returns StreamConversation."""
+        client: AsyncFrevaGPT = create_async_client(model=mock_available_models[0])
+        mock_request("streamresponse", stream=True)
+        result = await client.prompt("test", thread_id=mock_thread_id, stream=True)
+        assert isinstance(result, StreamConversation)
+
+    @pytest.mark.asyncio
+    async def test_prompt_no_model_raises_type_error(self, create_async_client):
+        """Test prompt raises TypeError when model is not specified."""
+        client: AsyncFrevaGPT = create_async_client()
+        with pytest.raises(TypeError, match="Argument 'model' has to be specified"):
+            await client.prompt("test")
+
+    @pytest.mark.asyncio
+    async def test_prompt_invalid_model_raises_value_error(
+        self, create_async_client, mock_available_models, httpx_mock: HTTPXMock
+    ):
+        """Test prompt raises ValueError when model is invalid."""
+        client: AsyncFrevaGPT = create_async_client()
+        with pytest.raises(ValueError, match="is not a valid selection for param 'model'"):
+            await client.prompt("test", model="invalid_model")
+
+    @pytest.mark.asyncio
+    async def test_prompt_keyboard_interrupt_sends_stop(
+        self, mocker: MockerFixture, create_async_client, mock_available_models, mock_thread_id
+    ):
+        "Test that a KeyboardInterrupt event leads to a call to the stop method."
+        client: AsyncFrevaGPT = create_async_client(model=mock_available_models[0])
+        client.thread_id = mock_thread_id
+        client.stop = mocker.AsyncMock()
+        client.get = mocker.Mock(side_effect=KeyboardInterrupt)
+        with pytest.raises(KeyboardInterrupt):
+            await client.prompt("Test prompt", model=client.model, stream=False)
+        client.get.assert_called_once()
+        client.stop.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_stop_with_specified_thread_id_success(
+        self, create_async_client, mock_thread_id, mock_request
+    ):
+        """Test that stop for a specified thread is executed as expected."""
+        client: AsyncFrevaGPT = create_async_client()
+        mock_request("stop")
+        result = await client.stop(mock_thread_id)
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_stop_with_default_thread_id_success(
+        self,
+        mocker: MockerFixture,
+        create_async_client,
+        mock_thread_id,
+        mock_request,
+    ):
+        """Test that stop with default thread id is executed as expected."""
+        client: AsyncFrevaGPT = create_async_client()
+        client.thread_id = mock_thread_id
+        mock_request("stop")
+        spy_get = mocker.spy(client, "get")
+        result = await client.stop()
+        assert result is True
+        assert spy_get.call_args_list[-1].kwargs["params"]["thread_id"] == client.thread_id
+
+    @pytest.mark.asyncio
+    async def test_stop_no_thread_raises_type_error(self, create_async_client):
+        """Test that stop raises a TypeError if no thread is specified and no instance thread id is set."""
+        client: AsyncFrevaGPT = create_async_client()
+        with pytest.raises(TypeError, match="Argument 'thread_id' has to be specified"):
+            await client.stop()
+
+    @pytest.mark.asyncio
+    async def test_stop_no_active_thread_success(
+        self, mocker: MockerFixture, create_async_client, mock_thread_id, mock_request
+    ):
+        """Test that stop triggers a warning message if no active thread can be found for given thread id."""
+        client: AsyncFrevaGPT = create_async_client()
+        client.thread_id = mock_thread_id
+        mock_request("stop", status_code=404)
+        spy_logger = mocker.spy(logger, "warning")
+        result = await client.stop()
+        spy_logger.assert_called_with(
+            f"No active thread could be found under thread_id {mock_thread_id}."
+        )
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_stop_internal_server_error_raises(
+        self, create_async_client, mock_thread_id, mock_request
+    ):
+        """Test that stop triggers an error if backend responds with a 505 internal-error status message."""
+        client: AsyncFrevaGPT = create_async_client()
+        client.thread_id = mock_thread_id
+        mock_request("stop", status_code=505)
+        with pytest.raises(
+            ConnectionError, match="Could not stop thread due to an internal server error."
+        ):
+            await client.stop()
+
+    @pytest.mark.asyncio
+    async def test_stop_other_http_error_raises(
+        self, mocker: MockerFixture, create_async_client, mock_request, mock_thread_id
+    ):
+        """Test that stop handles http statuses that are not 200, 404, 505 differently"""
+        client: AsyncFrevaGPT = create_async_client()
+        client.thread_id = mock_thread_id
+        mock_request("stop", status_code=401)
+        with pytest.raises(ConnectionError, match=r"\[Errno 401\] Error connecting to url.*"):
+            await client.stop()
+
+
+# =============================================================================
+# TestThreadSearch - Tests for getuserthreads and searchthreads
+# =============================================================================
+
+
+class TestThreadSearch:
+    """Tests for user thread search methods."""
+
+    @pytest.mark.asyncio
+    async def test_getuserthreads_success(
+        self, create_async_client, mock_thread_list, mock_thread_id, mock_request
+    ):
+        """Test retrieving user threads."""
+        client: AsyncFrevaGPT = create_async_client()
+        mock_request("getuserthreads")
+        total, threads = await client.getuserthreads(num_threads=5)
+
+        assert total == min(5, len(mock_thread_list))
+        assert len(threads) == total
+        assert threads[0]["thread_id"] == mock_thread_id
+        assert threads[0]["topic"] == "Test Topic"
+        assert isinstance(threads[0]["content"], Conversation)
+
+    @pytest.mark.asyncio
+    async def test_getuserthreads_zero_num_threads_raises_value_error(self, create_async_client):
+        """Test that getuserthreads raises ValueError for num_threads <= 0."""
+        client: AsyncFrevaGPT = create_async_client()
+        with pytest.raises(ValueError, match="has to be at least 1"):
+            await client.getuserthreads(num_threads=0)
+
+    @pytest.mark.asyncio
+    async def test_searchthreads_success(self, create_async_client, mock_request, mock_thread_list):
+        """Test searching user threads."""
+        client: AsyncFrevaGPT = create_async_client()
+        mock_request("searchthreads")
+        total, results = await client.searchthreads(query="test", num_threads=5)
+        assert total == min(5, len(mock_thread_list))
+        assert len(results) == total
+        assert results[1]["topic"] == "ENSO Discussion"
+
+    @pytest.mark.asyncio
+    async def test_searchthreads_zero_num_threads_raises_value_error(self, create_async_client):
+        """Test that searchthreads raises ValueError for num_threads <= 0."""
+        client: AsyncFrevaGPT = create_async_client()
+        with pytest.raises(ValueError, match="has to be at least 1"):
+            await client.searchthreads(query="test", num_threads=0)

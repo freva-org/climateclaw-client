@@ -187,6 +187,11 @@ class TestAuthenticate:
 class TestModels:
     """Tests for available models endpoint and getter and setter methods for the model attribute."""
 
+    def test_available_models_property(self, create_client):
+        """Test available_models property."""
+        client: FrevaGPT = create_client()
+        assert hasattr(client, "available_models")
+
     def test_available_models_success(self, create_client, mock_available_models):
         """Test retrieving available models."""
         client: FrevaGPT = create_client()
@@ -199,11 +204,6 @@ class TestModels:
         models1 = client.available_models
         models2 = client.available_models
         assert models1 is models2
-
-    def test_available_models_property(self, create_client):
-        """Test available_models property."""
-        client: FrevaGPT = create_client()
-        assert hasattr(client, "available_models")
 
     def test_model_getter(self, create_client):
         """Test model property getter returns _model attribute."""
@@ -254,6 +254,13 @@ class TestThreadManagement:
         assert thread.messages[0].message.variant == "User"
         assert thread.messages[1].message.variant == "Assistant"
 
+    def test_getthread_with_explicit_thread_id(self, create_client, mock_thread_id, mock_request):
+        """Test getthread retrieves thread by explicit thread_id parameter."""
+        client: FrevaGPT = create_client()
+        mock_request("getthread")
+        result = client.getthread(thread_id=mock_thread_id)
+        assert isinstance(result, Conversation)
+
     def test_getthread_instance_thread_success(
         self, mocker: MockerFixture, create_client, mock_request, mock_thread_id, mock_new_thread_id
     ):
@@ -268,7 +275,7 @@ class TestThreadManagement:
         assert thread.messages[0].message.variant == "User"
         assert thread.messages[1].message.variant == "Assistant"
 
-    def test_getthread_no_thread_raises_typeerror(self, create_client):
+    def test_getthread_no_thread_raises_type_error(self, create_client):
         """Test that getthread raises TypeError if no thread_id provided."""
         client: FrevaGPT = create_client()
         with pytest.raises(TypeError, match="Argument 'thread_id' has to be specified"):
@@ -299,7 +306,7 @@ class TestThreadManagement:
         """Test that setthreadtopic raises TypeError if no thread_id provided."""
         client: FrevaGPT = create_client()
         with pytest.raises(TypeError, match="Argument 'thread_id' has to be specified"):
-            client.setthreadtopic(new_topic="Test")
+            client.setthreadtopic(new_topic="New Topic")
 
     def test_deletethread_success(self, create_client, mock_request, mock_thread_id):
         """Test deleting an existing thread without specifying thread, results in instance thread being deleted and reset."""
@@ -368,7 +375,7 @@ class TestThreadManagement:
         with pytest.raises(TypeError, match="Argument 'source_thread_id' has to be specified"):
             client.editthread(user_index=1)
 
-    def test_editthread_no_thread_found_raises(
+    def test_editthread_no_thread_found_raises_value_error(
         self, mocker: MockerFixture, create_client, mock_request, mock_thread_id
     ):
         """Test that editthread raises a ValueError if backend returns a 404 status error."""
@@ -378,7 +385,7 @@ class TestThreadManagement:
         with pytest.raises(ValueError, match=f"No thread found for id '{mock_thread_id}'"):
             client.editthread(user_index=1)
 
-    def test_editthread_user_index_oob_raises(
+    def test_editthread_user_index_out_of_bounds_raises_index_error(
         self, mocker: MockerFixture, create_client, mock_request, mock_thread_id
     ):
         """Test that editthread raises an IndexError if backend returns a 422 error (indicating user index is out of bounds)."""
@@ -609,7 +616,7 @@ class TestPrompting:
         conv = result.translate_to_conversation()
         assert isinstance(conv, Conversation)
 
-    def test_prompt_no_model_raises_typeerror(self, create_client, mock_thread_id):
+    def test_prompt_no_model_raises_type_error(self, create_client, mock_thread_id):
         """Test that prompt raises TypeError if no model specified."""
         client: FrevaGPT = create_client()
         client.thread_id = mock_thread_id
@@ -617,7 +624,7 @@ class TestPrompting:
         with pytest.raises(TypeError, match="Argument 'model' has to be specified"):
             client.prompt(input="Test", thread_id=mock_thread_id)
 
-    def test_prompt_invalid_model_raises_valueerror(self, create_client, mock_thread_id):
+    def test_prompt_invalid_model_raises_value_error(self, create_client, mock_thread_id):
         """Test that prompt raises ValueError for invalid model."""
         client: FrevaGPT = create_client()
         client.thread_id = mock_thread_id
@@ -729,7 +736,7 @@ class TestThreadSearch:
         assert threads[0]["topic"] == "Test Topic"
         assert isinstance(threads[0]["content"], Conversation)
 
-    def test_getuserthreads_zero_num_threads_raises_valueerror(self, create_client):
+    def test_getuserthreads_zero_num_threads_raises_value_error(self, create_client):
         """Test that getuserthreads raises ValueError for num_threads <= 0."""
         client: FrevaGPT = create_client()
         with pytest.raises(ValueError, match="has to be at least 1"):
@@ -746,7 +753,7 @@ class TestThreadSearch:
         assert len(results) == total
         assert results[1]["topic"] == "ENSO Discussion"
 
-    def test_searchthreads_zero_num_threads_raises_valueerror(self, create_client):
+    def test_searchthreads_zero_num_threads_raises_value_error(self, create_client):
         """Test that searchthreads raises ValueError for num_threads <= 0."""
         client: FrevaGPT = create_client()
         with pytest.raises(ValueError, match="has to be at least 1"):
