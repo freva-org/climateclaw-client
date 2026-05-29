@@ -7,7 +7,9 @@ This guide covers how to use the FrevaGPT Client library, including initializati
 Initialization
 --------------
 
-The ``FrevaGPT`` client is the main entry point for interacting with the FrevaGPT backend.
+The library provides two client classes: ``FrevaGPT`` for synchronous operations and ``AsyncFrevaGPT`` for asynchronous operations.
+
+**Synchronous Client:**
 
 .. code-block:: python
 
@@ -21,41 +23,77 @@ The ``FrevaGPT`` client is the main entry point for interacting with the FrevaGP
         max_retries=3,
     )
 
+**Asynchronous Client:**
+
+.. code-block:: python
+
+    import asyncio
+    from freva_gpt_client.client import AsyncFrevaGPT
+
+
+    async def main():
+        client = AsyncFrevaGPT(
+            base_url="https://your-freva-gpt-backend.com",
+            token_store_path="~/.cache/freva-gpt-client/token-store.json",
+            follow_redirects=True,
+            timeout=30.0,
+            max_retries=3,
+        )
+        # Use the client...
+        await client.authenticate()
+
+
+    asyncio.run(main())
+
 
 Configuration Options
 ----------------------
 
 The client accepts the following configuration parameters:
 
-+----------------------+--------------+---------------------+----------------------------------------------------------+
-| Parameter            | Type         | Default             | Description                                              |
-+======================+==============+=====================+==========================================================+
-| ``base_url``         | str/URL      | **Required**        | Base URL of the FrevaGPT backend                         |
-+----------------------+--------------+---------------------+----------------------------------------------------------+
-| ``token_store_path`` | str          | ``""``              | Path to store OIDC tokens                                |
-+----------------------+--------------+---------------------+----------------------------------------------------------+
-| ``follow_redirects`` | bool         | ``True``            | Whether to follow HTTP redirects                         |
-+----------------------+--------------+---------------------+----------------------------------------------------------+
-| ``timeout``          | float        | ``30.0``            | Request timeout in seconds                               |
-+----------------------+--------------+---------------------+----------------------------------------------------------+
-| ``max_retries``      | int          | ``3``               | Maximum retry attempts for failed requests               |
-+----------------------+--------------+---------------------+----------------------------------------------------------+
-| ``http_client``      | httpx.Client | ``None``            | Pre-configured HTTP client (optional)                    |
-+----------------------+--------------+---------------------+----------------------------------------------------------+
-| ``thread_id``        | str          | ``None``            | Default thread ID for conversations                      |
-+----------------------+--------------+---------------------+----------------------------------------------------------+
-| ``model``            | str          | ``None``            | Default model for prompts                                |
-+----------------------+--------------+---------------------+----------------------------------------------------------+
++----------------------+-------------------------------+---------------------+----------------------------------------------------------+
+| Parameter            | Type                          | Default             | Description                                              |
++======================+===============================+=====================+==========================================================+
+| ``base_url``         | str/URL                       | **Required**        | Base URL of the FrevaGPT backend                         |
++----------------------+-------------------------------+---------------------+----------------------------------------------------------+
+| ``token_store_path`` | str                           | ``""``              | Path to store OIDC tokens                                |
++----------------------+-------------------------------+---------------------+----------------------------------------------------------+
+| ``follow_redirects`` | bool                          | ``True``            | Whether to follow HTTP redirects                         |
++----------------------+-------------------------------+---------------------+----------------------------------------------------------+
+| ``timeout``          | float                         | ``30.0``            | Request timeout in seconds                               |
++----------------------+-------------------------------+---------------------+----------------------------------------------------------+
+| ``max_retries``      | int                           | ``3``               | Maximum retry attempts for failed requests               |
++----------------------+-------------------------------+---------------------+----------------------------------------------------------+
+| ``http_client``      | httpx.Client                  | ``None``            | Pre-configured HTTP client (use httpx.Client for         |
+|                      | httpx.AsyncClient             |                     | FrevaGPT, htppx.AsyncClient for AsyncFrevaGPT)           |
++----------------------+-------------------------------+---------------------+----------------------------------------------------------+
+| ``thread_id``        | str                           | ``None``            | Default thread ID for conversations                      |
++----------------------+-------------------------------+---------------------+----------------------------------------------------------+
+| ``model``            | str                           | ``None``            | Default model for prompts                                |
++----------------------+-------------------------------+---------------------+----------------------------------------------------------+
 
 
 Authentication
 --------------
 
-The client uses OIDC authentication. Call ``authenticate()`` to trigger the authentication flow:
+Both clients use OIDC authentication. Call ``authenticate()`` (or ``await authenticate()`` for async) to trigger the authentication flow:
+
+**Synchronous:**
 
 .. code-block:: python
 
     client.authenticate()
+
+**Asynchronous:**
+
+.. code-block:: python
+
+    async def main():
+        client = AsyncFrevaGPT(base_url="https://your-freva-gpt-backend.com")
+        await client.authenticate()
+
+
+    asyncio.run(main())
 
 This will open a browser window for authentication and store the tokens in the configured ``token_store_path``.
 
@@ -82,7 +120,7 @@ Working with Models
 Sending Prompts
 ---------------
 
-**Non-streamed Response:**
+**Non-streamed Response (Synchronous):**
 
 .. code-block:: python
 
@@ -99,8 +137,28 @@ Sending Prompts
     markdown = conversation.repr_markdown()
     print(markdown)
 
+**Non-streamed Response (Asynchronous):**
 
-**Streamed Response:**
+.. code-block:: python
+
+    async def main():
+        client = AsyncFrevaGPT(base_url="https://your-freva-gpt-backend.com")
+        await client.authenticate()
+
+        conversation = await client.prompt("Please calculate the average temperature over Germany!")
+
+        # Render the entire answer as a human-readable string
+        print(conversation)
+
+        # Access the conversation messages
+        for message in conversation.messages:
+            print(f"{message.variant}: {message.content}")
+
+
+    asyncio.run(main())
+
+
+**Streamed Response (Synchronous):**
 
 .. code-block:: python
 
@@ -114,11 +172,32 @@ Sending Prompts
     full_conversation = stream_conv.translate_to_conversation()
     print(full_conversation.repr_markdown())
 
+**Streamed Response (Asynchronous):**
+
+.. code-block:: python
+
+    async def main():
+        client = AsyncFrevaGPT(base_url="https://your-freva-gpt-backend.com")
+        await client.authenticate()
+
+        stream_conv = await client.prompt("Please explain the ENSO phenomenon to me!", stream=True)
+
+        async with stream_conv as stream:
+            async for markdown_chunk in stream.iter_for_markdown():
+                print(markdown_chunk)
+
+        # After streaming completes, access the full conversation
+        full_conversation = stream_conv.translate_to_conversation()
+        print(full_conversation.repr_markdown())
+
+
+    asyncio.run(main())
+
 
 Thread Management
 -----------------
 
-The following methods are available for managing conversation threads:
+The following methods are available for managing conversation threads on both ``FrevaGPT`` and ``AsyncFrevaGPT``:
 
 +----------------------+----------------------------------------+--------------------------+
 | Method               | Description                            | Returns                  |
@@ -144,6 +223,8 @@ The following methods are available for managing conversation threads:
 
 Note: ``getuserthreads()`` and ``searchthreads()`` return a tuple of (total_count, thread_list).
 ``editthread()`` returns a tuple of (new_thread_id, conversation_history).
+
+For ``AsyncFrevaGPT``, all these methods must be awaited.
 
 **Create a New Thread:**
 
@@ -392,20 +473,171 @@ The library supports the following message variants:
 +----------------+--------------------------------------+------------------------------------------+
 
 
-Asynchronous Client (Coming Soon)
----------------------------------
+Asynchronous Client
+-------------------
 
-The library includes an ``AsyncFrevaGPT`` class for async operations:
+The ``AsyncFrevaGPT`` class provides the same functionality as ``FrevaGPT`` but with async/await syntax.
+This is useful when integrating with async frameworks like FastAPI, Quart, or any async Python application.
+
+**Basic Async Usage:**
 
 .. code-block:: python
 
+    import asyncio
     from freva_gpt_client.client import AsyncFrevaGPT
 
 
     async def main():
+        # Initialize the async client
+        client = AsyncFrevaGPT(
+            base_url="https://your-freva-gpt-backend.com",
+            token_store_path="~/.cache/freva-gpt-client/token-store.json",
+        )
+
+        # Authenticate
+        await client.authenticate()
+
+        # List available models
+        models = client.available_models
+        print(f"Available models: {models}")
+
+        # Set a default model
+        client.model = "gpt-4.1"
+
+        # Create a new thread
+        thread_id = await client.newthread()
+        print(f"Created thread: {thread_id}")
+
+        # Send a prompt
+        conversation = await client.prompt(
+            "Please explain the ENSO phenomenon!",
+            thread_id=thread_id,
+        )
+        print(conversation.repr_markdown())
+
+
+    # Run the async function
+    asyncio.run(main())
+
+**Async Thread Management:**
+
+.. code-block:: python
+
+    async def manage_threads():
         client = AsyncFrevaGPT(base_url="https://your-freva-gpt-backend.com")
         await client.authenticate()
-        # Async methods will be available in future versions
+
+        # Create and work with threads
+        thread_id = await client.newthread()
+
+        # Get thread
+        conversation = await client.getthread(thread_id=thread_id)
+
+        # List user threads
+        total, threads = await client.getuserthreads(num_threads=10)
+        print(f"Total threads: {total}")
+
+        # Set thread topic
+        await client.setthreadtopic("ENSO analysis", thread_id=thread_id)
+
+        # Search threads
+        total_results, matching = await client.searchthreads(query="ENSO", num_threads=5)
+
+        # Delete thread
+        await client.deletethread(thread_id=thread_id)
 
 
-    # Note: Async methods are not yet fully implemented
+    asyncio.run(manage_threads())
+
+**Async Streaming with Context Manager:**
+
+.. code-block:: python
+
+    async def stream_example():
+        client = AsyncFrevaGPT(base_url="https://your-freva-gpt-backend.com")
+        await client.authenticate()
+
+        # Use async context manager for streaming
+        stream_conv = await client.prompt("Please explain climate patterns in detail!", stream=True)
+
+        async with stream_conv as stream:
+            async for markdown_chunk in stream.aiter_for_markdown():
+                # Process each chunk as it arrives
+                print(markdown_chunk, end="")
+
+        # Get the full conversation after streaming
+        full_conv = stream_conv.translate_to_conversation()
+
+
+    asyncio.run(stream_example())
+
+**Async Feedback and Thread Operations:**
+
+.. code-block:: python
+
+    async def advanced_operations():
+        client = AsyncFrevaGPT(base_url="https://your-freva-gpt-backend.com")
+        await client.authenticate()
+
+        # Start a conversation
+        conversation = await client.prompt(
+            "Show me an example of climate data analysis!", model="gpt-4.1"
+        )
+
+        # Submit feedback on assistant message
+        try:
+            message = await client.userfeedback(
+                feedback_index=1,
+                feedback="up",
+                thread_id=client.thread_id,
+            )
+            print(f"Feedback submitted: {message}")
+        except (IndexError, ValueError) as e:
+            print(f"Feedback error: {e}")
+
+        # Stop a streaming conversation
+        await client.stop(thread_id=client.thread_id)
+
+        # Fork a thread at a specific message
+        try:
+            new_thread_id, history = await client.editthread(
+                user_index=2,
+                source_thread_id=client.thread_id,
+            )
+            print(f"Forked thread: {new_thread_id}")
+        except (IndexError, ValueError) as e:
+            print(f"Edit error: {e}")
+
+
+    asyncio.run(advanced_operations())
+
+**Using Async Context Manager for Client Lifecycle:**
+
+.. code-block:: python
+
+    import asyncio
+    from freva_gpt_client.client import AsyncFrevaGPT
+
+
+    async def main():
+        # Create client with custom async HTTP client
+        import httpx
+
+        async with httpx.AsyncClient(timeout=60.0) as http_client:
+            client = AsyncFrevaGPT(
+                base_url="https://your-freva-gpt-backend.com",
+                http_client=http_client,
+            )
+
+            # Use the client...
+            conversation = await client.prompt("Hello FrevaGPT!", model="gpt-4.1")
+            print(conversation)
+
+            # Client uses the provided http_client
+            # which will be properly closed when exiting the context
+
+
+    asyncio.run(main())
+
+**Note:** The ``AsyncFrevaGPT`` class uses ``httpx.AsyncClient`` under the hood and provides all the same methods
+as the synchronous ``FrevaGPT`` client. All methods that perform I/O operations are coroutines and must be awaited.
