@@ -698,7 +698,7 @@ class TestStreamConversation:
     @pytest.mark.asyncio
     async def test_async_context_manager_aenter(self, mocker: MockerFixture):
         """Test async context manager __aenter__ returns self."""
-        mock_response = mocker.MagicMock()
+        mock_response = mocker.AsyncMock()
         mock_response.is_closed = False
         stream_conv = StreamConversation(mock_response)
 
@@ -721,7 +721,7 @@ class TestStreamConversation:
     @pytest.mark.asyncio
     async def test_async_context_manager_aexit_closes_stream(self, mocker: MockerFixture):
         """Test async context manager __aexit__ closes stream."""
-        mock_stream_response = mocker.MagicMock()
+        mock_stream_response = mocker.AsyncMock()
         mock_stream_response.is_closed = False
         mock = mocker.AsyncMock()
 
@@ -733,7 +733,7 @@ class TestStreamConversation:
         )
         async with stream_conv:
             pass
-        mock_stream_response.close.assert_called_once()
+        mock_stream_response.aclose.assert_called_once()
         mock.assert_awaited_once()
 
     def test_process_chunk_first_message(self, mocker):
@@ -895,31 +895,6 @@ class TestStreamConversation:
         mock_response.iter_json_objects.reset_mock()
         assert stream_conv.translate_to_conversation() == conv
         assert mock_response.iter_json_objects.call_count == 0
-
-    # Async context manager and iteration tests
-
-    @pytest.mark.asyncio
-    async def test_async_context_manager_enter(self, mocker):
-        """Test async context manager __aenter__ returns self."""
-        mock_response = mocker.MagicMock()
-        mock_response.is_closed = False
-        stream_conv = StreamConversation(mock_response)
-        async with stream_conv:
-            assert stream_conv is not None
-
-    @pytest.mark.asyncio
-    async def test_async_context_manager_exit_closes_stream(self, mocker):
-        """Test async context manager __aexit__ closes stream."""
-        mock_stream_response = mocker.MagicMock()
-        mock_stream_response.is_closed = False
-        mock_on_exit_callback = mocker.MagicMock()
-        stream_conv = StreamConversation(
-            stream=mock_stream_response, on_exit_callback=mock_on_exit_callback
-        )
-        async with stream_conv:
-            pass
-        mock_stream_response.close.assert_called_once()
-        mock_on_exit_callback.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_aiter_for_markdown(self, mocker):

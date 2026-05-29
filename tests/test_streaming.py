@@ -49,11 +49,28 @@ def make_stream_response(mock_response_httpx):
         return response, StreamResponse(response)
 
 
+@pytest_asyncio.fixture
+async def make_async_stream_response(mock_response_httpx):
+    """Create an async StreamResponse instance with a mock response."""
+    async with httpx.AsyncClient() as client:
+        response = await client.get("https://test.com/api")
+        response.is_closed = False
+        return response, StreamResponse(response)
+
+
 @pytest.fixture
 def make_closed_stream_response(closed_response_httpx):
-    """Create a StreamResponse instance with a closed mock response."""
+    """Create an StreamResponse instance with a closed mock response."""
     with httpx.Client() as client:
         response = client.get("https://test.com/api")
+    return response, StreamResponse(response)
+
+
+@pytest_asyncio.fixture
+async def make_closed_async_stream_response(closed_response_httpx):
+    """Create an async StreamResponse instance with a closed mock response."""
+    async with httpx.AsyncClient() as client:
+        response = await client.get("https://test.com/api")
     return response, StreamResponse(response)
 
 
@@ -340,7 +357,7 @@ async def test_aiter_json_objects(
 
 
 # =============================================================================
-# Tests for close
+# Tests for close / aclose
 # =============================================================================
 
 
@@ -368,3 +385,32 @@ def test_close_multiple_calls(mocker: MockerFixture, make_stream_response):
     stream_response.close()
     # underlying stream should already be closed the from the first call of close
     spy_response.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_aclose(mocker: MockerFixture, make_async_stream_response):
+    """Test aclose calls the underlying response.aclose() method."""
+    response, stream_response = make_async_stream_response
+    spy_response = mocker.spy(response, "aclose")
+    await stream_response.aclose()
+    spy_response.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_aclose_already_closed(mocker: MockerFixture, make_closed_async_stream_response):
+    """Test aclose does not raise when the response is already closed."""
+    response, stream_response = make_closed_async_stream_response
+    spy_response = mocker.spy(response, "aclose")
+    await stream_response.aclose()
+    spy_response.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_aclose_multiple_calls(mocker: MockerFixture, make_async_stream_response):
+    """Test aclose can be called multiple times without error."""
+    response, stream_response = make_async_stream_response
+    spy_response = mocker.spy(response, "aclose")
+    await stream_response.aclose()
+    await stream_response.aclose()
+    # underlying stream should already be closed the from the first call of close
+    spy_response.assert_awaited_once()

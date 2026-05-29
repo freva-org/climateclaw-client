@@ -169,3 +169,8 @@ class StreamResponse:
         """Closes the underlying response if not already closed."""
         if not self.is_closed:
             self._response.close()
+
+    async def aclose(self) -> None:
+        """Closes the underlying response if not already closed (used for asynchronous streams)."""
+        if not self.is_closed:
+            await self._response.aclose()
