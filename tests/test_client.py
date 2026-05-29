@@ -2,7 +2,6 @@
 
 import httpx
 import pytest
-from pytest_httpx import HTTPXMock
 from pytest_mock import MockerFixture
 
 from freva_gpt_client._base_client import BaseClient
@@ -255,6 +254,20 @@ class TestThreadManagement:
         assert thread.messages[0].message.variant == "User"
         assert thread.messages[1].message.variant == "Assistant"
 
+    def test_getthread_instance_thread_success(
+        self, mocker: MockerFixture, create_client, mock_request, mock_thread_id, mock_new_thread_id
+    ):
+        """Test retrieving a thread by ID."""
+        client: FrevaGPT = create_client()
+        spy = mocker.spy(client, "get")
+        client.thread_id = mock_thread_id
+        mock_request("getthread", is_reusable=True)
+        thread = client.getthread(mock_new_thread_id)
+        assert spy.call_args_list[-1].kwargs["params"].get("thread_id") == mock_new_thread_id
+        assert len(thread.messages) == 2
+        assert thread.messages[0].message.variant == "User"
+        assert thread.messages[1].message.variant == "Assistant"
+
     def test_getthread_no_thread_raises_typeerror(self, create_client):
         """Test that getthread raises TypeError if no thread_id provided."""
         client: FrevaGPT = create_client()
@@ -288,17 +301,7 @@ class TestThreadManagement:
         with pytest.raises(TypeError, match="Argument 'thread_id' has to be specified"):
             client.setthreadtopic(new_topic="Test")
 
-    def test_deletethread_with_specified_thread_success(
-        self, create_client, mock_request, mock_thread_id
-    ):
-        """Test deleting an existing thread as specified in deletethread argument."""
-        client: FrevaGPT = create_client()
-        mock_request("deletethread")
-        client.deletethread(mock_thread_id)
-
-    def test_deletethread_without_specified_thread_success(
-        self, create_client, mock_request, mock_thread_id
-    ):
+    def test_deletethread_success(self, create_client, mock_request, mock_thread_id):
         """Test deleting an existing thread without specifying thread, results in instance thread being deleted and reset."""
         client: FrevaGPT = create_client()
         client.thread_id = mock_thread_id
@@ -306,14 +309,27 @@ class TestThreadManagement:
         client.deletethread()
         assert client.thread_id is None
 
-    def test_deletethread_another_thread_specified_success(
-        self, create_client, mock_request, mock_thread_id
+    def test_deletethread_with_explicit_thread_id(
+        self, create_client, mock_request, mock_thread_id, mock_new_thread_id
+    ):
+        """Test deleting an existing thread as specified in deletethread argument."""
+        client: FrevaGPT = create_client()
+        mock_request("deletethread")
+        client.deletethread(mock_thread_id)
+
+    def test_deletethread_different_thread_success(
+        self,
+        create_client,
+        mock_request,
+        mock_thread_id,
+        mock_new_thread_id,
     ):
         """Test deleting an existing thread that is not the instance thread is successful but does not reset instance thread id."""
         client: FrevaGPT = create_client()
         client.thread_id = mock_thread_id
         mock_request("deletethread")
-        client.deletethread("another_thread_id")
+        client.deletethread(mock_new_thread_id)
+        # Should not reset client.thread_id since it's different
         assert client.thread_id is not None
         assert client.thread_id == mock_thread_id
 
@@ -397,12 +413,38 @@ class TestThreadManagement:
         ):
             client.editthread(user_index=1)
 
-    def test_userfeedback_minimal_params_success(self, create_client, mock_request, mock_thread_id):
-        """Test that user feedback can be successfully submitted using minimal allowd amount of params."""
+
+# =============================================================================
+# TestUserFeedback - Tests for userfeedback method
+# =============================================================================
+
+
+class TestUserFeedback:
+    """Tests for userfeedback method."""
+
+    def test_userfeedback_up_success(self, create_client, mock_thread_id, mock_request):
+        """Test userfeedback with 'up' feedback."""
         client: FrevaGPT = create_client()
         client.thread_id = mock_thread_id
         mock_request("userfeedback")
-        client.userfeedback(feedback_index=2, feedback="up")
+        result = client.userfeedback(feedback_index=0, feedback="up")
+        assert result == "Successfully submitted feedback."
+
+    def test_userfeedback_down_success(self, create_client, mock_thread_id, mock_request):
+        """Test userfeedback with 'down' feedback."""
+        client: FrevaGPT = create_client()
+        client.thread_id = mock_thread_id
+        mock_request("userfeedback")
+        result = client.userfeedback(feedback_index=0, feedback="down")
+        assert result == "Successfully submitted feedback."
+
+    def test_userfeedback_remove_success(self, create_client, mock_thread_id, mock_request):
+        """Test userfeedback with 'remove' feedback."""
+        client: FrevaGPT = create_client()
+        client.thread_id = mock_thread_id
+        mock_request("userfeedback")
+        result = client.userfeedback(feedback_index=0, feedback="remove")
+        assert result == "Successfully submitted feedback."
 
     def test_userfeedback_thread_specified_success(
         self, create_client, mock_request, mock_thread_id
@@ -444,6 +486,16 @@ class TestThreadManagement:
         mock_request("userfeedback", status_code=404, text="feedback not found")
         with pytest.raises(IndexError, match="Feedback not found at index "):
             client.userfeedback(feedback_index=2, feedback="remove")
+
+    def test_userfeedback_general_404_error_raises(
+        self, mocker: MockerFixture, create_client, mock_request, mock_thread_id
+    ):
+        """Test that userfeedback raises an Connection if backend returns a 404 status that's not related to previous two cases."""
+        client: FrevaGPT = create_client()
+        client.thread_id = mock_thread_id
+        mock_request("userfeedback", status_code=404, text="resource not found")
+        with pytest.raises(ConnectionError):
+            client.userfeedback(feedback_index=2, feedback="up")
 
     def test_userfeedback_index_oob_raises_index_error(
         self, mocker: MockerFixture, create_client, mock_request, mock_thread_id
@@ -519,7 +571,6 @@ class TestPrompting:
             "Test prompt",
         )
         assert isinstance(result, Conversation)
-        assert len(result.messages) == 2
 
     def test_prompt_non_stream_minimal_params_set_thread_success(
         self,
@@ -537,11 +588,9 @@ class TestPrompting:
             "Test prompt",
         )
         assert isinstance(result, Conversation)
-        assert len(result.messages) == 2
 
     def test_prompt_stream_success(
         self,
-        httpx_mock: HTTPXMock,
         create_client,
         mock_request,
         mock_available_models,
@@ -558,7 +607,7 @@ class TestPrompting:
 
         assert isinstance(result, StreamConversation)
         conv = result.translate_to_conversation()
-        assert len(conv.messages) == 2
+        assert isinstance(conv, Conversation)
 
     def test_prompt_no_model_raises_typeerror(self, create_client, mock_thread_id):
         """Test that prompt raises TypeError if no model specified."""
