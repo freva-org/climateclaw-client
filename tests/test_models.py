@@ -1129,6 +1129,11 @@ class TestPydanticValidation:
         msg = ServerHint(variant="ServerHint", content='{"key": "value"}')
         assert msg.content == {"key": "value"}
 
+    def test_serverhint_content_accepts_parseable_bytes(self):
+        """Test that ServerHint.content accepts parseable string."""
+        msg = ServerHint(variant="ServerHint", content=b'{"key": "value"}')
+        assert msg.content == {"key": "value"}
+
     def test_image_content_must_be_string(self):
         """Test that Image.content must be a string."""
         from pydantic import ValidationError

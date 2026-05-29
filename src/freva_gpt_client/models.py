@@ -251,7 +251,7 @@ class ServerHint(BaseMessage):
         """
         if isinstance(value, dict):
             return value
-        if isinstance(value, str):
+        elif isinstance(value, str):
             value = value.replace("'", '"')
         try:
             return json.loads(value)
