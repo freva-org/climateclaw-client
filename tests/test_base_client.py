@@ -573,6 +573,24 @@ class TestAsyncAPIClient:
         mocked_time.sleep.assert_called_once()
 
     @pytest.mark.asyncio
+    async def test_sleep_for_retry_exceeded_maximum(
+        self, mocker: MockerFixture, make_async_api_client
+    ):
+        """Test that _sleep_for_retry takes the correct branch if the number of retries taken has exceeded the maximum number."""
+        api_client: AsyncAPIClient = make_async_api_client()
+        spy_logger = mocker.spy(freva_gpt_client._base_client, "logger")
+        mocked_time = mocker.patch.object(freva_gpt_client._base_client, "time", spec=True)
+
+        retries_taken = api_client.max_retries + 1
+        await api_client._sleep_for_retry(retries_taken)
+        spy_logger.debug.assert_called_once()
+        assert (
+            "Maximum number of retries exceeded. Skipping timeout."
+            in spy_logger.debug.call_args.args[0]
+        )
+        mocked_time.sleep.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_stream_success(
         self, mocker: MockerFixture, httpx_mock: HTTPXMock, make_async_api_client
     ):
