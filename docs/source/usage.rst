@@ -78,6 +78,9 @@ Authentication
 
 Both clients use OIDC authentication. Call ``authenticate()`` (or ``await authenticate()`` for async) to trigger the authentication flow:
 
+.. important::
+   When specifying a custom HTTP client during the initialization of FrevaGPT/AsyncFrevaGPT, it is assumed that the specified client handles the `authentication <https://www.python-httpx.org/advanced/authentication/>`__ (if required).
+
 **Synchronous:**
 
 .. code-block:: python
