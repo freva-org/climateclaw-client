@@ -27,7 +27,7 @@ jobs:
 
       - name: Run unit tests
         run: |
-          pytest -v --cov --cov-branch --cov-report=xml --cov-fail-under=80
+          pytest -v --cov --cov-branch --cov-report=xml --cov-fail-under=95
 
       - name: Upload results to Codecov
         uses: codecov/codecov-action@v6
