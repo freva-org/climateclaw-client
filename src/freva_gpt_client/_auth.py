@@ -4,7 +4,13 @@ from pathlib import Path
 from typing import Dict, cast
 
 import httpx
-from py_oidc_auth_client import AuthError, Token, TokenStore, authenticate  # type: ignore
+from py_oidc_auth_client import (  # type: ignore
+    AuthError,
+    Token,
+    TokenStore,
+    authenticate,
+    authenticate_async,
+)
 
 from ._constants import DEFAULT_AUTH_TIMEOUT
 
@@ -115,7 +121,7 @@ class TokenAuth(httpx.Auth):
         auth_token = self._validate_token()
         return auth_token.get("headers")
 
-    def auth_flow(self, request: httpx.Request):
+    def sync_auth_flow(self, request: httpx.Request):
         """HTTP authentication flow handler.
 
         This generator yields requests with authentication headers added
@@ -132,4 +138,81 @@ class TokenAuth(httpx.Auth):
             # If the server issues a 401 response then resend the request,
             # with custom authentication headers.
             request.headers.update(self.get_auth_headers())
+            yield request
+
+    async def _async_authenticate(self) -> Token:
+        """Authenticates asynchronously with the OIDC provider and returns a new token."""
+        return await authenticate_async(
+            host=f"{self.base_url}/api/freva-nextgen",
+            store=self.token_store,
+            app_name=self.app_name,
+            timeout=self.timeout,
+        )
+
+    async def _async_validate_token_store(self) -> TokenStore:
+        """Validates and initializes the token store."""
+        # load token store
+        token_store = self.token_store
+        auth_token = self.auth_token
+        test_token = token_store.get(str(self.base_url))
+        # if auth token is not set, but token store contains correct token, update token from token store
+        if not auth_token and test_token:
+            self.auth_token = test_token
+        # otherwise, start oidc device flow
+        else:
+            self.auth_token = await self._async_authenticate()
+        self._update_token_or_store()
+        return token_store
+
+    async def _async_validate_token(self) -> Token:
+        """Validates the current authentication token."""
+        self.token_store = await self._async_validate_token_store()
+        self.auth_token = cast(Token, self.auth_token)
+        token_expires_at = datetime.fromtimestamp(self.auth_token["expires"], tz=timezone.utc)
+        token_refresh_expires_at = datetime.fromtimestamp(
+            self.auth_token["refresh_expires"], tz=timezone.utc
+        )
+        now = datetime.now(timezone.utc)
+        if now > token_refresh_expires_at:
+            raise AuthError("Refresh token has expired.") from None
+        elif now > token_expires_at:
+            logger.debug(
+                "Freva auth token expired. Using refresh token to generate new token and updating token store."
+            )
+            try:
+                self.auth_token = await self._async_authenticate()
+                self.token_store.put(host=str(self.base_url), token=self.auth_token)
+            except Exception as e:
+                raise AuthError(
+                    f"Could not generate a new token from the token file. Please try again or reauthenticate. {e}"
+                )
+        return self.auth_token
+
+    async def async_get_auth_headers(self) -> Dict[str, str]:
+        """Gets the authentication headers for HTTP requests.
+
+        Returns:
+            Dictionary containing authentication headers.
+        """
+        auth_token = await self._async_validate_token()
+        return auth_token.get("headers")
+
+    async def async_auth_flow(self, request: httpx.Request):
+        """Async HTTP authentication flow handler.
+
+        This generator yields requests with authentication headers added
+        when a 401 Unauthorized response is received.
+
+        Args:
+            request: The HTTP request to authenticate.
+
+        Yields:
+            httpx.Request: The authenticated request.
+        """
+        response: httpx.Response = yield request
+        if response.status_code == 401:
+            # If the server issues a 401 response then resend the request,
+            # with custom authentication headers.
+            auth_headers = await self.async_get_auth_headers()
+            request.headers.update(auth_headers)
             yield request

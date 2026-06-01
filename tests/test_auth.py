@@ -4,6 +4,7 @@ from typing import Any
 import httpx
 import pytest
 from pytest_httpx import HTTPXMock
+from pytest_mock import MockerFixture
 
 import freva_gpt_client._auth as auth
 
@@ -147,7 +148,7 @@ def test_token_auth_init(token_auth_instance, mock_token_store):
 
 
 # =============================================================================
-# Tests for _authenticate
+# Tests for _authenticate and _async_authenticate
 # =============================================================================
 
 
@@ -166,8 +167,25 @@ def test_authenticate_calls_oidc_client(token_auth_instance, mock_token_store, m
     )
 
 
+@pytest.mark.asyncio
+async def test_async_authenticate_calls_oidc_client(
+    mocker: MockerFixture, token_auth_instance, mock_token_store, base_url
+):
+    """Test _async_authenticate calls the py_oidc_auth_client.authenticate function correctly."""
+    _, mock_instance = mock_token_store
+    mocked_authenticate = mocker.patch.object(auth, "authenticate_async")
+    await token_auth_instance._async_authenticate()
+
+    mocked_authenticate.assert_called_once_with(
+        host=f"{base_url}/api/freva-nextgen",
+        store=mock_instance,
+        app_name="auth-test",
+        timeout=10,
+    )
+
+
 # =============================================================================
-# Tests for Token and TokenStore validation
+# Tests for Token and TokenStore validation (sync and async)
 # =============================================================================
 
 
@@ -200,6 +218,36 @@ def test_validate_token_store(token_auth_instance, mock_token_store, mocker, bas
 
     # token_auth_instance starts with auth_token=None (from fixture)
     token_auth_instance._validate_token_store()
+
+    # Check the correct branch was taken based on stored token state
+    if stored_token:
+        # Token in store, no auth_token initially -> should load from store
+        assert token_auth_instance.auth_token == stored_token
+        mocked_authenticate.assert_not_called()
+    else:
+        # No token in store, no auth_token initially -> should call _authenticate
+        mocked_authenticate.assert_called_once()
+
+    # _update_token_or_store should always be called
+    mocked_update.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_async_validate_token_store(
+    mocker: MockerFixture, token_auth_instance, mock_token_store, base_url
+):
+    """Test _async_validate_token_store loads token from store or triggers authentication."""
+    _, mock_instance = mock_token_store
+    mocked_authenticate = mocker.patch.object(
+        auth.TokenAuth, "_async_authenticate", new_callable=mocker.AsyncMock
+    )
+    mocked_update = mocker.patch.object(token_auth_instance, "_update_token_or_store")
+
+    # Get the token from store (if any)
+    stored_token = mock_instance.get(str(base_url))
+
+    # token_auth_instance starts with auth_token=None (from fixture)
+    await token_auth_instance._async_validate_token_store()
 
     # Check the correct branch was taken based on stored token state
     if stored_token:
@@ -261,6 +309,54 @@ def test_validate_token_refreshes_expired_tokens(
         assert returned_token == auth_token
 
 
+@pytest.mark.asyncio
+async def test_async_validate_token_refreshes_expired_tokens(
+    mocker: MockerFixture, token_auth_instance, mock_token_store, base_url, token_store_content
+):
+    """Test _validate_token refreshes tokens when expired and raises on invalid refresh tokens."""
+    _, mock_instance = mock_token_store
+    mocked_authenticate = mocker.patch.object(auth.TokenAuth, "_async_authenticate")
+    spy_logger = mocker.spy(auth, "logger")
+
+    # Create a fresh token for _authenticate to return
+    now = datetime.now(timezone.utc)
+    fresh_token = make_oidc_token(
+        expires=now + timedelta(days=1),
+        refresh_expires=now + timedelta(days=2),
+    )
+    mocked_authenticate.return_value = fresh_token
+
+    # Determine which token scenario we're testing
+    stored_token_data = token_store_content.get(str(base_url), {}).get("token")
+
+    if stored_token_data:
+        auth_token = stored_token_data
+    else:
+        auth_token = fresh_token
+
+    refresh_expires_dt = datetime.fromtimestamp(auth_token["refresh_expires"], tz=timezone.utc)
+    expires_dt = datetime.fromtimestamp(auth_token["expires"], tz=timezone.utc)
+    now_dt = datetime.now(timezone.utc)
+
+    if refresh_expires_dt < now_dt:
+        # Refresh token expired -> should raise
+        with pytest.raises(auth.AuthError, match="Refresh token has expired."):
+            await token_auth_instance._async_validate_token()
+    elif expires_dt < now_dt:
+        # Access token expired but refresh valid -> should refresh
+        await token_auth_instance._async_validate_token()
+        spy_logger.debug.assert_called_once_with(
+            "Freva auth token expired. Using refresh token to generate new token and updating token store."
+        )
+        mocked_authenticate.assert_called_once()
+        # Original token validation + new token storage = 2 put calls
+        assert mock_instance.put.call_count == 2
+    else:
+        # Both tokens valid -> should return stored token
+        returned_token = await token_auth_instance._async_validate_token()
+        assert returned_token == auth_token
+
+
 def test_validate_token_raises_on_auth_failure(
     token_auth_instance, mock_token_store, mocker, base_url, token_store_content
 ):
@@ -295,8 +391,43 @@ def test_validate_token_raises_on_auth_failure(
             token_auth_instance._validate_token()
 
 
+@pytest.mark.asyncio
+async def test_async_validate_token_raises_on_auth_failure(
+    token_auth_instance, mock_token_store, mocker, base_url, token_store_content
+):
+    """Test _async_validate_token raises AuthError when token refresh fails."""
+    _, _ = mock_token_store
+    mocked_authenticate = mocker.patch.object(auth.TokenAuth, "_async_authenticate")
+
+    now = datetime.now(timezone.utc)
+    fresh_token = make_oidc_token(
+        expires=now + timedelta(days=1),
+        refresh_expires=now + timedelta(days=2),
+    )
+    mocked_authenticate.return_value = fresh_token
+
+    stored_token_data = token_store_content.get(str(base_url), {}).get("token")
+    auth_token = stored_token_data or fresh_token
+
+    refresh_expires_dt = datetime.fromtimestamp(auth_token["refresh_expires"], tz=timezone.utc)
+    expires_dt = datetime.fromtimestamp(auth_token["expires"], tz=timezone.utc)
+    now_dt = datetime.now(timezone.utc)
+
+    if refresh_expires_dt < now_dt:
+        # Refresh token already expired -> should raise immediately
+        with pytest.raises(auth.AuthError, match="Refresh token has expired."):
+            await token_auth_instance._async_validate_token()
+    elif expires_dt < now_dt:
+        # Token expired, refresh will fail
+        mocked_authenticate.side_effect = Exception("Auth failed")
+        with pytest.raises(
+            auth.AuthError, match=r"Could not generate a new token from the token file.*"
+        ):
+            await token_auth_instance._async_validate_token()
+
+
 # =============================================================================
-# Tests for Auth Header retrieval
+# Tests for Auth Header retrieval (sync and async)
 # =============================================================================
 
 
@@ -341,13 +472,55 @@ def test_get_auth_headers(
         assert auth_token["access_token"] in auth_headers["Authorization"]
 
 
+@pytest.mark.asyncio
+async def test_async_get_auth_headers(
+    mocker: MockerFixture, token_auth_instance, mock_token_store, base_url, token_store_content
+):
+    """Test get_auth_headers returns correct headers and handles token refresh."""
+    _, mock_instance = mock_token_store
+    mocked_authenticate = mocker.patch.object(auth.TokenAuth, "_async_authenticate")
+
+    now = datetime.now(timezone.utc)
+    fresh_token = make_oidc_token(
+        expires=now + timedelta(days=1),
+        refresh_expires=now + timedelta(days=2),
+    )
+    mocked_authenticate.return_value = fresh_token
+
+    stored_token_data = token_store_content.get(str(base_url), {}).get("token")
+    auth_token = stored_token_data or fresh_token
+
+    refresh_expires_dt = datetime.fromtimestamp(auth_token["refresh_expires"], tz=timezone.utc)
+    expires_dt = datetime.fromtimestamp(auth_token["expires"], tz=timezone.utc)
+    now_dt = datetime.now(timezone.utc)
+
+    if refresh_expires_dt < now_dt:
+        # Refresh token expired -> should raise
+        with pytest.raises(auth.AuthError, match="Refresh token has expired."):
+            await token_auth_instance.async_get_auth_headers()
+    elif expires_dt < now_dt:
+        # Token expired -> should refresh and return headers
+        auth_headers = await token_auth_instance.async_get_auth_headers()
+        mocked_authenticate.assert_called_once()
+        assert mock_instance.put.call_count == 2
+        assert "Authorization" in auth_headers
+        assert "Bearer" in auth_headers["Authorization"]
+        assert auth_token["access_token"] in auth_headers["Authorization"]
+    else:
+        # Valid token -> should return headers directly
+        auth_headers = await token_auth_instance.async_get_auth_headers()
+        assert "Authorization" in auth_headers
+        assert "Bearer" in auth_headers["Authorization"]
+        assert auth_token["access_token"] in auth_headers["Authorization"]
+
+
 # =============================================================================
-# Tests for Auth Flow
+# Tests for Auth Flow (sync and async)
 # =============================================================================
 
 
-def test_auth_flow_passes_through_non_401(mocker, httpx_mock: HTTPXMock):
-    """Test auth_flow does not add auth headers for non-401 responses."""
+def test_sync_auth_flow_passes_through_non_401(mocker, httpx_mock: HTTPXMock):
+    """Test sync_auth_flow does not add auth headers for non-401 responses."""
     mocked_get_auth_headers = mocker.patch.object(auth.TokenAuth, "get_auth_headers")
     httpx_mock.add_response(status_code=200)
 
@@ -366,8 +539,29 @@ def test_auth_flow_passes_through_non_401(mocker, httpx_mock: HTTPXMock):
         assert "authorization" not in response.request.headers
 
 
-def test_auth_flow_retry_on_401(mocker, httpx_mock: HTTPXMock):
-    """Test auth_flow adds auth headers and retries on 401 responses."""
+@pytest.mark.asyncio
+async def test_async_auth_flow_passes_through_non_401(mocker, httpx_mock: HTTPXMock):
+    """Test async_auth_flow does not add auth headers for non-401 responses."""
+    mocked_get_auth_headers = mocker.patch.object(auth.TokenAuth, "async_get_auth_headers")
+    httpx_mock.add_response(status_code=200)
+
+    async with httpx.AsyncClient(
+        base_url="https://myinstance.com",
+        auth=auth.TokenAuth(
+            base_url="https://myinstance.com",
+            token_store_path=None,
+            timeout=10,
+            app_name="auth-test",
+        ),
+    ) as client:
+        response = await client.get("/test")
+        response.raise_for_status()
+        mocked_get_auth_headers.assert_not_called()
+        assert "authorization" not in response.request.headers
+
+
+def test_sync_auth_flow_retry_on_401(mocker, httpx_mock: HTTPXMock):
+    """Test sync_auth_flow adds auth headers and retries on 401 responses."""
     mocked_get_auth_headers = mocker.patch.object(auth.TokenAuth, "get_auth_headers")
     mocked_get_auth_headers.return_value = {"Authorization": "Bearer XYZ"}
     httpx_mock.add_response(status_code=401)
@@ -383,6 +577,30 @@ def test_auth_flow_retry_on_401(mocker, httpx_mock: HTTPXMock):
         ),
     ) as client:
         response = client.get("/test")
+        response.raise_for_status()
+        mocked_get_auth_headers.assert_called_once()
+        assert "authorization" in response.request.headers
+        assert "Bearer XYZ" in response.request.headers["authorization"]
+
+
+@pytest.mark.asyncio
+async def test_async_auth_flow_retry_on_401(mocker, httpx_mock: HTTPXMock):
+    """Test async_auth_flow adds auth headers and retries on 401 responses."""
+    mocked_get_auth_headers = mocker.patch.object(auth.TokenAuth, "async_get_auth_headers")
+    mocked_get_auth_headers.return_value = {"Authorization": "Bearer XYZ"}
+    httpx_mock.add_response(status_code=401)
+    httpx_mock.add_response(status_code=200)
+
+    async with httpx.AsyncClient(
+        base_url="https://myinstance.com",
+        auth=auth.TokenAuth(
+            base_url="https://myinstance.com",
+            token_store_path=None,
+            timeout=10,
+            app_name="auth-test",
+        ),
+    ) as client:
+        response = await client.get("/test")
         response.raise_for_status()
         mocked_get_auth_headers.assert_called_once()
         assert "authorization" in response.request.headers

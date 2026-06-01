@@ -42,7 +42,7 @@ class StreamResponse:
         return self._response.is_closed
 
     @staticmethod
-    def _process_chunks(chunk: str, partial_response: str = "") -> Tuple[List[dict], str]:
+    def _process_chunks(chunk: str, partial_response: str = "") -> Tuple[List[Dict], str]:
         """Processes a chunk of string data containing JSON-like objects.
 
         Handles cases where JSON objects are split across chunks by tracking
@@ -129,7 +129,7 @@ class StreamResponse:
 
         return complete_parts, partial_response
 
-    def iter_json_objects(self) -> Generator[dict, None, None]:
+    def iter_json_objects(self) -> Generator[Dict, None, None]:
         """Generator that yields complete JSON dicts from the stream.
 
         Iterates over the response bytes, processes chunks, and yields
@@ -138,7 +138,7 @@ class StreamResponse:
         Yields:
             dict: Complete JSON objects parsed from the stream.
         """
-        complete_parts: List[dict]
+        complete_parts: List[Dict]
         partial_response: str
         complete_parts, partial_response = [], ""
         for chunk in self._response.iter_bytes():
@@ -169,3 +169,8 @@ class StreamResponse:
         """Closes the underlying response if not already closed."""
         if not self.is_closed:
             self._response.close()
+
+    async def aclose(self) -> None:
+        """Closes the underlying response if not already closed (used for asynchronous streams)."""
+        if not self.is_closed:
+            await self._response.aclose()

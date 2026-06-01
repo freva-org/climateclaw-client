@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import pytest
+from pytest_mock import MockerFixture
 
 from freva_gpt_client.models import (
     Assistant,
@@ -694,21 +695,46 @@ class TestStreamConversation:
         with stream_conv:
             assert stream_conv is not None
 
+    @pytest.mark.asyncio
+    async def test_async_context_manager_aenter(self, mocker: MockerFixture):
+        """Test async context manager __aenter__ returns self."""
+        mock_response = mocker.AsyncMock()
+        mock_response.is_closed = False
+        stream_conv = StreamConversation(mock_response)
+
+        async with stream_conv:
+            assert stream_conv is not None
+
     def test_context_manager_exit_closes_stream(self, mocker):
         """Test context manager __exit__ closes stream."""
-
         mock_stream_response = mocker.MagicMock()
         mock_stream_response.is_closed = False
         mock_on_exit_callback = mocker.MagicMock()
         stream_conv = StreamConversation(
             stream=mock_stream_response, on_exit_callback=mock_on_exit_callback
         )
-
         with stream_conv:
             pass
-
         mock_stream_response.close.assert_called_once()
         mock_on_exit_callback.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_async_context_manager_aexit_closes_stream(self, mocker: MockerFixture):
+        """Test async context manager __aexit__ closes stream."""
+        mock_stream_response = mocker.AsyncMock()
+        mock_stream_response.is_closed = False
+        mock = mocker.AsyncMock()
+
+        async def _exit_callback():
+            await mock()
+
+        stream_conv = StreamConversation(
+            stream=mock_stream_response, on_exit_callback=_exit_callback
+        )
+        async with stream_conv:
+            pass
+        mock_stream_response.aclose.assert_called_once()
+        mock.assert_awaited_once()
 
     def test_process_chunk_first_message(self, mocker):
         """Test process_chunk sets _current_message on first chunk."""
@@ -870,6 +896,73 @@ class TestStreamConversation:
         assert stream_conv.translate_to_conversation() == conv
         assert mock_response.iter_json_objects.call_count == 0
 
+    @pytest.mark.asyncio
+    async def test_aiter_for_markdown(self, mocker):
+        """Test that aiter_for_markdown yields chunks ready for rendering in markdown"""
+        mock_response = mocker.MagicMock()
+        message_dicts = [
+            dict(variant="Assistant", content="Running the code!"),
+            dict(variant="Code", content='{"code": "import xarray as xr"}'),
+            dict(variant="ServerHint", content='{"id": 123}'),
+            dict(variant="Image", content="base64encodedImage"),
+            dict(variant="Assistant", content="Code execution complete!"),
+            dict(variant="StreamEnd", content="Stream ended."),
+        ]
+
+        async def async_gen():
+            for item in message_dicts:
+                yield item
+
+        mock_response.aiter_json_objects = mocker.MagicMock(return_value=async_gen())
+        messages = [MessageModel(message=m) for m in message_dicts]
+        stream_conv = StreamConversation(mock_response)
+        assert stream_conv.conversation is None
+        markdown_result = [md async for md in stream_conv.aiter_for_markdown()]
+        for message in messages:
+            if message.variant in ["ServerHint", "StreamEnd"]:
+                assert all(str(message.content) not in md for md in markdown_result)
+            elif message.variant == "Code":
+                assert any(
+                    f"```python\n{message.code_cells[0]}\n```" in md for md in markdown_result
+                )
+            elif message.variant == "Image":
+                assert any(
+                    f"![Image](data:image/png;base64,{message.content})" in md
+                    for md in markdown_result
+                )
+            else:
+                assert any(message.content in md for md in markdown_result)
+        conversation = Conversation(raw_messages=messages)
+        assert stream_conv.conversation == conversation
+
+    @pytest.mark.asyncio
+    async def test_aiter_raw(self, mocker):
+        """Test that aiter_raw returns dictionaries ready for use in MessageModel"""
+        mock_response = mocker.MagicMock()
+        message_dicts = [
+            dict(variant="Assistant", content="Running the code!"),
+            dict(variant="Code", content='{"code": "import xarray as xr"}'),
+            dict(variant="ServerHint", content='{"id": 123}'),
+            dict(variant="Image", content="base64encodedImage"),
+            dict(variant="Assistant", content="Code execution complete!"),
+            dict(variant="StreamEnd", content="Stream ended."),
+        ]
+
+        async def async_gen():
+            for item in message_dicts:
+                yield item
+
+        mock_response.aiter_json_objects = mocker.MagicMock(return_value=async_gen())
+        messages = [MessageModel(message=m) for m in message_dicts]
+        stream_conv = StreamConversation(mock_response)
+        assert stream_conv.conversation is None
+        raw_result = [raw_dict async for raw_dict in stream_conv.aiter_raw()]
+        assert all(
+            input_dict == output_dict for input_dict, output_dict in zip(message_dicts, raw_result)
+        )
+        conversation = Conversation(raw_messages=messages)
+        assert stream_conv.conversation == conversation
+
 
 # =============================================================================
 # ProcessCodeChunk Tests (Isolated)
@@ -1009,6 +1102,11 @@ class TestPydanticValidation:
     def test_serverhint_content_accepts_parseable_string(self):
         """Test that ServerHint.content accepts parseable string."""
         msg = ServerHint(variant="ServerHint", content='{"key": "value"}')
+        assert msg.content == {"key": "value"}
+
+    def test_serverhint_content_accepts_parseable_bytes(self):
+        """Test that ServerHint.content accepts parseable string."""
+        msg = ServerHint(variant="ServerHint", content=b'{"key": "value"}')
         assert msg.content == {"key": "value"}
 
     def test_image_content_must_be_string(self):

@@ -2,10 +2,21 @@ import base64
 import json
 import re
 import sys
-from contextlib import AbstractContextManager
+from contextlib import AbstractAsyncContextManager, AbstractContextManager
 from functools import cached_property
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Literal, Mapping, Optional, Sequence, Union
+from typing import (
+    Any,
+    AsyncGenerator,
+    Callable,
+    Dict,
+    List,
+    Literal,
+    Mapping,
+    Optional,
+    Sequence,
+    Union,
+)
 
 from pydantic import BaseModel, Field, computed_field, field_validator
 
@@ -239,7 +250,7 @@ class ServerHint(BaseMessage):
         """
         if isinstance(value, dict):
             return value
-        if isinstance(value, str):
+        elif isinstance(value, str):
             value = value.replace("'", '"')
         try:
             return json.loads(value)
@@ -500,7 +511,7 @@ class Conversation(BaseModel):
         return len(self.messages)
 
 
-class StreamConversation(AbstractContextManager):
+class StreamConversation(AbstractContextManager, AbstractAsyncContextManager):
     """Accumulates streaming message chunks and yields markdown-ready content.
 
     This class handles the type-specific logic for rendering streamed messages
@@ -508,8 +519,13 @@ class StreamConversation(AbstractContextManager):
     (like Images) and processes content for types that need transformation
     (like Code messages with JSON prefixes).
 
-    Can be used as a context manager to automatically close the underlying
-    stream response, or as a regular object for manual control.
+    Can be used as a context manager (with) or async context manager (async with)
+    to automatically close the underlying stream response, or as a regular object
+    for manual control.
+
+    Supports both synchronous and asynchronous iteration:
+    - Use iter_for_markdown(), iter_raw() for synchronous streaming
+    - Use aiter_for_markdown(), aiter_raw() for asynchronous streaming
 
     Attributes:
         stream_response: The underlying StreamResponse object.
@@ -525,6 +541,7 @@ class StreamConversation(AbstractContextManager):
 
         Args:
             stream: The StreamResponse to process.
+            on_exit_callback: Optional callable that is invoked upon exiting the context.
         """
         self.stream_response: StreamResponse = stream
         self.conversation: Conversation | None = None
@@ -545,11 +562,30 @@ class StreamConversation(AbstractContextManager):
         """Exits the context manager, closing the stream response.
 
         Args:
-            exc_details: Arguments describing exception, if raised
+            exc_details: Arguments describing exception, if raised.
         """
         self.stream_response.close()
         if self._on_exit_callback:
             self._on_exit_callback()
+
+    async def __aenter__(self) -> Self:
+        """Enters the async context manager.
+
+        Returns:
+            Self for use in async with statements.
+        """
+        return self
+
+    async def __aexit__(self, *exc_details) -> None:
+        """Exits the async context manager, closing the stream response.
+
+        Args:
+            exc_details: Arguments describing exception, if raised.
+        """
+        await self.stream_response.aclose()
+        if self._on_exit_callback:
+            callback_result = self._on_exit_callback()
+            await callback_result
 
     def translate_to_conversation(self) -> Conversation:
         """Converts the streamed messages to a Conversation instance.
@@ -711,6 +747,38 @@ class StreamConversation(AbstractContextManager):
         """
         raw_messages = []
         for msg_dict in self.stream_response.iter_json_objects():
+            yield msg_dict
+            raw_messages.append(MessageModel(message=msg_dict))
+        # save completed response as a conversation instance
+        self.conversation = Conversation(raw_messages=raw_messages)
+
+    async def aiter_for_markdown(self) -> AsyncGenerator[str, None]:
+        """Asynchronously iterates over the stream, yielding markdown-ready strings.
+
+        Processes each message chunk and yields markdown content as it
+        becomes available. ServerHint and StreamEnd messages are skipped.
+
+        Yields:
+            Markdown strings ready for rendering.
+        """
+        raw_messages = []
+        async for msg_dict in self.stream_response.aiter_json_objects():
+            msg_model = MessageModel(message=msg_dict)
+            raw_messages.append(msg_model)
+            if msg_model.variant not in ["ServerHint", "StreamEnd"]:
+                for markdown_chunk in self.process_chunk(msg_model):
+                    yield markdown_chunk
+        # save completed response as a conversation instance
+        self.conversation = Conversation(raw_messages=raw_messages)
+
+    async def aiter_raw(self) -> AsyncGenerator[Dict[str, Any], None]:
+        """Asynchronously iterates over raw message dictionaries from the stream.
+
+        Yields:
+            Raw message dictionaries as they arrive from the stream.
+        """
+        raw_messages = []
+        async for msg_dict in self.stream_response.aiter_json_objects():
             yield msg_dict
             raw_messages.append(MessageModel(message=msg_dict))
         # save completed response as a conversation instance

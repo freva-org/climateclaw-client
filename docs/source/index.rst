@@ -2,6 +2,7 @@ FrevaGPT Client Documentation
 ================================
 
 A Python client library for interacting with the `FrevaGPT backend <https://github.com/freva-org/freva-gpt-backend-py>`_.
+This library provides both synchronous and asynchronous interfaces for communicating with a FrevaGPT chatbot instance.
 
 .. toctree::
    :maxdepth: 2
@@ -72,6 +73,46 @@ Streaming Example
             print(markdown_chunk)
 
 
+Asynchronous Client Example
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: python
+
+    import asyncio
+    from freva_gpt_client.client import AsyncFrevaGPT
+
+
+    async def main():
+        # Create an async client instance
+        client = AsyncFrevaGPT(
+            base_url="https://your-freva-gpt-backend.com",
+            token_store_path="~/.cache/freva-gpt-client/token-store.json",
+        )
+
+        # Authenticate with the backend
+        await client.authenticate()
+
+        # List available models
+        print(f"Available models: {client.available_models}")
+        client.model = client.available_models[0]
+
+        # Send a prompt
+        response = await client.prompt(
+            "Please calculate the average temperature over Germany for 1990-2020!"
+        )
+        print(response)
+
+        # Thread management works the same way
+        thread_id = await client.newthread()
+        response = await client.prompt(
+            "Please explain how the SOI can be calculated.",
+            thread_id=thread_id,
+        )
+
+
+    asyncio.run(main())
+
+
 Thread Management Example
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -102,7 +143,8 @@ Thread Management Example
 Features
 --------
 
-- **Synchronous client** with full API support
+- **Synchronous client** (`FrevaGPT`) with full API support
+- **Asynchronous client** (`AsyncFrevaGPT`) with full API support
 - **OIDC authentication** via `py-oidc-auth-client <https://pypi.org/project/py-oidc-auth-client/>`_
 - **Thread management**: create, retrieve, list, search, fork, and delete conversation threads
 - **Streaming and non-streaming** prompt responses
