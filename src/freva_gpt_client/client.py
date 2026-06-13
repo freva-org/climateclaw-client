@@ -38,8 +38,6 @@ class FrevaGPT(SyncAPIClient):
     prompts, and retrieving conversation history.
 
     Attributes:
-        _root_api_path: Base path for API endpoints.
-        _user: Current system user.
         thread_id: Current active thread ID.
         model: Selected chatbot model.
     """
@@ -94,7 +92,7 @@ class FrevaGPT(SyncAPIClient):
         """Gets the list of available chatbot models.
 
         Returns:
-            List of available model names.
+            List[str]: List of available model names.
         """
         response = self.get(path=self._construct_path("chatbots"))
         available_models = response.json()
@@ -164,7 +162,7 @@ class FrevaGPT(SyncAPIClient):
         """Creates a new conversation thread and updates the current thread id.
 
         Returns:
-            The ID of the newly created thread.
+            str: The ID of the newly created thread.
         """
         response = self.get(path=self._construct_path("newthread"))
         thread_id = response.json()
@@ -177,18 +175,107 @@ class FrevaGPT(SyncAPIClient):
         model: str | None = None,
         thread_id: str | None = None,
         stream: bool = False,
+        save_thread: bool = False,
     ) -> Conversation | StreamConversation:
         """Sends a prompt to the chatbot and gets the response.
 
         Args:
-            input: The user input/prompt to send.
-            model: Optional model to use for this request. Falls back to instance attribute if not specified.
-            thread_id: Optional thread ID for the conversation. Creates a new thread if not specified and no active thread exists.
-            stream: If True, returns a StreamConversation for streaming.
+            input (str): The user input/prompt to send.
+            model (str | None, optional): Model to use for this request. Falls back to instance attribute if not specified.
+            thread_id (str | None, optional): Thread ID for the conversation. Creates a new thread if not specified and no active thread exists. Defaults to None.
+            stream (bool): If True, returns a `StreamConversation` for streaming, else returns a complete `Conversation`. Defaults to False.
+            save_thread (bool): If True, saves thread to the backend database. Note: only threads saved to the database can be accessed in a later session. Defaults to False.
+
+        Examples:
+            Send a prompt to the backend and print the result to get an overview of the response:
+
+            .. code-block:: python
+
+                from freva_gpt_client import FrevaGPT
+
+                frevagpt = FrevaGPT(base_url="https://nextgems.dkrz.de", model="gpt-4.1")
+
+                response = frevagpt.prompt(
+                    input="Please calculate and plot the average yearly temperature over Germany for the years 1990-2020!"
+                )
+                print(response)
+
+            After having received the response, you can extract certain information from it, such as code cells (if any are part of the response):
+
+            .. code-block:: python
+
+                from freva_gpt_client import FrevaGPT
+
+                frevagpt = FrevaGPT(base_url="https://nextgems.dkrz.de", model="gpt-4.1")
+
+                response = frevagpt.prompt(
+                    input="Please calculate and plot the average yearly temperature over Germany for the years 1990-2020!"
+                )
+                for cell in response.code_cells:
+                    print(cell)
+
+            Additionally, if the output includes any (base64-encoded) images, these can be extracted and saved to file:
+
+            .. code-block:: python
+
+                from freva_gpt_client import FrevaGPT
+
+                frevagpt = FrevaGPT(base_url="https://nextgems.dkrz.de", model="gpt-4.1")
+
+                response = frevagpt.prompt(
+                    input="Please calculate and plot the average yearly temperature over Germany for the years 1990-2020!"
+                )
+                for i, image in enumerate(response.images):
+                    image.save_to_file(f"plot_average_temperature_germany_{i+1}.png")
+
+            If ``stream=True``, the response can be streamed incrementally, either as a string ready for markdown-rendering:
+
+            .. code-block:: python
+
+                from freva_gpt_client import FrevaGPT
+
+                frevagpt = FrevaGPT(base_url="https://nextgems.dkrz.de", model="gpt-4.1")
+
+                with frevagpt.prompt(
+                    input="Please explain the phenomenon knows as the ENSO to me!", stream=True
+                ) as stream:
+                    for md in stream.iter_for_markdown():
+                        print(md)
+
+            Alternatively the raw json-like response can be streamed as dicts:
+
+            .. code-block:: python
+
+                from freva_gpt_client import FrevaGPT
+
+                frevagpt = FrevaGPT(base_url="https://nextgems.dkrz.de", model="gpt-4.1")
+
+                with frevagpt.prompt(
+                    input="Please explain the phenomenon knows as the ENSO to me!", stream=True
+                ) as stream:
+                    for part in stream.iter_raw():
+                        print(part)
+
+            Once a streamed response has been consumed, the entire response can be accessed as a ``Conversation`` object:
+
+            .. code-block:: python
+
+                from freva_gpt_client import FrevaGPT
+
+                frevagpt = FrevaGPT(base_url="https://nextgems.dkrz.de", model="gpt-4.1")
+
+                stream = frevagpt.prompt(
+                    input="Please explain the phenomenon knows as the ENSO to me!", stream=True
+                )
+                for part in stream.iter_raw():
+                    pass
+                print(stream.conversation)
 
         Returns:
-            If stream=False: Conversation containing all messages.
-            If stream=True: StreamConversation, allowing for incremental streaming as markdown strings.
+            Conversation | StreamConversation: Conversation containing all messages or StreamConversation, allowing for incremental streaming.
+
+            * If ``stream=False`` a ``Conversation`` instance is returned, containing entire response for a given prompt.
+            * If ``stream=False`` a ``StreamConversation`` instance is returned, which can be used to stream the response as a markdown-ready string or in its raw json-like form.
 
         Raises:
             ValueError: If model is specified but not in available_models.
@@ -240,11 +327,11 @@ class FrevaGPT(SyncAPIClient):
         """Retrieves a conversation thread by ID.
 
         Args:
-            thread_id: The ID of the thread to retrieve. If not specified,
-                uses the current active thread ID.
+            thread_id (str | None, optional): The ID of the thread to retrieve. If not specified,
+                uses the current active thread ID. Defaults to None.
 
         Returns:
-            Conversation containing all messages in the thread.
+            Conversation: Conversation containing all messages in the thread (including user messages).
 
         Raises:
             TypeError: If thread_id is not specified and no active thread exists.
@@ -271,7 +358,7 @@ class FrevaGPT(SyncAPIClient):
             num_threads (int): The maximum number of recent threads to return. Defaults to 20.
 
         Returns:
-            A tuple with two elements: 1. the total number of threads available for the user and 2. a list containing dictionaries
+            Tuple[int, List[Dict[str, str | Conversation]]]: A tuple containing the total number of threads available for the user and a list containing dictionaries
             that include information on each thread retrieved, such as "thread_id", "date", and "topic", as well as "content",
             which includes the thread's messages as a Conversation object.
 
@@ -307,7 +394,7 @@ class FrevaGPT(SyncAPIClient):
         Delete a given thread by the authenticated user.
 
         Args:
-            thread_id (str | None, optional): The ID of the thread to be deleted on the backend. If not specified, uses the current active thread ID (and resets active thread ID to None).
+            thread_id (str | None, optional): The ID of the thread to be deleted on the backend. If not specified, uses the current active thread ID (and resets active thread ID to None). Defaults to None.
 
         Raises:
             TypeError: Raised, if no thread_id is specified and no previous conversation was started.
@@ -328,7 +415,7 @@ class FrevaGPT(SyncAPIClient):
 
         Args:
             new_topic (str): String describing the new thread topic.
-            thread_id (str | None, optional): The ID of the thread which topic should be changed. If not specified, uses the current active thread ID.
+            thread_id (str | None, optional): The ID of the thread which topic should be changed. If not specified, uses the current active thread ID. Defaults to None.
 
         Raises:
             TypeError: Raised, if no thread_id is specified and no previous conversation was started.
@@ -358,7 +445,7 @@ class FrevaGPT(SyncAPIClient):
             num_threads (int, optional): The maximum number of results to return. Defaults to 20.
 
         Returns:
-            A tuple with two elements: 1. the total number of threads available for the user and 2. a list containing dictionaries
+            Tuple[int, List[Dict[str, str | Conversation]]]: A tuple containing the total number of threads available for the user and a list containing dictionaries
             that include information on each thread retrieved, such as "thread_id", "date", and "topic", as well as "content",
             which includes the thread's messages as a Conversation object.
 
@@ -399,7 +486,7 @@ class FrevaGPT(SyncAPIClient):
             ConnectionError: Raised if the request results in an internal server error.
 
         Returns:
-            True if thread was stopped successfully (without an error).
+            bool: True if thread was stopped successfully (without an error).
         """
         if not thread_id and self.thread_id:
             thread_id = self.thread_id
@@ -429,7 +516,7 @@ class FrevaGPT(SyncAPIClient):
 
         Args:
             user_index (int): The (zero-based) index from which to fork the conversation.
-            source_thread_id (str | None, optional): The ID of the thread which should be forked. If not specified, uses the current active thread ID.
+            source_thread_id (str | None, optional): The ID of the thread which should be forked. If not specified, uses the current active thread ID. Defaults to None.
 
         Raises:
             TypeError: Raised if thread_id is not specified and no active thread exists.
@@ -486,7 +573,7 @@ class FrevaGPT(SyncAPIClient):
         Args:
             feedback_index (int): The (zero-based) index of the (Code, Assistant) message within a thread where feedback should be added or removed.
             feedback (str): Feedback to be submitted. Must be one of 'up' (positive), 'down' (negative) or 'remove' (remove any existing feedback from message).
-            thread_id (str | None, optional): The ID of the thread containing the message feedback should be submitted for. If not specified, uses the current active thread ID.
+            thread_id (str | None, optional): The ID of the thread containing the message feedback should be submitted for. If not specified, uses the current active thread ID. Defaults to None.
 
         Raises:
             TypeError: Raised if thread_id is not specified and no active thread exists.
@@ -495,7 +582,7 @@ class FrevaGPT(SyncAPIClient):
             ConnectionError: Raised if feedback submission results in a internal server error on the backend.
 
         Returns:
-            Detail message returned by the backend, or warning if the response was empty.
+            str: Detail message returned by the backend, or warning if the response was empty.
 
         """
         if not thread_id and self.thread_id:
@@ -539,10 +626,10 @@ class FrevaGPT(SyncAPIClient):
         """Constructs the full API path for an endpoint.
 
         Args:
-            endpoint_name: Name of the endpoint from FREVAGPT_API_ENDPOINTS.
+            endpoint_name (str): Name of the endpoint from FREVAGPT_API_ENDPOINTS.
 
         Returns:
-            Full path string combining root API path and endpoint path.
+            str: Full path string combining root API path and endpoint path.
         """
         return f"{self._root_api_path}/{FREVAGPT_API_ENDPOINTS[endpoint_name]}"
 
@@ -559,8 +646,6 @@ class AsyncFrevaGPT(AsyncAPIClient):
         with async/await code. For synchronous code, use FrevaGPT instead.
 
     Attributes:
-        _root_api_path: Base path for API endpoints.
-        _user: Current system user.
         thread_id: Current active thread ID.
         model: Selected chatbot model.
     """
@@ -725,18 +810,145 @@ class AsyncFrevaGPT(AsyncAPIClient):
         model: str | None = None,
         thread_id: str | None = None,
         stream: bool = False,
+        save_thread: bool = False,
     ) -> Conversation | StreamConversation:
         """Sends a prompt to the chatbot and gets the response.
 
         Args:
-            input: The user input/prompt to send.
-            model: Optional model to use for this request. Falls back to instance attribute if not specified.
-            thread_id: Optional thread ID for the conversation. Creates a new thread if not specified and no active thread exists.
-            stream: If True, returns a StreamConversation for streaming.
+            input (str): The user input/prompt to send.
+            model (str | None, optional): Model to use for this request. Falls back to instance attribute if not specified.
+            thread_id (str | None, optional): Thread ID for the conversation. Creates a new thread if not specified and no active thread exists. Defaults to None.
+            stream (bool): If True, returns a `StreamConversation` for streaming, else returns a complete `Conversation`. Defaults to False.
+            save_thread (bool): If True, saves thread to the backend database. Note: only threads saved to the database can be accessed in a later session. Defaults to False.
+
+        Examples:
+            Send a prompt to the backend and print the result to get an overview of the response:
+
+            .. code-block:: python
+
+                import asyncio
+                from freva_gpt_client import AsyncFrevaGPT
+
+
+                async def main():
+                    frevagpt = AsyncFrevaGPT(base_url="https://nextgems.dkrz.de", model="gpt-4.1")
+                    response = await frevagpt.prompt(
+                        input="Please calculate and plot the average yearly temperature over Germany for the years 1990-2020!"
+                    )
+
+                    print(response)
+
+
+                asyncio.run(main())
+
+            After having received the response, you can extract certain information from it, such as code cells (if any are part of the response):
+
+            .. code-block:: python
+
+                import asyncio
+                from freva_gpt_client import AsyncFrevaGPT
+
+
+                async def main():
+                    frevagpt = AsyncFrevaGPT(base_url="https://nextgems.dkrz.de", model="gpt-4.1")
+                    response = await frevagpt.prompt(
+                        input="Please calculate and plot the average yearly temperature over Germany for the years 1990-2020!"
+                    )
+
+                    for cell in response.code_cells:
+                        print(cell)
+
+
+                asyncio.run(main())
+
+            Additionally, if the output includes any (base64-encoded) images, these can be extracted and saved to file:
+
+            .. code-block:: python
+
+                import asyncio
+                from freva_gpt_client import AsyncFrevaGPT
+
+
+                async def main():
+                    frevagpt = AsyncFrevaGPT(base_url="https://nextgems.dkrz.de", model="gpt-4.1")
+                    response = await frevagpt.prompt(
+                        input="Please calculate and plot the average yearly temperature over Germany for the years 1990-2020!"
+                    )
+
+                    for i, image in enumerate(response.images):
+                        image.save_to_file(f"plot_average_temperature_germany_{i+1}.png")
+
+
+                asyncio.run(main())
+
+            If ``stream=True``, the response can be streamed incrementally, either as a string ready for markdown-rendering:
+
+            .. code-block:: python
+
+                import asyncio
+                from freva_gpt_client import AsyncFrevaGPT
+
+
+                async def main():
+                    frevagpt = AsyncFrevaGPT(base_url="https://nextgems.dkrz.de", model="gpt-4.1")
+
+                    async with frevagpt.prompt(
+                        input="Please explain the phenomenon knows as the ENSO to me!", stream=True
+                    ) as stream:
+                        async for md in stream.aiter_for_markdown():
+                            print(md)
+
+
+                asyncio.run(main())
+
+
+
+            Alternatively the raw json-like response can be streamed as dicts:
+
+            .. code-block:: python
+
+                import asyncio
+                from freva_gpt_client import AsyncFrevaGPT
+
+
+                async def main():
+                    frevagpt = AsyncFrevaGPT(base_url="https://nextgems.dkrz.de", model="gpt-4.1")
+
+                    async with frevagpt.prompt(
+                        input="Please explain the phenomenon knows as the ENSO to me!", stream=True
+                    ) as stream:
+                        async for part in stream.aiter_raw():
+                            print(part)
+
+
+                asyncio.run(main())
+
+            Once a streamed response has been consumed, the entire response can be accessed as a ``Conversation`` object:
+
+            .. code-block:: python
+
+                import asyncio
+                from freva_gpt_client import AsyncFrevaGPT
+
+
+                async def main():
+                    frevagpt = AsyncFrevaGPT(base_url="https://nextgems.dkrz.de", model="gpt-4.1")
+
+                    stream = await frevagpt.prompt(
+                        input="Please explain the phenomenon knows as the ENSO to me!", stream=True
+                    )
+                    async for part in stream.aiter_raw():
+                        pass
+                    print(stream.conversation)
+
+
+                asyncio.run(main())
 
         Returns:
-            If stream=False: Conversation containing all messages.
-            If stream=True: StreamConversation, allowing for incremental streaming as markdown strings.
+            Conversation | StreamConversation: Conversation containing all messages or StreamConversation, allowing for incremental streaming.
+
+            * If ``stream=False`` a ``Conversation`` instance is returned, containing entire response for a given prompt.
+            * If ``stream=False`` a ``StreamConversation`` instance is returned, which can be used to stream the response as a markdown-ready string or in its raw json-like form.
 
         Raises:
             ValueError: If model is specified but not in available_models.

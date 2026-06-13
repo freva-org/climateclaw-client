@@ -56,12 +56,12 @@ html_theme_options = {
         }
     ],
     "navigation_with_keys": False,
-    "show_toc_level": 4,
-    "collapse_navigation": True,
-    "navigation_depth": 4,
+    "show_toc_level": 0,
+    "collapse_navigation": False,
+    "navigation_depth": 0,
     "navbar_align": "left",
-    "show_nav_level": 4,
-    "navigation_depth": 4,
+    "show_nav_level": 0,
+    "navigation_depth": 0,
     "navbar_center": ["navbar-nav"],
     "secondary_sidebar_items": ["page-toc"],
 }
