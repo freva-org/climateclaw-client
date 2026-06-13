@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+import PIL.Image
 import pytest
 from pytest_mock import MockerFixture
 
@@ -385,18 +386,18 @@ class TestImageMessage:
         assert markdown.startswith("\n")
         assert markdown.endswith("\n")
 
+    def test_to_pil_image(self, sample_base64):
+        """Test to_pil_image returns a valid Pillow image."""
+        msg = Image(variant="Image", content=sample_base64)
+        image = msg.to_pil_image()
+        assert isinstance(image, PIL.Image.Image)
+
     def test_save_to_file_success(self, tmp_path, sample_base64):
         """Test save_to_file saves valid base64 to file."""
         msg = Image(variant="Image", content=sample_base64)
         output_path = tmp_path / "test.png"
         msg.save_to_file(output_path)
         assert output_path.exists()
-        with output_path.open("rb") as f:
-            saved_data = f.read()
-        assert (
-            saved_data
-            == b"iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO9TXL0Y4OHwAAAABJRU5ErkJggg=="
-        )
 
     def test_save_to_file_nonexistent_dir(self, sample_base64):
         """Test save_to_file raises ValueError for non-existent directory."""
@@ -659,6 +660,22 @@ class TestConversation:
         ]
         conv = Conversation(raw_messages=messages)
         assert len(conv) == 2
+
+    def test_images_success(self):
+        """Test images attribute returns a list of images contained in conversation."""
+        messages = [
+            MessageModel(message={"variant": "Assistant", "content": "Here is one plot:"}),
+            MessageModel(message={"variant": "Image", "content": "base64encodedImage"}),
+            MessageModel(message={"variant": "Assistant", "content": "And here's another:"}),
+            MessageModel(message={"variant": "Image", "content": "base64encodedImage2"}),
+            MessageModel(message={"variant": "StreamEnd", "content": "Stream Ended."}),
+        ]
+        conv = Conversation(raw_messages=messages)
+        images = conv.images
+        assert isinstance(images, list)
+        assert len(images) == 2
+        for image in images:
+            assert isinstance(image.message, Image)
 
 
 # =============================================================================

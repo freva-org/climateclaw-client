@@ -18,6 +18,7 @@ from typing import (
     Union,
 )
 
+import PIL.Image
 from pydantic import BaseModel, Field, computed_field, field_validator
 
 from ._streaming import StreamResponse
@@ -294,11 +295,24 @@ class Image(BaseMessage):
         markdown_str = f"\n![Image](data:image/png;base64,{self.content})\n"
         return markdown_str
 
+    def to_pil_image(self) -> PIL.Image.Image:
+        """Translate base64-encoded image data to a Pillow Image.
+
+        Returns:
+            PIL.Image.Image: The Image object, lazily loaded.
+        """
+        import io
+
+        base64_bytes = self.content.encode("utf-8")
+        image_data = base64.decodebytes(base64_bytes)
+        image = PIL.Image.open(io.BytesIO(image_data))
+        return image
+
     def save_to_file(self, output_path: Path | str):
         """Saves the image to a file.
 
         Args:
-            output_path: Path where the image should be saved.
+            output_path: Path where the (PNG) image should be saved.
 
         Raises:
             ValueError: If the parent directory does not exist.
@@ -308,10 +322,8 @@ class Image(BaseMessage):
             raise ValueError(
                 f"The directory {parent_dir} does not exist. Please make sure you are saving the image to an existing directory."
             )
-        base64_bytes = self.content.encode("utf-8")
-        image_data = base64.decodebytes(base64_bytes)
-        with output_path.open(mode="wb") as fw:
-            fw.write(image_data)
+        image = self.to_pil_image()
+        image.save(output_path)
 
     def __repr__(self):
         """Returns a string representation of the image message.
@@ -455,6 +467,20 @@ class Conversation(BaseModel):
                 message={"variant": current_variant, "content": current_content}  # type: ignore[arg-type]
             )
         )
+        return result
+
+    @computed_field(repr=False)  # type: ignore[prop-decorator]
+    @cached_property
+    def images(self) -> List[Image]:
+        """Extract Image objects from conversation.
+
+        Returns:
+            List of extracted Image objects.
+        """
+        result = []
+        for message in self.messages:
+            if message.variant == "Image":
+                result.append(message)
         return result
 
     @computed_field(repr=False)  # type: ignore[prop-decorator]
