@@ -427,6 +427,9 @@ Image messages have special methods:
         # Get markdown representation (base64 embedded)
         md = image_message.repr_markdown()
 
+        # Return message as a PIL Image
+        pil_im = image_message.to_pil_image()
+
         # Save to file
         image_message.save_to_file("output.png")
 
