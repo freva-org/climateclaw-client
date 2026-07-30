@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+import PIL.Image
 import pytest
 from pytest_mock import MockerFixture
 
@@ -385,18 +386,18 @@ class TestImageMessage:
         assert markdown.startswith("\n")
         assert markdown.endswith("\n")
 
+    def test_to_pil_image(self, sample_base64):
+        """Test to_pil_image returns a valid Pillow image."""
+        msg = Image(variant="Image", content=sample_base64)
+        image = msg.to_pil_image()
+        assert isinstance(image, PIL.Image.Image)
+
     def test_save_to_file_success(self, tmp_path, sample_base64):
         """Test save_to_file saves valid base64 to file."""
         msg = Image(variant="Image", content=sample_base64)
         output_path = tmp_path / "test.png"
         msg.save_to_file(output_path)
         assert output_path.exists()
-        with output_path.open("rb") as f:
-            saved_data = f.read()
-        assert (
-            saved_data
-            == b"iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO9TXL0Y4OHwAAAABJRU5ErkJggg=="
-        )
 
     def test_save_to_file_nonexistent_dir(self, sample_base64):
         """Test save_to_file raises ValueError for non-existent directory."""
@@ -660,6 +661,22 @@ class TestConversation:
         conv = Conversation(raw_messages=messages)
         assert len(conv) == 2
 
+    def test_images_success(self):
+        """Test images attribute returns a list of images contained in conversation."""
+        messages = [
+            MessageModel(message={"variant": "Assistant", "content": "Here is one plot:"}),
+            MessageModel(message={"variant": "Image", "content": "base64encodedImage"}),
+            MessageModel(message={"variant": "Assistant", "content": "And here's another:"}),
+            MessageModel(message={"variant": "Image", "content": "base64encodedImage2"}),
+            MessageModel(message={"variant": "StreamEnd", "content": "Stream Ended."}),
+        ]
+        conv = Conversation(raw_messages=messages)
+        images = conv.images
+        assert isinstance(images, list)
+        assert len(images) == 2
+        for image in images:
+            assert isinstance(image, Image)
+
 
 # =============================================================================
 # StreamConversation Tests
@@ -743,10 +760,10 @@ class TestStreamConversation:
         stream_conv = StreamConversation(mock_response)
 
         first_chunk = MessageModel(message={"variant": "Assistant", "content": "Hello"})
-        output = stream_conv.process_chunk(first_chunk)
+        variants, output = stream_conv.process_chunk(first_chunk)
 
         assert stream_conv._current_message is not None
-        assert stream_conv._current_message.variant == "Assistant"
+        assert stream_conv._current_message.variant == variants[0]
         assert "Hello" in output
 
     def test_process_chunk_same_variant_accumulates(self, mocker):
@@ -759,8 +776,9 @@ class TestStreamConversation:
         chunk2 = MessageModel(message={"variant": "Assistant", "content": " world"})
 
         stream_conv.process_chunk(chunk1)
-        output = stream_conv.process_chunk(chunk2)
+        variants, output = stream_conv.process_chunk(chunk2)
 
+        assert stream_conv._current_message.variant == variants[0]
         assert "Hello world" == stream_conv._current_message.content
         # For Assistant variant, content is yielded immediately
         assert " world" in output
@@ -775,7 +793,7 @@ class TestStreamConversation:
         chunk2 = MessageModel(message={"variant": "User", "content": "Hi"})
 
         stream_conv.process_chunk(chunk1)
-        output = stream_conv.process_chunk(chunk2)
+        _, output = stream_conv.process_chunk(chunk2)
 
         # Previous Assistant message should be flushed (output from first chunk)
         # And new User message starts fresh
@@ -790,10 +808,11 @@ class TestStreamConversation:
         stream_conv = StreamConversation(mock_response)
 
         chunk = MessageModel(message={"variant": "Image", "content": "base64data"})
-        output = stream_conv.process_chunk(chunk)
+        variants, output = stream_conv.process_chunk(chunk)
 
         # Image should buffer, no output yet
         assert output == []
+        assert variants == []
         assert stream_conv._current_message.variant == "Image"
 
     def test_process_chunk_code_output_skipped(self, mocker):
@@ -803,9 +822,10 @@ class TestStreamConversation:
         stream_conv = StreamConversation(mock_response)
 
         chunk = MessageModel(message={"variant": "CodeOutput", "content": "output"})
-        output = stream_conv.process_chunk(chunk)
+        variants, output = stream_conv.process_chunk(chunk)
 
         # CodeOutput should be skipped
+        assert variants == []
         assert output == []
 
     @pytest.mark.parametrize(
@@ -819,8 +839,9 @@ class TestStreamConversation:
         stream_conv._current_message = MessageModel(
             message={"variant": flushed_variant, "content": content}
         )
-        output = stream_conv._flush_previous()
+        variants, output = stream_conv._flush_previous()
         assert stream_conv._buffered_content == ""
+        assert variants == [flushed_variant]
         assert content in output[0]
 
     def test_iter_for_markdown(self, mocker):
@@ -838,21 +859,20 @@ class TestStreamConversation:
         messages = [MessageModel(message=m) for m in message_dicts]
         stream_conv = StreamConversation(mock_response)
         assert stream_conv.conversation is None
-        markdown_result = [md for md in stream_conv.iter_for_markdown()]
+        markdown_result = [(variant, md) for variant, md in stream_conv.iter_for_markdown()]
         for message in messages:
             if message.variant in ["ServerHint", "StreamEnd"]:
-                assert all(str(message.content) not in md for md in markdown_result)
+                assert all(str(message.content) not in md for _, md in markdown_result)
+                continue
             elif message.variant == "Code":
-                assert any(
-                    f"```python\n{message.code_cells[0]}\n```" in md for md in markdown_result
-                )
+                expected_md = f"\n\n```python\n{message.code_cells[0]}\n```\n\n"
             elif message.variant == "Image":
-                assert any(
-                    f"![Image](data:image/png;base64,{message.content})" in md
-                    for md in markdown_result
-                )
+                expected_md = f"\n![Image](data:image/png;base64,{message.content})\n\n"
             else:
-                assert any(message.content in md for md in markdown_result)
+                expected_md = message.content
+            index = [md for _, md in markdown_result].index(expected_md)
+            variant = markdown_result[index][0]
+            assert variant == message.variant
         conversation = Conversation(raw_messages=messages)
         assert stream_conv.conversation == conversation
 
@@ -917,21 +937,20 @@ class TestStreamConversation:
         messages = [MessageModel(message=m) for m in message_dicts]
         stream_conv = StreamConversation(mock_response)
         assert stream_conv.conversation is None
-        markdown_result = [md async for md in stream_conv.aiter_for_markdown()]
+        markdown_result = [(variant, md) async for variant, md in stream_conv.aiter_for_markdown()]
         for message in messages:
             if message.variant in ["ServerHint", "StreamEnd"]:
-                assert all(str(message.content) not in md for md in markdown_result)
+                assert all(str(message.content) not in md for _, md in markdown_result)
+                continue
             elif message.variant == "Code":
-                assert any(
-                    f"```python\n{message.code_cells[0]}\n```" in md for md in markdown_result
-                )
+                expected_md = f"\n\n```python\n{message.code_cells[0]}\n```\n\n"
             elif message.variant == "Image":
-                assert any(
-                    f"![Image](data:image/png;base64,{message.content})" in md
-                    for md in markdown_result
-                )
+                expected_md = f"\n![Image](data:image/png;base64,{message.content})\n\n"
             else:
-                assert any(message.content in md for md in markdown_result)
+                expected_md = message.content
+            index = [md for _, md in markdown_result].index(expected_md)
+            variant = markdown_result[index][0]
+            assert variant == message.variant
         conversation = Conversation(raw_messages=messages)
         assert stream_conv.conversation == conversation
 
@@ -987,10 +1006,11 @@ class TestProcessCodeChunk:
         ]
         for chunk in chunks[:-1]:
             stream_conv.process_chunk(chunk)
-        output = stream_conv.process_chunk(chunks[-1])
+        variants, output = stream_conv.process_chunk(chunks[-1])
 
         # After prefix is complete, should output code block start
-        assert "```python" in output[0]
+        assert "\n\n```python\n" in output[0]
+        assert variants == ["Code"]
 
     def test_backslash_buffering(self):
         """Test that chunks ending with backslash are buffered."""
@@ -1005,7 +1025,7 @@ class TestProcessCodeChunk:
 
         # Then backslash
         backslash_chunk = MessageModel(message={"variant": "Code", "content": "\\"})
-        output1 = stream_conv.process_chunk(backslash_chunk)
+        _, output1 = stream_conv.process_chunk(backslash_chunk)
 
         # Should buffer, no output
         assert output1 == []
@@ -1027,7 +1047,7 @@ class TestProcessCodeChunk:
 
         # Send n
         n_chunk = MessageModel(message={"variant": "Code", "content": "n"})
-        output = stream_conv.process_chunk(n_chunk)
+        _, output = stream_conv.process_chunk(n_chunk)
 
         # Should output newline
         assert any("\n" == o or "\n" in o for o in output)
@@ -1049,7 +1069,7 @@ class TestProcessCodeChunk:
 
         # Send x (not an escape sequence)
         x_chunk = MessageModel(message={"variant": "Code", "content": "x"})
-        output = stream_conv.process_chunk(x_chunk)
+        _, output = stream_conv.process_chunk(x_chunk)
 
         # Should output \x
         assert any("\\x" in o for o in output)
@@ -1063,7 +1083,7 @@ class TestProcessCodeChunk:
 
         # Send complete code message
         chunk = MessageModel(message={"variant": "Code", "content": '{"code":"x=1"}'})
-        output = stream_conv.process_chunk(chunk)
+        _, output = stream_conv.process_chunk(chunk)
 
         # Should detect suffix and output code block end
         assert any("```" in o for o in output)

@@ -55,6 +55,7 @@ class BaseClient(Generic[_HttpxClientT]):
         max_retries: int = DEFAULT_MAX_RETRIES,
         timeout: float = DEFAULT_TIMEOUT,
         custom_headers: Headers = {},
+        interactive_auth=True,
     ):
         """Initializes the base client with configuration options.
 
@@ -66,6 +67,7 @@ class BaseClient(Generic[_HttpxClientT]):
             max_retries: Maximum number of retry attempts.
             timeout: Request timeout in seconds.
             custom_headers: Optional custom headers to include in requests.
+            interactive_auth: Optional boolean to determine if authentication can be done interactively.
         """
         self._version = version
         self.base_url = self._validate_base_url(base_url)
@@ -74,11 +76,16 @@ class BaseClient(Generic[_HttpxClientT]):
         self.max_retries = max_retries
         self.headers = self._build_headers(custom_headers)
         self._token_store_path = token_store_path
+        self._interactive_auth = interactive_auth
 
     @cached_property
     def _auth(self) -> TokenAuth:
         """Lazy-loaded authentication handler."""
-        return TokenAuth(base_url=self.base_url, token_store_path=self._token_store_path)
+        return TokenAuth(
+            base_url=self.base_url,
+            token_store_path=self._token_store_path,
+            interactive=self._interactive_auth,
+        )
 
     @cached_property
     def default_headers(self) -> Dict[str, Any]:
@@ -176,6 +183,7 @@ class SyncAPIClient(BaseClient[httpx.Client]):
         timeout: float = DEFAULT_TIMEOUT,
         custom_headers: Headers = {},
         http_client: httpx.Client | None = None,
+        interactive_auth: bool = True,
     ):
         """Initializes the sync client.
 
@@ -188,6 +196,7 @@ class SyncAPIClient(BaseClient[httpx.Client]):
             timeout: Request timeout in seconds.
             custom_headers: Optional custom headers to include in requests.
             http_client: Optional pre-configured httpx.Client.
+            interactive_auth: Optional boolean to determine if authentication can be done interactively.
 
         Raises:
             TypeError: If http_client is not an httpx.Client instance.
@@ -206,6 +215,7 @@ class SyncAPIClient(BaseClient[httpx.Client]):
             max_retries=max_retries,
             timeout=timeout,
             custom_headers=custom_headers,
+            interactive_auth=interactive_auth,
         )
         if http_client:
             self._client = http_client
@@ -350,6 +360,7 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
         timeout: float = DEFAULT_TIMEOUT,
         custom_headers: Headers = {},
         http_client: httpx.AsyncClient | None = None,
+        interactive_auth: bool = True,
     ):
         """Initializes the async client.
 
@@ -362,6 +373,7 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
             timeout: Request timeout in seconds.
             custom_headers: Optional custom headers to include in requests.
             http_client: Optional pre-configured httpx.AsyncClient.
+            interactive_auth: Optional boolean to determine if authentication can be done interactively.
 
         Raises:
             TypeError: If http_client is not an httpx.AsyncClient instance.
@@ -380,6 +392,7 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
             max_retries=max_retries,
             timeout=timeout,
             custom_headers=custom_headers,
+            interactive_auth=interactive_auth,
         )
         if http_client:
             self._client = http_client

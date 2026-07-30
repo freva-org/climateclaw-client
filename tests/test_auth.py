@@ -232,6 +232,19 @@ def test_validate_token_store(token_auth_instance, mock_token_store, mocker, bas
     mocked_update.assert_called_once()
 
 
+def test_validate_token_no_token_non_interactive_raises(
+    token_auth_instance, mock_token_store, base_url
+):
+    token_auth_instance._interactive = False
+    _, mock_instance = mock_token_store
+    stored_token = mock_instance.get(str(base_url))
+    if not (stored_token or token_auth_instance.auth_token):
+        with pytest.raises(
+            auth.AuthError, match="New token can only be generated in interactive mode."
+        ):
+            token_auth_instance._validate_token_store()
+
+
 @pytest.mark.asyncio
 async def test_async_validate_token_store(
     mocker: MockerFixture, token_auth_instance, mock_token_store, base_url
@@ -260,6 +273,20 @@ async def test_async_validate_token_store(
 
     # _update_token_or_store should always be called
     mocked_update.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_async_validate_token_no_token_non_interactive_raises(
+    token_auth_instance, mock_token_store, base_url
+):
+    token_auth_instance._interactive = False
+    _, mock_instance = mock_token_store
+    stored_token = mock_instance.get(str(base_url))
+    if not (stored_token or token_auth_instance.auth_token):
+        with pytest.raises(
+            auth.AuthError, match="New token can only be generated in interactive mode."
+        ):
+            await token_auth_instance._async_validate_token_store()
 
 
 def test_validate_token_refreshes_expired_tokens(
@@ -291,9 +318,12 @@ def test_validate_token_refreshes_expired_tokens(
     now_dt = datetime.now(timezone.utc)
 
     if refresh_expires_dt < now_dt:
-        # Refresh token expired -> should raise
-        with pytest.raises(auth.AuthError, match="Refresh token has expired."):
-            token_auth_instance._validate_token()
+        # Both token and refresh token expired -> Should prompt user to authenticate
+        token_auth_instance._validate_token()
+        spy_logger.debug_assert_called_once_with(
+            "Both auth and refresh token expired. Prompting user to log in to generate new token."
+        )
+        mocked_authenticate.assert_called_once()
     elif expires_dt < now_dt:
         # Access token expired but refresh valid -> should refresh
         token_auth_instance._validate_token()
@@ -339,9 +369,12 @@ async def test_async_validate_token_refreshes_expired_tokens(
     now_dt = datetime.now(timezone.utc)
 
     if refresh_expires_dt < now_dt:
-        # Refresh token expired -> should raise
-        with pytest.raises(auth.AuthError, match="Refresh token has expired."):
-            await token_auth_instance._async_validate_token()
+        # Both token and refresh token expired -> Should prompt user to authenticate
+        await token_auth_instance._async_validate_token()
+        spy_logger.debug_assert_called_once_with(
+            "Both auth and refresh token expired. Prompting user to log in to generate new token."
+        )
+        mocked_authenticate.assert_called_once()
     elif expires_dt < now_dt:
         # Access token expired but refresh valid -> should refresh
         await token_auth_instance._async_validate_token()
@@ -357,12 +390,14 @@ async def test_async_validate_token_refreshes_expired_tokens(
         assert returned_token == auth_token
 
 
+@pytest.mark.parametrize(argnames="interactive", argvalues=[True, False])
 def test_validate_token_raises_on_auth_failure(
-    token_auth_instance, mock_token_store, mocker, base_url, token_store_content
+    token_auth_instance, mock_token_store, mocker, base_url, token_store_content, interactive
 ):
     """Test _validate_token raises AuthError when token refresh fails."""
     _, _ = mock_token_store
-    mocked_authenticate = mocker.patch.object(auth.TokenAuth, "_authenticate")
+    token_auth_instance._interactive = interactive
+    mocked_authenticate = mocker.patch.object(auth, "authenticate")
 
     now = datetime.now(timezone.utc)
     fresh_token = make_oidc_token(
@@ -377,27 +412,28 @@ def test_validate_token_raises_on_auth_failure(
     refresh_expires_dt = datetime.fromtimestamp(auth_token["refresh_expires"], tz=timezone.utc)
     expires_dt = datetime.fromtimestamp(auth_token["expires"], tz=timezone.utc)
     now_dt = datetime.now(timezone.utc)
-
-    if refresh_expires_dt < now_dt:
-        # Refresh token already expired -> should raise immediately
-        with pytest.raises(auth.AuthError, match="Refresh token has expired."):
-            token_auth_instance._validate_token()
-    elif expires_dt < now_dt:
-        # Token expired, refresh will fail
+    if token_auth_instance._interactive:
         mocked_authenticate.side_effect = Exception("Auth failed")
+    if (refresh_expires_dt < now_dt or expires_dt < now_dt) and token_auth_instance._interactive:
+        with pytest.raises(auth.AuthError, match=r"Could not generate a new token.*"):
+            token_auth_instance._validate_token()
+    elif refresh_expires_dt < now_dt and not token_auth_instance._interactive:
         with pytest.raises(
-            auth.AuthError, match=r"Could not generate a new token from the token file.*"
+            auth.AuthError,
+            match="Refresh token has expired. New one can only be generated in interactive mode.",
         ):
             token_auth_instance._validate_token()
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(argnames="interactive", argvalues=[True, False])
 async def test_async_validate_token_raises_on_auth_failure(
-    token_auth_instance, mock_token_store, mocker, base_url, token_store_content
+    token_auth_instance, mock_token_store, mocker, base_url, token_store_content, interactive
 ):
     """Test _async_validate_token raises AuthError when token refresh fails."""
     _, _ = mock_token_store
-    mocked_authenticate = mocker.patch.object(auth.TokenAuth, "_async_authenticate")
+    token_auth_instance._interactive = interactive
+    mocked_authenticate = mocker.patch.object(auth, "authenticate_async")
 
     now = datetime.now(timezone.utc)
     fresh_token = make_oidc_token(
@@ -413,15 +449,14 @@ async def test_async_validate_token_raises_on_auth_failure(
     expires_dt = datetime.fromtimestamp(auth_token["expires"], tz=timezone.utc)
     now_dt = datetime.now(timezone.utc)
 
-    if refresh_expires_dt < now_dt:
-        # Refresh token already expired -> should raise immediately
-        with pytest.raises(auth.AuthError, match="Refresh token has expired."):
-            await token_auth_instance._async_validate_token()
-    elif expires_dt < now_dt:
-        # Token expired, refresh will fail
+    if (refresh_expires_dt < now_dt or expires_dt < now_dt) and token_auth_instance._interactive:
         mocked_authenticate.side_effect = Exception("Auth failed")
+        with pytest.raises(auth.AuthError, match=r"Could not generate a new token.*"):
+            await token_auth_instance._async_validate_token()
+    elif refresh_expires_dt < now_dt and not token_auth_instance._interactive:
         with pytest.raises(
-            auth.AuthError, match=r"Could not generate a new token from the token file.*"
+            auth.AuthError,
+            match="Refresh token has expired. New one can only be generated in interactive mode.",
         ):
             await token_auth_instance._async_validate_token()
 
@@ -453,9 +488,9 @@ def test_get_auth_headers(
     now_dt = datetime.now(timezone.utc)
 
     if refresh_expires_dt < now_dt:
-        # Refresh token expired -> should raise
-        with pytest.raises(auth.AuthError, match="Refresh token has expired."):
-            token_auth_instance.get_auth_headers()
+        # Refresh token expired -> should prompt user to reauthenticate
+        token_auth_instance.get_auth_headers()
+        mocked_authenticate.assert_called_once()
     elif expires_dt < now_dt:
         # Token expired -> should refresh and return headers
         auth_headers = token_auth_instance.get_auth_headers()
@@ -495,9 +530,9 @@ async def test_async_get_auth_headers(
     now_dt = datetime.now(timezone.utc)
 
     if refresh_expires_dt < now_dt:
-        # Refresh token expired -> should raise
-        with pytest.raises(auth.AuthError, match="Refresh token has expired."):
-            await token_auth_instance.async_get_auth_headers()
+        # Refresh token expired -> should prompt user to reauthenticate
+        await token_auth_instance.async_get_auth_headers()
+        mocked_authenticate.assert_called_once()
     elif expires_dt < now_dt:
         # Token expired -> should refresh and return headers
         auth_headers = await token_auth_instance.async_get_auth_headers()

@@ -34,6 +34,7 @@ dependencies = [
     "pydantic",
     "py_oidc_auth_client",
     "nest_asyncio",
+    "pillow",
 ]
 
 [project.urls]
@@ -74,9 +75,9 @@ dev = [
 ]
 
 [tool.mypy]
-plugins = ['pydantic.mypy']
 ignore_missing_imports = true
 exclude = "docs/*"
+plugins = ['pydantic.mypy'] # type: ignore[misc]
 
 [tool.setuptools]
 zip-safe = false

@@ -129,7 +129,7 @@ class StreamResponse:
 
         return complete_parts, partial_response
 
-    def iter_json_objects(self) -> Generator[Dict, None, None]:
+    def iter_json_objects(self) -> Generator[Dict[str, Any], None, None]:
         """Generator that yields complete JSON dicts from the stream.
 
         Iterates over the response bytes, processes chunks, and yields
