@@ -96,7 +96,9 @@ class TestBaseClient:
         assert base_client._auth == {}
         # because the auth token is cached, the underlying TokenAuth should only be called once.
         mocked_token_auth.assert_called_once_with(
-            base_url=base_client.base_url, token_store_path=base_client._token_store_path
+            base_url=base_client.base_url,
+            token_store_path=base_client._token_store_path,
+            interactive=True,
         )
 
     def test_default_headers(self, make_base_client):

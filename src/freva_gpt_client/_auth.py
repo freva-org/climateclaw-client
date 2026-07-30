@@ -6,6 +6,8 @@ from typing import Dict, cast
 import httpx
 from py_oidc_auth_client import (  # type: ignore
     AuthError,
+    DeviceCode,
+    DeviceFlow,
     Token,
     TokenStore,
     authenticate,
@@ -38,6 +40,7 @@ class TokenAuth(httpx.Auth):
         token_store_path: str | Path | None = None,
         timeout: float = DEFAULT_AUTH_TIMEOUT,
         app_name: str = "freva-gpt-client",
+        interactive: bool = True,
     ):
         """Initializes TokenAuth with base URL and token store configuration.
 
@@ -46,6 +49,7 @@ class TokenAuth(httpx.Auth):
             token_store_path: Optional path to the token store file.
             timeout: Timeout in seconds for authentication requests.
             app_name: Application name for token storage identification.
+            interactive: Boolean to determine if authentication can be performed interactively (prompting the user to log in if necessary).
         """
         self.base_url: httpx.URL = base_url
         self.app_name: str = app_name
@@ -55,15 +59,21 @@ class TokenAuth(httpx.Auth):
             token_store_path or TokenStore(app_name=app_name, path=token_store_path)._path
         )
         self.auth_token: Token | None = None
+        self._interactive = interactive
 
     def _authenticate(self) -> Token:
         """Authenticates with the OIDC provider and returns a new token."""
-        return authenticate(
-            host=f"{self.base_url}/api/freva-nextgen",
-            store=self.token_store,
-            app_name=self.app_name,
-            timeout=self.timeout,
-        )
+        try:
+            return authenticate(
+                host=f"{self.base_url}/api/freva-nextgen",
+                store=self.token_store,
+                app_name=self.app_name,
+                timeout=self.timeout,
+            )
+        except Exception as e:
+            raise AuthError(
+                f"Could not generate a new token. Please try again or reauthenticate. {e}"
+            )
 
     def _update_token_or_store(self) -> None:
         """Updates the token store with the current auth token."""
@@ -82,7 +92,10 @@ class TokenAuth(httpx.Auth):
         # if auth token is not set, but token store contains correct token, update token from token store
         if not auth_token and test_token:
             self.auth_token = test_token
-        # otherwise, start oidc device flow
+        # if not in interactive mode, and no auth token set, raise AuthError
+        elif not (self._interactive or self.auth_token):
+            raise AuthError("New token can only be generated in interactive mode.") from None
+        # else start oidc device flow
         else:
             self.auth_token = self._authenticate()
         self._update_token_or_store()
@@ -98,18 +111,22 @@ class TokenAuth(httpx.Auth):
         )
         now = datetime.now(timezone.utc)
         if now > token_refresh_expires_at:
-            raise AuthError("Refresh token has expired.") from None
+            if self._interactive:
+                logger.debug(
+                    "Both auth and refresh token expired. Prompting user to log in to generate new token."
+                )
+                self.auth_token = self._authenticate()
+                self.token_store.put(host=str(self.base_url), token=self.auth_token)
+            else:
+                raise AuthError(
+                    "Refresh token has expired. New one can only be generated in interactive mode."
+                ) from None
         elif now > token_expires_at:
             logger.debug(
                 "Freva auth token expired. Using refresh token to generate new token and updating token store."
             )
-            try:
-                self.auth_token = self._authenticate()
-                self.token_store.put(host=str(self.base_url), token=self.auth_token)
-            except Exception as e:
-                raise AuthError(
-                    f"Could not generate a new token from the token file. Please try again or reauthenticate. {e}"
-                )
+            self.auth_token = self._authenticate()
+            self.token_store.put(host=str(self.base_url), token=self.auth_token)
         return self.auth_token
 
     def get_auth_headers(self) -> Dict[str, str]:
@@ -140,14 +157,19 @@ class TokenAuth(httpx.Auth):
             request.headers.update(self.get_auth_headers())
             yield request
 
-    async def _async_authenticate(self) -> Token:
+    async def _async_authenticate(self) -> Token | tuple[DeviceFlow, DeviceCode]:
         """Authenticates asynchronously with the OIDC provider and returns a new token."""
-        return await authenticate_async(
-            host=f"{self.base_url}/api/freva-nextgen",
-            store=self.token_store,
-            app_name=self.app_name,
-            timeout=self.timeout,
-        )
+        try:
+            return await authenticate_async(
+                host=f"{self.base_url}/api/freva-nextgen",
+                store=self.token_store,
+                app_name=self.app_name,
+                timeout=self.timeout,
+            )
+        except Exception as e:
+            raise AuthError(
+                f"Could not generate a new token. Please try again or reauthenticate. {e}"
+            )
 
     async def _async_validate_token_store(self) -> TokenStore:
         """Validates and initializes the token store."""
@@ -158,15 +180,17 @@ class TokenAuth(httpx.Auth):
         # if auth token is not set, but token store contains correct token, update token from token store
         if not auth_token and test_token:
             self.auth_token = test_token
-        # otherwise, start oidc device flow
+        # if not in interactive mode, and no auth token set, raise AuthError
+        elif not (self._interactive or self.auth_token):
+            raise AuthError("New token can only be generated in interactive mode.") from None
+        # else start oidc device flow
         else:
             self.auth_token = await self._async_authenticate()
         self._update_token_or_store()
-        return token_store
 
     async def _async_validate_token(self) -> Token:
         """Validates the current authentication token."""
-        self.token_store = await self._async_validate_token_store()
+        await self._async_validate_token_store()
         self.auth_token = cast(Token, self.auth_token)
         token_expires_at = datetime.fromtimestamp(self.auth_token["expires"], tz=timezone.utc)
         token_refresh_expires_at = datetime.fromtimestamp(
@@ -174,18 +198,19 @@ class TokenAuth(httpx.Auth):
         )
         now = datetime.now(timezone.utc)
         if now > token_refresh_expires_at:
-            raise AuthError("Refresh token has expired.") from None
+            if self._interactive:
+                self.auth_token = await self._async_authenticate()
+                self.token_store.put(host=str(self.base_url), token=self.auth_token)
+            else:
+                raise AuthError(
+                    "Refresh token has expired. New one can only be generated in interactive mode."
+                ) from None
         elif now > token_expires_at:
             logger.debug(
                 "Freva auth token expired. Using refresh token to generate new token and updating token store."
             )
-            try:
-                self.auth_token = await self._async_authenticate()
-                self.token_store.put(host=str(self.base_url), token=self.auth_token)
-            except Exception as e:
-                raise AuthError(
-                    f"Could not generate a new token from the token file. Please try again or reauthenticate. {e}"
-                )
+            self.auth_token = await self._async_authenticate()
+            self.token_store.put(host=str(self.base_url), token=self.auth_token)
         return self.auth_token
 
     async def async_get_auth_headers(self) -> Dict[str, str]:
