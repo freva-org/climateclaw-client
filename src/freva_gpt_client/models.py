@@ -10,11 +10,13 @@ from typing import (
     AsyncGenerator,
     Callable,
     Dict,
+    Generator,
     List,
     Literal,
     Mapping,
     Optional,
     Sequence,
+    Tuple,
     Union,
 )
 
@@ -479,8 +481,8 @@ class Conversation(BaseModel):
         """
         result = []
         for message in self.messages:
-            if message.variant == "Image":
-                result.append(message)
+            if isinstance(message.message, Image):
+                result.append(message.message)
         return result
 
     @computed_field(repr=False)  # type: ignore[prop-decorator]
@@ -628,27 +630,30 @@ class StreamConversation(AbstractContextManager, AbstractAsyncContextManager):
         self.conversation = Conversation(raw_messages=raw_messages)
         return self.conversation
 
-    def process_chunk(self, message_chunk: MessageModel) -> List[str]:
-        """Process a streamed message chunk and return markdown-ready strings.
-
+    def process_chunk(self, message_chunk: MessageModel) -> Tuple[List[str], List[str]]:
+        """Process a streamed message chunk and return th markdown-ready strings, as well as variants contained in the message chunk.
         Args:
             message_chunk: A MessageModel from the stream.
 
         Returns:
-            List of markdown strings ready to be rendered.
-            Empty list if nothing is ready yet.
+            A tuple consisting of:
+               - List of markdown strings ready to be rendered. Empty list if nothing is ready yet.
+               - List of variants corresponding to the different markdown strings.
         """
         variant = message_chunk.variant
         content = str(message_chunk.content)
 
         output: List[str] = []
+        variants: List[str] = []
 
         # If first message chunk, set current message to message_chunk
         if not self._current_message:
             self._current_message = MessageModel(**message_chunk.model_dump())
         # If variant changed, flush previous buffer
         elif variant != self._current_message.variant:
-            output.extend(self._flush_previous())
+            previous_variant, new_output = self._flush_previous()
+            output.extend(new_output)
+            variants.extend(previous_variant)
             self._current_message = MessageModel(**message_chunk.model_dump())
         else:
             # Accumulate content
@@ -664,18 +669,25 @@ class StreamConversation(AbstractContextManager, AbstractAsyncContextManager):
             pass
         elif variant == "Code":
             output.extend(self._process_code_chunk_for_md(content))
+            variants.append(variant)
         else:
             # Text messages: yield the new chunk immediately
-            output.append(content)
-        return output
+            md_string = message_chunk.repr_markdown()
+            if md_string:
+                output.append(md_string)
+                variants.append(variant)
+        return variants, output
 
-    def _flush_previous(self) -> List[str]:
+    def _flush_previous(self) -> Tuple[List[str], List[str]]:
         """Flush buffered content when variant changes.
 
         Returns:
-            List of markdown strings for the completed previous message.
+            A tuple consisting of:
+                - List of markdown strings for the completed previous message.
+                - List of variants corresponding the the completed markdown strings.
         """
         output: List[str] = []
+        variants: List[str] = []
         self._buffered_content = ""
         if (
             self._current_message
@@ -683,7 +695,8 @@ class StreamConversation(AbstractContextManager, AbstractAsyncContextManager):
             and self._current_message.content
         ):
             output.append(self._current_message.repr_markdown() + "\n")
-        return output
+            variants.append(self._current_message.variant)
+        return variants, output
 
     @staticmethod
     def _parse_escaped_chars(string: str) -> str:
@@ -738,7 +751,7 @@ class StreamConversation(AbstractContextManager, AbstractAsyncContextManager):
                     self._parse_escaped_chars(self._buffered_content)
                     .lstrip(prefix)
                     .rstrip(suffix)
-                    .lstrip(' "')
+                    .lstrip('"')
                 )
                 # reset buffered content
                 self._buffered_content = ""
@@ -746,22 +759,24 @@ class StreamConversation(AbstractContextManager, AbstractAsyncContextManager):
                 output.append(code_content)
         return output
 
-    def iter_for_markdown(self):
+    def iter_for_markdown(self) -> Generator[Tuple[str, str], None, None]:
         """Iterates over the stream, yielding markdown-ready strings.
 
         Processes each message chunk and yields markdown content as it
-        becomes available. ServerHint and StreamEnd messages are skipped.
+        becomes available.
 
         Yields:
-            Markdown strings ready for rendering.
+            Tuple containing:
+                - Variant of processed markdown chunk.
+                - Markdown strings ready for rendering.
         """
         raw_messages = []
         for msg_dict in self.stream_response.iter_json_objects():
             msg_model = MessageModel(message=msg_dict)
             raw_messages.append(msg_model)
-            if msg_model.variant not in ["ServerHint", "StreamEnd"]:
-                for markdown_chunk in self.process_chunk(msg_model):
-                    yield markdown_chunk
+            variants, processed_chunks = self.process_chunk(msg_model)
+            for variant, markdown_chunk in zip(variants, processed_chunks):
+                yield variant, markdown_chunk
         # save completed response as a conversation instance
         self.conversation = Conversation(raw_messages=raw_messages)
 
@@ -778,22 +793,24 @@ class StreamConversation(AbstractContextManager, AbstractAsyncContextManager):
         # save completed response as a conversation instance
         self.conversation = Conversation(raw_messages=raw_messages)
 
-    async def aiter_for_markdown(self) -> AsyncGenerator[str, None]:
+    async def aiter_for_markdown(self) -> AsyncGenerator[Tuple[str, str], None]:
         """Asynchronously iterates over the stream, yielding markdown-ready strings.
 
         Processes each message chunk and yields markdown content as it
-        becomes available. ServerHint and StreamEnd messages are skipped.
+        becomes available.
 
         Yields:
-            Markdown strings ready for rendering.
+            Tuple containing:
+                - Variant of processed markdown chunk.
+                - Markdown strings ready for rendering.
         """
         raw_messages = []
         async for msg_dict in self.stream_response.aiter_json_objects():
             msg_model = MessageModel(message=msg_dict)
             raw_messages.append(msg_model)
-            if msg_model.variant not in ["ServerHint", "StreamEnd"]:
-                for markdown_chunk in self.process_chunk(msg_model):
-                    yield markdown_chunk
+            variants, processed_chunks = self.process_chunk(msg_model)
+            for variant, markdown_chunk in zip(variants, processed_chunks):
+                yield variant, markdown_chunk
         # save completed response as a conversation instance
         self.conversation = Conversation(raw_messages=raw_messages)
 
