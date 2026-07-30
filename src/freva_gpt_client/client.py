@@ -58,6 +58,7 @@ class FrevaGPT(SyncAPIClient):
         http_client: httpx.Client | None = None,
         thread_id: str | None = None,
         model: str | None = None,
+        interactive_auth: bool = True,
     ):
         """Initializes the FrevaGPT client.
 
@@ -70,6 +71,7 @@ class FrevaGPT(SyncAPIClient):
             http_client: Optional pre-configured httpx.Client.
             thread_id: Optional thread ID for an existing conversation.
             model: Optional chatbot model to use for requests.
+            interactive_auth: Optional boolean to determine if authentication should be performed interactively.
 
         Raises:
             ValueError: If the specified model is not in available_models.
@@ -82,6 +84,7 @@ class FrevaGPT(SyncAPIClient):
             max_retries=max_retries,
             timeout=timeout,
             http_client=http_client,
+            interactive_auth=interactive_auth,
         )
         self._validate_backend_endpoints()
         self.thread_id = thread_id
@@ -175,7 +178,7 @@ class FrevaGPT(SyncAPIClient):
         model: str | None = None,
         thread_id: str | None = None,
         stream: bool = False,
-        save_thread: bool = False,
+        store_thread: bool = True,
     ) -> Conversation | StreamConversation:
         """Sends a prompt to the chatbot and gets the response.
 
@@ -184,7 +187,7 @@ class FrevaGPT(SyncAPIClient):
             model (str | None, optional): Model to use for this request. Falls back to instance attribute if not specified.
             thread_id (str | None, optional): Thread ID for the conversation. Creates a new thread if not specified and no active thread exists. Defaults to None.
             stream (bool): If True, returns a `StreamConversation` for streaming, else returns a complete `Conversation`. Defaults to False.
-            save_thread (bool): If True, saves thread to the backend database. Note: only threads saved to the database can be accessed in a later session. Defaults to False.
+            store_thread (bool): If True, stores thread to the backend database. Note: only threads stored to the database can be accessed in a later session. Defaults to True.
 
         Examples:
             Send a prompt to the backend and print the result to get an overview of the response:
@@ -239,8 +242,8 @@ class FrevaGPT(SyncAPIClient):
                 with frevagpt.prompt(
                     input="Please explain the phenomenon knows as the ENSO to me!", stream=True
                 ) as stream:
-                    for md in stream.iter_for_markdown():
-                        print(md)
+                    for variant, md in stream.iter_for_markdown():
+                        print(variant, md)
 
             Alternatively the raw json-like response can be streamed as dicts:
 
@@ -304,6 +307,7 @@ class FrevaGPT(SyncAPIClient):
                     "input": input,
                     "thread_id": thread_id,
                     "chatbot": model,
+                    "store_thread": store_thread,
                 },
                 stream=stream,
             )
@@ -666,6 +670,7 @@ class AsyncFrevaGPT(AsyncAPIClient):
         http_client: httpx.AsyncClient | None = None,
         thread_id: str | None = None,
         model: str | None = None,
+        interactive_auth: bool = True,
     ):
         """Initializes the AsyncFrevaGPT client.
 
@@ -678,6 +683,7 @@ class AsyncFrevaGPT(AsyncAPIClient):
             http_client: Optional pre-configured httpx.AsyncClient.
             thread_id: Optional thread ID for an existing conversation.
             model: Optional chatbot model to use for requests.
+            interactive_auth: Optional boolean to determine if authentication should be performed interactively.
 
         """
         super().__init__(
@@ -688,6 +694,7 @@ class AsyncFrevaGPT(AsyncAPIClient):
             max_retries=max_retries,
             timeout=timeout,
             http_client=http_client,
+            interactive_auth=interactive_auth,
         )
         asyncio.run(self._validate_backend_endpoints())
         self.thread_id = thread_id
@@ -810,7 +817,7 @@ class AsyncFrevaGPT(AsyncAPIClient):
         model: str | None = None,
         thread_id: str | None = None,
         stream: bool = False,
-        save_thread: bool = False,
+        store_thread: bool = True,
     ) -> Conversation | StreamConversation:
         """Sends a prompt to the chatbot and gets the response.
 
@@ -819,7 +826,7 @@ class AsyncFrevaGPT(AsyncAPIClient):
             model (str | None, optional): Model to use for this request. Falls back to instance attribute if not specified.
             thread_id (str | None, optional): Thread ID for the conversation. Creates a new thread if not specified and no active thread exists. Defaults to None.
             stream (bool): If True, returns a `StreamConversation` for streaming, else returns a complete `Conversation`. Defaults to False.
-            save_thread (bool): If True, saves thread to the backend database. Note: only threads saved to the database can be accessed in a later session. Defaults to False.
+            store_thread (bool): If True, stores thread to the backend database. Note: only threads stored to the database can be accessed in a later session. Defaults to True.
 
         Examples:
             Send a prompt to the backend and print the result to get an overview of the response:
@@ -895,8 +902,8 @@ class AsyncFrevaGPT(AsyncAPIClient):
                     async with frevagpt.prompt(
                         input="Please explain the phenomenon knows as the ENSO to me!", stream=True
                     ) as stream:
-                        async for md in stream.aiter_for_markdown():
-                            print(md)
+                        async for variant, md in stream.aiter_for_markdown():
+                            print(variant, md)
 
 
                 asyncio.run(main())
@@ -972,6 +979,7 @@ class AsyncFrevaGPT(AsyncAPIClient):
                     "input": input,
                     "thread_id": thread_id,
                     "chatbot": model,
+                    "store_thread": store_thread,
                 },
                 stream=stream,
             )
