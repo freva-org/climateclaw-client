@@ -1,7 +1,7 @@
 ClimateClaw Client Documentation
 ================================
 
-A Python client library for interacting with the `ClimateClaw backend <https://github.com/freva-org/freva-gpt-backend-py>`_.
+A Python client library for interacting with the `ClimateClaw backend <https://github.com/freva-org/climateclaw>`_.
 This library provides both synchronous and asynchronous interfaces for communicating with a ClimateClaw chatbot instance.
 
 .. toctree::
@@ -158,7 +158,7 @@ Project Links
 -------------
 
 - **Source Code**: https://github.com/freva-org/climate-claw-client
-- **Backend Repository**: https://github.com/freva-org/freva-gpt-backend-py
+- **Backend Repository**: https://github.com/freva-org/climateclaw
 - **Issue Tracker**: https://github.com/freva-org/climate-claw-client/issues
 - **License**: European Union Public Licence 1.2 (EUPL-1.2)
 
