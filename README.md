@@ -4,7 +4,7 @@
 [![docs](https://readthedocs.org/projects/climate-claw-client/badge/?version=latest)](https://climate-claw-client.readthedocs.io/latest/?badge=latest)
 [![codecov](https://codecov.io/github/freva-org/climate-claw-client/graph/badge.svg?token=kDsGq9llcK)](https://codecov.io/github/freva-org/climate-claw-client)
 
-A Python client library for interacting with the [ClimateClaw backend](https://github.com/freva-org/freva-gpt-backend-py). This library provides both synchronous and asynchronous interfaces for communicating with a ClimateClaw chatbot instance.
+A Python client library for interacting with the [ClimateClaw backend](https://github.com/freva-org/climateclaw). This library provides both synchronous and asynchronous interfaces for communicating with a ClimateClaw chatbot instance.
 
 **Features:**
 - Synchronous client (`ClimateClaw`) with full API support
@@ -327,7 +327,7 @@ asyncio.run(main())
 ## Project Links
 
 - **Source Code**: https://github.com/freva-org/climate-claw-client
-- **Backend Repository**: https://github.com/freva-org/freva-gpt-backend-py
+- **Backend Repository**: https://github.com/freva-org/climateclaw
 - **Documentation**: https://climate-claw-client.readthedocs.io/en/latest/
 - **Issue Tracker**: https://github.com/freva-org/climate-claw-client/issues
 
