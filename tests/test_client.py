@@ -1,13 +1,13 @@
-"""Unit tests for FrevaGPT class in client.py."""
+"""Unit tests for ClimateClaw class in client.py."""
 
 import httpx
 import pytest
 from pytest_mock import MockerFixture
 
-from freva_gpt_client._base_client import BaseClient
-from freva_gpt_client._constants import FREVAGPT_API_ENDPOINTS
-from freva_gpt_client.client import FrevaGPT, logger
-from freva_gpt_client.models import Conversation, StreamConversation
+from climate_claw_client._base_client import BaseClient
+from climate_claw_client._constants import CLIMATECLAW_API_ENDPOINTS
+from climate_claw_client.client import ClimateClaw, logger
+from climate_claw_client.models import Conversation, StreamConversation
 
 # =============================================================================
 # Fixtures
@@ -16,9 +16,9 @@ from freva_gpt_client.models import Conversation, StreamConversation
 
 @pytest.fixture()
 def create_client(mocker: MockerFixture, base_url, mock_request):
-    """Helper to create FrevaGPT client with simple HTTP client."""
+    """Helper to create ClimateClaw client with simple HTTP client."""
 
-    def _create_client(**kwargs) -> FrevaGPT:
+    def _create_client(**kwargs) -> ClimateClaw:
         # Mock call to openapi.json and availablechatbots (if model is set) for init
         mock_request("openapi", json=kwargs.pop("openapi_spec", None))
         if kwargs.get("model"):
@@ -42,7 +42,7 @@ def create_client(mocker: MockerFixture, base_url, mock_request):
         }
         defaults.update(kwargs)
 
-        return FrevaGPT(**defaults)
+        return ClimateClaw(**defaults)
 
     return _create_client
 
@@ -53,11 +53,11 @@ def create_client(mocker: MockerFixture, base_url, mock_request):
 
 
 class TestInit:
-    """Tests for FrevaGPT class initialization."""
+    """Tests for ClimateClaw class initialization."""
 
     def test_init_all_params(self, base_url, create_client):
         """Test initialization with all parameters."""
-        client: FrevaGPT = create_client(
+        client: ClimateClaw = create_client(
             thread_id="test_thread",
             model="gpt-4.1",
         )
@@ -67,7 +67,7 @@ class TestInit:
 
     def test_init_minimal_params(self, base_url, create_client):
         """Test initialization with minimal parameters."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         assert client.base_url == httpx.URL(base_url)
         assert client.thread_id is None
         assert client.model is None
@@ -78,7 +78,7 @@ class TestInit:
         custom_client = httpx.Client()
         custom_client.base_url = httpx.URL(base_url)
 
-        client: FrevaGPT = create_client(http_client=custom_client)
+        client: ClimateClaw = create_client(http_client=custom_client)
         assert client._client == custom_client
 
     def test_init_invalid_model(self, create_client):
@@ -88,7 +88,7 @@ class TestInit:
 
     def test_root_api_path(self, create_client):
         """Test that _root_api_path is set correctly."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         assert client._root_api_path == "/api/chatbot"
 
     def test_construct_path(self, create_client):
@@ -135,7 +135,7 @@ class TestEndpointValidation:
         mock_spec = {
             "openapi": "3.1.0",
             "info": {},  # Missing 'version'
-            "paths": {f"/api/chatbot/{FREVAGPT_API_ENDPOINTS['ping']}": {}},
+            "paths": {f"/api/chatbot/{CLIMATECLAW_API_ENDPOINTS['ping']}": {}},
         }
         with pytest.raises(KeyError, match="version information could not be retrieved"):
             create_client(openapi_spec=mock_spec)
@@ -173,7 +173,7 @@ class TestAuthenticate:
 
     def test_authenticate(self, mocker: MockerFixture, create_client):
         """Test that authenticate calls TokenAuth _authenticate method."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         mock_authenticate = mocker.patch.object(client._auth, "_authenticate")
         client.authenticate()
         mock_authenticate.assert_called_once()
@@ -189,39 +189,39 @@ class TestModels:
 
     def test_available_models_property(self, create_client):
         """Test available_models property."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         assert hasattr(client, "available_models")
 
     def test_available_models_success(self, create_client, mock_available_models):
         """Test retrieving available models."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         models = client.available_models
         assert models == mock_available_models
 
     def test_available_models_cached(self, create_client):
         """Test that available_models is cached."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         models1 = client.available_models
         models2 = client.available_models
         assert models1 is models2
 
     def test_model_getter(self, create_client):
         """Test model property getter returns _model attribute."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         assert client.model is None
         client._model = "test_model"
         assert client.model == "test_model"
 
     def test_model_setter(self, create_client):
         """Test model property setter updates _model attribute."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         client.available_models = ["test_model", "test_model2"]
         client.model = "test_model"
         assert client._model == "test_model"
 
     def test_model_setter_invalid_model_raises(self, create_client):
         """Test model setter raises a ValueError if an invalid model is set."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         client.available_models = ["test_model", "test_model2"]
         with pytest.raises(ValueError, match=r"Model .* is not a valid selection.*"):
             client.model = "invalid_model"
@@ -237,7 +237,7 @@ class TestThreadManagement:
 
     def test_newthread_success(self, create_client, mock_request, mock_thread_id):
         """Test creating a new thread."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         assert client.thread_id is None
         mock_request("newthread")
         thread_id = client.newthread()
@@ -246,7 +246,7 @@ class TestThreadManagement:
 
     def test_getthread_success(self, create_client, mock_request, mock_thread_id):
         """Test retrieving a thread by ID."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         client.thread_id = mock_thread_id
         mock_request("getthread", is_reusable=True)
         thread = client.getthread()
@@ -256,7 +256,7 @@ class TestThreadManagement:
 
     def test_getthread_with_explicit_thread_id(self, create_client, mock_thread_id, mock_request):
         """Test getthread retrieves thread by explicit thread_id parameter."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         mock_request("getthread")
         result = client.getthread(thread_id=mock_thread_id)
         assert isinstance(result, Conversation)
@@ -265,7 +265,7 @@ class TestThreadManagement:
         self, mocker: MockerFixture, create_client, mock_request, mock_thread_id, mock_new_thread_id
     ):
         """Test retrieving a thread by ID."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         spy = mocker.spy(client, "get")
         client.thread_id = mock_thread_id
         mock_request("getthread", is_reusable=True)
@@ -277,13 +277,13 @@ class TestThreadManagement:
 
     def test_getthread_no_thread_raises_type_error(self, create_client):
         """Test that getthread raises TypeError if no thread_id provided."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         with pytest.raises(TypeError, match="Argument 'thread_id' has to be specified"):
             client.getthread()
 
     def test_setthreadtopic_success(self, create_client, mock_request, mock_thread_id):
         """Test setting thread topic."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         mock_request("setthreadtopic")
 
         new_topic = "Test Topic"
@@ -295,7 +295,7 @@ class TestThreadManagement:
         self, mocker: MockerFixture, create_client, mock_request, mock_thread_id
     ):
         """Test that setthreadtopic correctly uses instance thread id when setting new topic."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         mock_request("setthreadtopic")
         client.thread_id = mock_thread_id
         spy_get = mocker.spy(client, "get")
@@ -304,13 +304,13 @@ class TestThreadManagement:
 
     def test_setthreadtopic_no_thread_raises_type_error(self, create_client):
         """Test that setthreadtopic raises TypeError if no thread_id provided."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         with pytest.raises(TypeError, match="Argument 'thread_id' has to be specified"):
             client.setthreadtopic(new_topic="New Topic")
 
     def test_deletethread_success(self, create_client, mock_request, mock_thread_id):
         """Test deleting an existing thread without specifying thread, results in instance thread being deleted and reset."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         client.thread_id = mock_thread_id
         mock_request("deletethread")
         client.deletethread()
@@ -320,7 +320,7 @@ class TestThreadManagement:
         self, create_client, mock_request, mock_thread_id, mock_new_thread_id
     ):
         """Test deleting an existing thread as specified in deletethread argument."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         mock_request("deletethread")
         client.deletethread(mock_thread_id)
 
@@ -332,7 +332,7 @@ class TestThreadManagement:
         mock_new_thread_id,
     ):
         """Test deleting an existing thread that is not the instance thread is successful but does not reset instance thread id."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         client.thread_id = mock_thread_id
         mock_request("deletethread")
         client.deletethread(mock_new_thread_id)
@@ -342,7 +342,7 @@ class TestThreadManagement:
 
     def test_deletethread_no_thread_raises_type_error(self, create_client):
         """Test that calling deletethread raises a TypeError if no thread is specified and no instance thread id set."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         with pytest.raises(TypeError, match=r"Argument 'thread_id' has to be specified.*"):
             client.deletethread()
 
@@ -350,7 +350,7 @@ class TestThreadManagement:
         self, create_client, mock_request, mock_thread_id, mock_new_thread_id
     ):
         """Test that editthread passes successfully and returns with expected result for minimal parameters."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         client.thread_id = mock_thread_id
         mock_request("editthread")
         new_thread_id, branched_conv = client.editthread(user_index=1)
@@ -361,7 +361,7 @@ class TestThreadManagement:
         self, create_client, mock_request, mock_thread_id, mock_new_thread_id
     ):
         """Test that editthread passes successfully and returns with expected result if source_thread_id is specified."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         mock_request("editthread")
         new_thread_id, branched_conv = client.editthread(
             user_index=1, source_thread_id=mock_thread_id
@@ -371,7 +371,7 @@ class TestThreadManagement:
 
     def test_editthread_no_thread_raises_type_error(self, create_client):
         """Test that calling editthread raises a TypeError if no thread is specified and no instance thread set."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         with pytest.raises(TypeError, match="Argument 'source_thread_id' has to be specified"):
             client.editthread(user_index=1)
 
@@ -379,7 +379,7 @@ class TestThreadManagement:
         self, mocker: MockerFixture, create_client, mock_request, mock_thread_id
     ):
         """Test that editthread raises a ValueError if backend returns a 404 status error."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         client.thread_id = mock_thread_id
         mock_request("editthread", status_code=404)
         with pytest.raises(ValueError, match=f"No thread found for id '{mock_thread_id}'"):
@@ -389,7 +389,7 @@ class TestThreadManagement:
         self, mocker: MockerFixture, create_client, mock_request, mock_thread_id
     ):
         """Test that editthread raises an IndexError if backend returns a 422 error (indicating user index is out of bounds)."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         client.thread_id = mock_thread_id
         mock_request("editthread", status_code=422)
         with pytest.raises(IndexError, match="User message index 200 out of bounds!"):
@@ -399,7 +399,7 @@ class TestThreadManagement:
         self, mocker: MockerFixture, create_client, mock_request, mock_thread_id
     ):
         """Test that editthread raises a ConnectionError if backend returns a status code other than 200, 404, 422."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         client.thread_id = mock_thread_id
         mock_request("editthread", status_code=500)
         with pytest.raises(
@@ -411,7 +411,7 @@ class TestThreadManagement:
         self, mocker: MockerFixture, create_client, mock_request, mock_thread_id
     ):
         """Test that editthread raises a KeyError if returned json does not contain expected keys."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         client.thread_id = mock_thread_id
         mock_request("editthread", json={"wrong_key": "value"})
         with pytest.raises(
@@ -431,7 +431,7 @@ class TestUserFeedback:
 
     def test_userfeedback_up_success(self, create_client, mock_thread_id, mock_request):
         """Test userfeedback with 'up' feedback."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         client.thread_id = mock_thread_id
         mock_request("userfeedback")
         result = client.userfeedback(feedback_index=0, feedback="up")
@@ -439,7 +439,7 @@ class TestUserFeedback:
 
     def test_userfeedback_down_success(self, create_client, mock_thread_id, mock_request):
         """Test userfeedback with 'down' feedback."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         client.thread_id = mock_thread_id
         mock_request("userfeedback")
         result = client.userfeedback(feedback_index=0, feedback="down")
@@ -447,7 +447,7 @@ class TestUserFeedback:
 
     def test_userfeedback_remove_success(self, create_client, mock_thread_id, mock_request):
         """Test userfeedback with 'remove' feedback."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         client.thread_id = mock_thread_id
         mock_request("userfeedback")
         result = client.userfeedback(feedback_index=0, feedback="remove")
@@ -457,19 +457,19 @@ class TestUserFeedback:
         self, create_client, mock_request, mock_thread_id
     ):
         """Test that user feedback can be successfully submitted using minimal allowd amount of params."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         mock_request("userfeedback")
         client.userfeedback(feedback_index=2, feedback="up", thread_id=mock_thread_id)
 
     def test_userfeedback_no_thread_raises_type_error(self, create_client):
         """Test that user feedback raises TypeError if no thread is specified and no instance thread set."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         with pytest.raises(TypeError, match="Argument 'thread_id' has to be specified"):
             client.userfeedback(feedback_index=2, feedback="up")
 
     def test_userfeedback_invalid_feedback_raises_value_error(self, create_client, mock_thread_id):
         """Test that user feedback raises ValueError if string describing feedback is not valid."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         client.thread_id = mock_thread_id
         with pytest.raises(ValueError, match="Feedback string must be one of"):
             client.userfeedback(feedback_index=2, feedback="invalid_feedback")
@@ -478,7 +478,7 @@ class TestUserFeedback:
         self, mocker: MockerFixture, create_client, mock_request, mock_thread_id
     ):
         """Test that userfeedback raises a ValueError if backend returns a 404 status error with a 'thread not found' message."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         client.thread_id = mock_thread_id
         mock_request("userfeedback", status_code=404, text="thread not found")
         with pytest.raises(ValueError, match="No thread found for id"):
@@ -488,7 +488,7 @@ class TestUserFeedback:
         self, mocker: MockerFixture, create_client, mock_request, mock_thread_id
     ):
         """Test that userfeedback raises an IndexError if backend returns a 404 status error with a 'feedback not found' message."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         client.thread_id = mock_thread_id
         mock_request("userfeedback", status_code=404, text="feedback not found")
         with pytest.raises(IndexError, match="Feedback not found at index "):
@@ -498,7 +498,7 @@ class TestUserFeedback:
         self, mocker: MockerFixture, create_client, mock_request, mock_thread_id
     ):
         """Test that userfeedback raises an Connection if backend returns a 404 status that's not related to previous two cases."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         client.thread_id = mock_thread_id
         mock_request("userfeedback", status_code=404, text="resource not found")
         with pytest.raises(ConnectionError):
@@ -508,7 +508,7 @@ class TestUserFeedback:
         self, mocker: MockerFixture, create_client, mock_request, mock_thread_id
     ):
         """Test that userfeedback raises an IndexError if backend returns a 422 status error (feedback index out of bounds)."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         client.thread_id = mock_thread_id
         mock_request("userfeedback", status_code=422)
         with pytest.raises(IndexError, match="Index 20 is out of bounds."):
@@ -518,7 +518,7 @@ class TestUserFeedback:
         self, mocker: MockerFixture, create_client, mock_request, mock_thread_id
     ):
         """Test that userfeedback raises a ConnectionError if backend responds with a internal server error status code (500/503)."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         client.thread_id = mock_thread_id
         mock_request("userfeedback", status_code=500)
         with pytest.raises(
@@ -535,7 +535,7 @@ class TestUserFeedback:
         self, mocker: MockerFixture, create_client, mock_request, mock_thread_id
     ):
         """Test that userfeedback raises an IndexError if backend returns a 422 status error (feedback index out of bounds)."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         client.thread_id = mock_thread_id
         mock_request("userfeedback", status_code=401)
         with pytest.raises(ConnectionError, match=r"\[Errno 401\] Error connecting to url.*"):
@@ -554,7 +554,7 @@ class TestPrompting:
         self, create_client, mock_request, mock_available_models, mock_thread_id
     ):
         """Test non-streaming prompt returns Conversation."""
-        client: FrevaGPT = create_client(model=mock_available_models[0])
+        client: ClimateClaw = create_client(model=mock_available_models[0])
         client.thread_id = mock_thread_id
         mock_request("streamresponse", stream=False)
         result = client.prompt("Test prompt", model=client.model, stream=False)
@@ -568,7 +568,7 @@ class TestPrompting:
         mock_available_models,
     ):
         """Test non-streaming prompt with minimal parameters."""
-        client: FrevaGPT = create_client(
+        client: ClimateClaw = create_client(
             model=mock_available_models[0]
         )  # set model, so it can be skipped in the prompt
         assert client.thread_id is None
@@ -587,7 +587,7 @@ class TestPrompting:
         mock_thread_id,
     ):
         """Test non-streaming prompt with minimal parameters and set thread id."""
-        client: FrevaGPT = create_client(model=mock_available_models[0])
+        client: ClimateClaw = create_client(model=mock_available_models[0])
 
         client.thread_id = mock_thread_id
         mock_request("streamresponse", stream=False)
@@ -604,7 +604,7 @@ class TestPrompting:
         mock_thread_id,
     ):
         """Test streaming prompt returns Conversation."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         client.model = mock_available_models[0]
         mock_request("streamresponse", stream=True)
 
@@ -618,7 +618,7 @@ class TestPrompting:
 
     def test_prompt_no_model_raises_type_error(self, create_client, mock_thread_id):
         """Test that prompt raises TypeError if no model specified."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         client.thread_id = mock_thread_id
 
         with pytest.raises(TypeError, match="Argument 'model' has to be specified"):
@@ -626,7 +626,7 @@ class TestPrompting:
 
     def test_prompt_invalid_model_raises_value_error(self, create_client, mock_thread_id):
         """Test that prompt raises ValueError for invalid model."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         client.thread_id = mock_thread_id
 
         with pytest.raises(ValueError, match=r"Value .* is not a valid selection"):
@@ -636,7 +636,7 @@ class TestPrompting:
         self, mocker: MockerFixture, create_client, mock_available_models, mock_thread_id
     ):
         "Test that a KeyboardInterrupt event leads to a call to the stop method."
-        client: FrevaGPT = create_client(model=mock_available_models[0])
+        client: ClimateClaw = create_client(model=mock_available_models[0])
         client.thread_id = mock_thread_id
         client.stop = mocker.MagicMock()
         client.get = mocker.Mock(side_effect=KeyboardInterrupt)
@@ -649,7 +649,7 @@ class TestPrompting:
         self, create_client, mock_thread_id, mock_request
     ):
         """Test that stop for a specified thread is executed as expected."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         mock_request("stop")
         result = client.stop(mock_thread_id)
         assert result is True
@@ -662,7 +662,7 @@ class TestPrompting:
         mock_request,
     ):
         """Test that stop for a specified thread is executed as expected."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         client.thread_id = mock_thread_id
         mock_request("stop")
         spy_get = mocker.spy(client, "get")
@@ -672,7 +672,7 @@ class TestPrompting:
 
     def test_stop_no_thread_raises_type_error(self, create_client):
         """Test that stop raises a TypeError if no thread is specified and no instance thread id is set."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         with pytest.raises(TypeError, match="Argument 'thread_id' has to be specified"):
             client.stop()
 
@@ -680,7 +680,7 @@ class TestPrompting:
         self, mocker: MockerFixture, create_client, mock_request, mock_thread_id
     ):
         """Test that stop triggers a warning message if no active thread can be found for given thread id."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         client.thread_id = mock_thread_id
         mock_request("stop", status_code=404)
         spy_logger = mocker.spy(logger, "warning")
@@ -694,7 +694,7 @@ class TestPrompting:
         self, mocker: MockerFixture, create_client, mock_request, mock_thread_id
     ):
         """Test that stop triggers an error if backend responds with a 505 internal-error status message."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         client.thread_id = mock_thread_id
         mock_request("stop", status_code=505)
         with pytest.raises(
@@ -706,7 +706,7 @@ class TestPrompting:
         self, mocker: MockerFixture, create_client, mock_request, mock_thread_id
     ):
         """Test that stop handles http statuses that are not 200, 404, 505 differently"""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         client.thread_id = mock_thread_id
         mock_request("stop", status_code=401)
         with pytest.raises(ConnectionError, match=r"\[Errno 401\] Error connecting to url.*"):
@@ -725,7 +725,7 @@ class TestThreadSearch:
         self, create_client, mock_request, mock_thread_list, mock_thread_id
     ):
         """Test retrieving user threads."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         mock_request("getuserthreads")
 
         total, threads = client.getuserthreads(num_threads=5)
@@ -738,13 +738,13 @@ class TestThreadSearch:
 
     def test_getuserthreads_zero_num_threads_raises_value_error(self, create_client):
         """Test that getuserthreads raises ValueError for num_threads <= 0."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         with pytest.raises(ValueError, match="has to be at least 1"):
             client.getuserthreads(num_threads=0)
 
     def test_searchthreads_success(self, create_client, mock_request, mock_thread_list):
         """Test searching threads by query."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         mock_request("searchthreads")
 
         total, results = client.searchthreads(query="ENSO", num_threads=5)
@@ -755,6 +755,6 @@ class TestThreadSearch:
 
     def test_searchthreads_zero_num_threads_raises_value_error(self, create_client):
         """Test that searchthreads raises ValueError for num_threads <= 0."""
-        client: FrevaGPT = create_client()
+        client: ClimateClaw = create_client()
         with pytest.raises(ValueError, match="has to be at least 1"):
             client.searchthreads(query="test", num_threads=0)

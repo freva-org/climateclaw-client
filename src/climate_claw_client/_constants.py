@@ -1,4 +1,4 @@
-"""Utility constants and configurations for the FrevaGPT client.
+"""Utility constants and configurations for the ClimateClaw client.
 
 This module contains default configuration values and API endpoint mappings
 used throughout the client.
@@ -10,7 +10,7 @@ DEFAULT_AUTH_TIMEOUT = 30.0
 
 OPENAPI_SPEC_PATH = "openapi.json"
 
-FREVAGPT_API_ENDPOINTS = {
+CLIMATECLAW_API_ENDPOINTS = {
     "ping": "ping",
     "help": "help",
     "chatbots": "availablechatbots",

@@ -515,7 +515,7 @@ wheels = [
 ]
 
 [[package]]
-name = "freva-gpt-client"
+name = "climate-claw-client"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },
@@ -573,8 +573,8 @@ requires-dist = [
     { name = "black", marker = "extra == 'testsite'" },
     { name = "blackdoc", marker = "extra == 'testsite'" },
     { name = "flake8", marker = "extra == 'testsite'" },
-    { name = "freva-gpt-client", extras = ["docs"], marker = "extra == 'dev'" },
-    { name = "freva-gpt-client", extras = ["testsite"], marker = "extra == 'dev'" },
+    { name = "climate-claw-client", extras = ["docs"], marker = "extra == 'dev'" },
+    { name = "climate-claw-client", extras = ["testsite"], marker = "extra == 'dev'" },
     { name = "httpx" },
     { name = "isort", marker = "extra == 'testsite'" },
     { name = "mypy", marker = "extra == 'testsite'" },

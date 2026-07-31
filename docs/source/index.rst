@@ -1,8 +1,8 @@
-FrevaGPT Client Documentation
+ClimateClaw Client Documentation
 ================================
 
-A Python client library for interacting with the `FrevaGPT backend <https://github.com/freva-org/freva-gpt-backend-py>`_.
-This library provides both synchronous and asynchronous interfaces for communicating with a FrevaGPT chatbot instance.
+A Python client library for interacting with the `ClimateClaw backend <https://github.com/freva-org/freva-gpt-backend-py>`_.
+This library provides both synchronous and asynchronous interfaces for communicating with a ClimateClaw chatbot instance.
 
 .. toctree::
    :maxdepth: 2
@@ -19,8 +19,8 @@ Install the package from source:
 
 .. code-block:: bash
 
-   git clone https://github.com/freva-org/freva-gpt-client.git
-   cd freva-gpt-client
+   git clone https://github.com/freva-org/climate-claw-client.git
+   cd climate-claw-client
    pip install -e .
 
 Or using ``uv``:
@@ -35,12 +35,12 @@ Basic Usage Example
 
 .. code-block:: python
 
-    from freva_gpt_client.client import FrevaGPT
+    from climate_claw_client.client import ClimateClaw
 
     # Create a client instance
-    client = FrevaGPT(
-        base_url="https://your-freva-gpt-backend.com",
-        token_store_path="~/.cache/freva-gpt-client/token-store.json",
+    client = ClimateClaw(
+        base_url="https://your-climate-claw-backend.com",
+        token_store_path="~/.cache/climate-claw-client/token-store.json",
     )
 
     # Authenticate with the backend
@@ -79,14 +79,14 @@ Asynchronous Client Example
 .. code-block:: python
 
     import asyncio
-    from freva_gpt_client.client import AsyncFrevaGPT
+    from climate_claw_client.client import AsyncClimateClaw
 
 
     async def main():
         # Create an async client instance
-        client = AsyncFrevaGPT(
-            base_url="https://your-freva-gpt-backend.com",
-            token_store_path="~/.cache/freva-gpt-client/token-store.json",
+        client = AsyncClimateClaw(
+            base_url="https://your-climate-claw-backend.com",
+            token_store_path="~/.cache/climate-claw-client/token-store.json",
         )
 
         # Authenticate with the backend
@@ -143,8 +143,8 @@ Thread Management Example
 Features
 --------
 
-- **Synchronous client** (`FrevaGPT`) with full API support
-- **Asynchronous client** (`AsyncFrevaGPT`) with full API support
+- **Synchronous client** (`ClimateClaw`) with full API support
+- **Asynchronous client** (`AsyncClimateClaw`) with full API support
 - **OIDC authentication** via `py-oidc-auth-client <https://pypi.org/project/py-oidc-auth-client/>`_
 - **Thread management**: create, retrieve, list, search, fork, and delete conversation threads
 - **Streaming and non-streaming** prompt responses
@@ -157,9 +157,9 @@ Features
 Project Links
 -------------
 
-- **Source Code**: https://github.com/freva-org/freva-gpt-client
+- **Source Code**: https://github.com/freva-org/climate-claw-client
 - **Backend Repository**: https://github.com/freva-org/freva-gpt-backend-py
-- **Issue Tracker**: https://github.com/freva-org/freva-gpt-client/issues
+- **Issue Tracker**: https://github.com/freva-org/climate-claw-client/issues
 - **License**: European Union Public Licence 1.2 (EUPL-1.2)
 
 

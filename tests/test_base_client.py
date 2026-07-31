@@ -6,10 +6,10 @@ import pytest
 from pytest_httpx import HTTPXMock, IteratorStream
 from pytest_mock import MockerFixture
 
-import freva_gpt_client._base_client
-from freva_gpt_client._base_client import AsyncAPIClient, BaseClient, SyncAPIClient  # noqa
-from freva_gpt_client._constants import DEFAULT_TIMEOUT
-from freva_gpt_client._streaming import StreamResponse
+import climate_claw_client._base_client
+from climate_claw_client._base_client import AsyncAPIClient, BaseClient, SyncAPIClient  # noqa
+from climate_claw_client._constants import DEFAULT_TIMEOUT
+from climate_claw_client._streaming import StreamResponse
 
 # =============================================================================
 # Fixtures
@@ -44,7 +44,7 @@ def make_base_client(mocker: MockerFixture, base_client_config):
 @pytest.fixture
 def make_sync_api_client(mocker: MockerFixture, base_client_config):
     def prep_api_client(http_client: httpx.Client | None = None) -> SyncAPIClient:
-        mocked_token_auth = mocker.patch.object(freva_gpt_client._base_client, "TokenAuth")
+        mocked_token_auth = mocker.patch.object(climate_claw_client._base_client, "TokenAuth")
         mocked_token_auth.return_value = None
         mock_validate_base_url = mocker.patch.object(SyncAPIClient, "_validate_base_url")
         mock_validate_base_url.return_value = base_client_config["base_url"]
@@ -56,7 +56,7 @@ def make_sync_api_client(mocker: MockerFixture, base_client_config):
 @pytest.fixture
 def make_async_api_client(mocker: MockerFixture, base_client_config):
     def prep_api_client(http_client: httpx.AsyncClient | None = None) -> AsyncAPIClient:
-        mocked_token_auth = mocker.patch.object(freva_gpt_client._base_client, "TokenAuth")
+        mocked_token_auth = mocker.patch.object(climate_claw_client._base_client, "TokenAuth")
         mocked_token_auth.return_value = None
         mock_validate_base_url = mocker.patch.object(AsyncAPIClient, "_validate_base_url")
         mock_validate_base_url.return_value = base_client_config["base_url"]
@@ -88,7 +88,7 @@ class TestBaseClient:
     def test_auth(self, mocker: MockerFixture, make_base_client):
         """Test that _auth property can be accessed correctly."""
         base_client = make_base_client
-        mocked_token_auth = mocker.patch.object(freva_gpt_client._base_client, "TokenAuth")
+        mocked_token_auth = mocker.patch.object(climate_claw_client._base_client, "TokenAuth")
         mocked_token_auth.return_value = (
             {}
         )  # mocked return value to check that _auth property returns the same value
@@ -110,7 +110,7 @@ class TestBaseClient:
         assert "accept" in default_headers
         assert default_headers["accept"] == "application/json"
         assert "user-agent" in default_headers
-        assert "freva-gpt-python" in default_headers["user-agent"]
+        assert "climate-claw-python" in default_headers["user-agent"]
         assert "x-freva-vault-url" in default_headers
         assert base_client.base_url in default_headers["x-freva-vault-url"]
         assert "x-freva-rest-url" in default_headers
@@ -164,7 +164,7 @@ class TestBaseClient:
     )
     def test_validate_base_url_with_protocol(self, mocker: MockerFixture, url):
         """Test that addresses in the form of '{protocol}://{domain_name}' are parsed correctly"""
-        mock_socket = mocker.patch.object(freva_gpt_client._base_client, "socket", spec=True)
+        mock_socket = mocker.patch.object(climate_claw_client._base_client, "socket", spec=True)
         validated_url = BaseClient._validate_base_url(url)
         assert validated_url == httpx.URL(url)
         try:
@@ -192,7 +192,7 @@ class TestBaseClient:
     )
     def test_validate_base_url_without_protocol(self, mocker: MockerFixture, url):
         """Test that addresses in the form of '{domain_name}' are parsed correctly."""
-        mock_socket = mocker.patch.object(freva_gpt_client._base_client, "socket", spec=True)
+        mock_socket = mocker.patch.object(climate_claw_client._base_client, "socket", spec=True)
         validated_url = BaseClient._validate_base_url(url)
         assert validated_url == httpx.URL(f"http://{url}")
         try:
@@ -204,7 +204,7 @@ class TestBaseClient:
     def test_validate_base_url_ipv4_localhost_only_port(self, mocker: MockerFixture):
         """Test that addresses with just a port are parsed correctly as localhost+port."""
         url = ":8502"
-        mock_socket = mocker.patch.object(freva_gpt_client._base_client, "socket", spec=True)
+        mock_socket = mocker.patch.object(climate_claw_client._base_client, "socket", spec=True)
         validated_url = BaseClient._validate_base_url(url)
         assert validated_url == httpx.URL(f"http://127.0.0.1{url}")
         mock_socket.gethostbyname.assert_not_called()
@@ -212,7 +212,7 @@ class TestBaseClient:
     def test_validate_base_url_name_resolution_exception(self, mocker: MockerFixture):
         """Test that domain name resolution error triggers correctly."""
         url = "https://missinginstance.com"
-        mock_socket = mocker.patch.object(freva_gpt_client._base_client.socket, "gethostbyname")
+        mock_socket = mocker.patch.object(climate_claw_client._base_client.socket, "gethostbyname")
         mock_socket.side_effect = socket.gaierror
         with pytest.raises(ConnectionError, match="Temporary failure in name resolution of host"):
             BaseClient._validate_base_url(url)
@@ -251,7 +251,7 @@ class TestSyncAPIClient:
 
     def test_default_client(self, mocker: MockerFixture, make_sync_api_client):
         """Test that default client is initialized correctly and cached."""
-        spy_client = mocker.spy(freva_gpt_client._base_client.httpx, "Client")
+        spy_client = mocker.spy(climate_claw_client._base_client.httpx, "Client")
         api_client: SyncAPIClient = make_sync_api_client()
         default_client = api_client._default_client
         assert api_client._client == default_client
@@ -275,8 +275,8 @@ class TestSyncAPIClient:
     def test_sleep_for_retry_first_attempt(self, mocker: MockerFixture, make_sync_api_client):
         """Test that _sleep_for_retry takes the correct branch if the number of retries taken has not reached the maximum number."""
         api_client: SyncAPIClient = make_sync_api_client()
-        spy_logger = mocker.spy(freva_gpt_client._base_client, "logger")
-        mocked_time = mocker.patch.object(freva_gpt_client._base_client, "time", spec=True)
+        spy_logger = mocker.spy(climate_claw_client._base_client, "logger")
+        mocked_time = mocker.patch.object(climate_claw_client._base_client, "time", spec=True)
 
         retries_taken = 0
         api_client._sleep_for_retry(retries_taken)
@@ -287,8 +287,8 @@ class TestSyncAPIClient:
     def test_sleep_for_retry_final_attempt(self, mocker: MockerFixture, make_sync_api_client):
         """Test that _sleep_for_retry takes the correct branch if the number of retries taken has reached the maximum number."""
         api_client: SyncAPIClient = make_sync_api_client()
-        spy_logger = mocker.spy(freva_gpt_client._base_client, "logger")
-        mocked_time = mocker.patch.object(freva_gpt_client._base_client, "time", spec=True)
+        spy_logger = mocker.spy(climate_claw_client._base_client, "logger")
+        mocked_time = mocker.patch.object(climate_claw_client._base_client, "time", spec=True)
 
         retries_taken = api_client.max_retries
         api_client._sleep_for_retry(retries_taken)
@@ -300,8 +300,8 @@ class TestSyncAPIClient:
     def test_sleep_for_retry_exceeded_maximum(self, mocker: MockerFixture, make_sync_api_client):
         """Test that _sleep_for_retry takes the correct branch if the number of retries taken has exceeded the maximum number."""
         api_client: SyncAPIClient = make_sync_api_client()
-        spy_logger = mocker.spy(freva_gpt_client._base_client, "logger")
-        mocked_time = mocker.patch.object(freva_gpt_client._base_client, "time", spec=True)
+        spy_logger = mocker.spy(climate_claw_client._base_client, "logger")
+        mocked_time = mocker.patch.object(climate_claw_client._base_client, "time", spec=True)
 
         retries_taken = api_client.max_retries + 1
         api_client._sleep_for_retry(retries_taken)
@@ -521,7 +521,7 @@ class TestAsyncAPIClient:
 
     def test_default_client(self, mocker: MockerFixture, make_async_api_client):
         """Test that default client is initialized correctly and cached."""
-        spy_client = mocker.spy(freva_gpt_client._base_client.httpx, "AsyncClient")
+        spy_client = mocker.spy(climate_claw_client._base_client.httpx, "AsyncClient")
         api_client: AsyncAPIClient = make_async_api_client()
         default_client = api_client._default_client
         assert api_client._client == default_client
@@ -549,8 +549,8 @@ class TestAsyncAPIClient:
     ):
         """Test that _sleep_for_retry takes the correct branch if the number of retries taken has not reached the maximum number."""
         api_client: AsyncAPIClient = make_async_api_client()
-        spy_logger = mocker.spy(freva_gpt_client._base_client, "logger")
-        mocked_time = mocker.patch.object(freva_gpt_client._base_client, "asyncio", spec=True)
+        spy_logger = mocker.spy(climate_claw_client._base_client, "logger")
+        mocked_time = mocker.patch.object(climate_claw_client._base_client, "asyncio", spec=True)
 
         retries_taken = 0
         await api_client._sleep_for_retry(retries_taken)
@@ -564,8 +564,8 @@ class TestAsyncAPIClient:
     ):
         """Test that _sleep_for_retry takes the correct branch if the number of retries taken has reached the maximum number."""
         api_client: AsyncAPIClient = make_async_api_client()
-        spy_logger = mocker.spy(freva_gpt_client._base_client, "logger")
-        mocked_time = mocker.patch.object(freva_gpt_client._base_client, "asyncio", spec=True)
+        spy_logger = mocker.spy(climate_claw_client._base_client, "logger")
+        mocked_time = mocker.patch.object(climate_claw_client._base_client, "asyncio", spec=True)
 
         retries_taken = api_client.max_retries
         await api_client._sleep_for_retry(retries_taken)
@@ -580,8 +580,8 @@ class TestAsyncAPIClient:
     ):
         """Test that _sleep_for_retry takes the correct branch if the number of retries taken has exceeded the maximum number."""
         api_client: AsyncAPIClient = make_async_api_client()
-        spy_logger = mocker.spy(freva_gpt_client._base_client, "logger")
-        mocked_time = mocker.patch.object(freva_gpt_client._base_client, "time", spec=True)
+        spy_logger = mocker.spy(climate_claw_client._base_client, "logger")
+        mocked_time = mocker.patch.object(climate_claw_client._base_client, "time", spec=True)
 
         retries_taken = api_client.max_retries + 1
         await api_client._sleep_for_retry(retries_taken)

@@ -20,13 +20,13 @@ logger = logging.getLogger(__name__)
 
 
 class TokenAuth(httpx.Auth):
-    """Authentication handler for FrevaGPT API using OIDC tokens.
+    """Authentication handler for ClimateClaw API using OIDC tokens.
 
     This class manages token authentication for HTTP requests, including
     token storage, validation, and automatic refresh when tokens expire.
 
     Attributes:
-        base_url: The base URL of the FrevaGPT API.
+        base_url: The base URL of the ClimateClaw API.
         app_name: The application name used for token storage.
         timeout: Timeout in seconds for authentication requests.
         token_store_path: Path to the token store file.
@@ -39,13 +39,13 @@ class TokenAuth(httpx.Auth):
         base_url: httpx.URL,
         token_store_path: str | Path | None = None,
         timeout: float = DEFAULT_AUTH_TIMEOUT,
-        app_name: str = "freva-gpt-client",
+        app_name: str = "climate-claw-client",
         interactive: bool = True,
     ):
         """Initializes TokenAuth with base URL and token store configuration.
 
         Args:
-            base_url: The base URL of the FrevaGPT API.
+            base_url: The base URL of the ClimateClaw API.
             token_store_path: Optional path to the token store file.
             timeout: Timeout in seconds for authentication requests.
             app_name: Application name for token storage identification.

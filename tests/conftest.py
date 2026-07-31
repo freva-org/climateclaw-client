@@ -1,4 +1,4 @@
-"""Pytest fixtures for freva-gpt-client tests."""
+"""Pytest fixtures for climate-claw-client tests."""
 
 import json
 import re
@@ -6,7 +6,7 @@ import re
 import pytest
 from pytest_httpx import HTTPXMock, IteratorStream
 
-from freva_gpt_client._constants import FREVAGPT_API_ENDPOINTS
+from climate_claw_client._constants import CLIMATECLAW_API_ENDPOINTS
 
 
 @pytest.fixture
@@ -36,8 +36,8 @@ def sample_base64_long():
 
 @pytest.fixture
 def base_url():
-    """Base URL for FrevaGPT client tests."""
-    return "http://frevagpt-testinstance.com"
+    """Base URL for ClimateClaw client tests."""
+    return "http://climateclaw-testinstance.com"
 
 
 @pytest.fixture
@@ -45,21 +45,21 @@ def mock_openapi_spec():
     """Sample OpenAPI spec matching backend structure."""
     return {
         "openapi": "3.1.0",
-        "info": {"title": "FrevaGPT Backend", "version": "0.1.0"},
+        "info": {"title": "ClimateClaw Backend", "version": "0.1.0"},
         "paths": {
-            f"/api/chatbot/{FREVAGPT_API_ENDPOINTS['ping']}": {},
-            f"/api/chatbot/{FREVAGPT_API_ENDPOINTS['help']}": {},
-            f"/api/chatbot/{FREVAGPT_API_ENDPOINTS['chatbots']}": {},
-            f"/api/chatbot/{FREVAGPT_API_ENDPOINTS['newthread']}": {},
-            f"/api/chatbot/{FREVAGPT_API_ENDPOINTS['getthread']}": {},
-            f"/api/chatbot/{FREVAGPT_API_ENDPOINTS['getuserthreads']}": {},
-            f"/api/chatbot/{FREVAGPT_API_ENDPOINTS['deletethread']}": {},
-            f"/api/chatbot/{FREVAGPT_API_ENDPOINTS['setthreadtopic']}": {},
-            f"/api/chatbot/{FREVAGPT_API_ENDPOINTS['searchthreads']}": {},
-            f"/api/chatbot/{FREVAGPT_API_ENDPOINTS['streamresponse']}": {},
-            f"/api/chatbot/{FREVAGPT_API_ENDPOINTS['stop']}": {},
-            f"/api/chatbot/{FREVAGPT_API_ENDPOINTS['editthread']}": {},
-            f"/api/chatbot/{FREVAGPT_API_ENDPOINTS['userfeedback']}": {},
+            f"/api/chatbot/{CLIMATECLAW_API_ENDPOINTS['ping']}": {},
+            f"/api/chatbot/{CLIMATECLAW_API_ENDPOINTS['help']}": {},
+            f"/api/chatbot/{CLIMATECLAW_API_ENDPOINTS['chatbots']}": {},
+            f"/api/chatbot/{CLIMATECLAW_API_ENDPOINTS['newthread']}": {},
+            f"/api/chatbot/{CLIMATECLAW_API_ENDPOINTS['getthread']}": {},
+            f"/api/chatbot/{CLIMATECLAW_API_ENDPOINTS['getuserthreads']}": {},
+            f"/api/chatbot/{CLIMATECLAW_API_ENDPOINTS['deletethread']}": {},
+            f"/api/chatbot/{CLIMATECLAW_API_ENDPOINTS['setthreadtopic']}": {},
+            f"/api/chatbot/{CLIMATECLAW_API_ENDPOINTS['searchthreads']}": {},
+            f"/api/chatbot/{CLIMATECLAW_API_ENDPOINTS['streamresponse']}": {},
+            f"/api/chatbot/{CLIMATECLAW_API_ENDPOINTS['stop']}": {},
+            f"/api/chatbot/{CLIMATECLAW_API_ENDPOINTS['editthread']}": {},
+            f"/api/chatbot/{CLIMATECLAW_API_ENDPOINTS['userfeedback']}": {},
         },
     }
 

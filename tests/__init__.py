@@ -1,1 +1,1 @@
-# Unit tests for freva-gpt-client
+# Unit tests for climate-claw-client

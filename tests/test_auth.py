@@ -6,7 +6,7 @@ import pytest
 from pytest_httpx import HTTPXMock
 from pytest_mock import MockerFixture
 
-import freva_gpt_client._auth as auth
+import climate_claw_client._auth as auth
 
 # =============================================================================
 # Fixtures

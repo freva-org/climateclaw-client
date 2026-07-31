@@ -1,6 +1,6 @@
 Models
 ------
 
-.. automodule:: freva_gpt_client.models
+.. automodule:: climate_claw_client.models
    :members:
    :show-inheritance:

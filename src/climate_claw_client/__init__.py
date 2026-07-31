@@ -1,5 +1,5 @@
 from ._version import get_versions
-from .client import AsyncFrevaGPT, FrevaGPT
+from .client import AsyncClimateClaw, ClimateClaw
 from .models import (
     Assistant,
     Code,
@@ -13,8 +13,8 @@ from .models import (
 
 __version__ = get_versions()["version"]
 __all__ = [
-    "AsyncFrevaGPT",
-    "FrevaGPT",
+    "AsyncClimateClaw",
+    "ClimateClaw",
     "Assistant",
     "Code",
     "CodeOutput",

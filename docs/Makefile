@@ -5,7 +5,7 @@
 # from the environment for the first two.
 SPHINXOPTS    ?=
 SPHINXBUILD   ?= sphinx-build
-SPHINXPROJ   = freva_gpt_client
+SPHINXPROJ   = climate_claw_client
 SOURCEDIR     = source
 BUILDDIR      = build
 
