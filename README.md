@@ -56,14 +56,14 @@ cc = ClimateClaw(
 )
 
 # Authenticate with the backend (triggers OIDC flow)
-client.authenticate()
+cc.authenticate()
 ```
 
 ### Available Models
 
 ```python
 # List available chatbot models
-models = client.available_models
+models = cc.available_models
 print(f"Available models: {models}")
 
 # Set a default model for the client
@@ -76,7 +76,7 @@ cc.model = "gpt-4.1"
 
 ```python
 # Send a prompt and get the complete conversation
-conversation = client.prompt(
+conversation = cc.prompt(
     "Please calculate the average temperature over Germany for the years 1990-2020!"
 )
 # Render the entire answer as a human-readable string
@@ -95,7 +95,7 @@ print(markdown)
 
 ```python
 # Send a prompt with streaming enabled
-stream_conv = client.prompt(
+stream_conv = cc.prompt(
     "Please explain the ENSO phenomenon to me and give examples of how to quantify it!", stream=True
 )
 
@@ -115,7 +115,7 @@ print(full_conversation.repr_markdown())
 
 ```python
 # Create a new conversation thread
-thread_id = client.newthread()
+thread_id = cc.newthread()
 print(f"New thread ID: {thread_id}")
 ```
 
@@ -124,10 +124,10 @@ print(f"New thread ID: {thread_id}")
 ```python
 # Retrieve an existing thread by ID
 thread_id = "your-thread-id"
-conversation = client.getthread(thread_id=thread_id)
+conversation = cc.getthread(thread_id=thread_id)
 
 # Or use the current active thread
-conversation = client.getthread()
+conversation = cc.getthread()
 
 # Print all messages
 print(conversation)
@@ -137,7 +137,7 @@ print(conversation)
 
 ```python
 # Continue a conversation in an existing thread
-response = client.prompt(
+response = cc.prompt(
     "Please explain how the SOI can be calculated and run an example analysis.",
     thread_id=thread_id,  # optional: uses thread of active conversation otherwise
 )
@@ -147,7 +147,7 @@ response = client.prompt(
 
 ```python
 # List all your conversation threads
-total_threads, user_threads = client.getuserthreads(num_threads=10)
+total_threads, user_threads = cc.getuserthreads(num_threads=10)
 print(f"A total number of {total_threads} threads was retrieved.")
 # access individual threads (which are Conversation objects)
 print(user_threads[0])
@@ -157,21 +157,21 @@ print(user_threads[0])
 
 ```python
 # Search for threads by topic
-total_results, matching_threads = client.searchthreads(query="climate analysis", num_threads=5)
+total_results, matching_threads = cc.searchthreads(query="climate analysis", num_threads=5)
 ```
 
 #### Set Thread Topic
 
 ```python
 # Set a topic for a thread (useful for searching later)
-client.setthreadtopic("ENSO analysis", thread_id=thread_id)
+cc.setthreadtopic("ENSO analysis", thread_id=thread_id)
 ```
 
 #### Delete a Thread
 
 ```python
 # Delete a thread on the backend when you're done with it
-client.deletethread(thread_id=thread_id)
+cc.deletethread(thread_id=thread_id)
 ```
 
 ### Working with Message Types
@@ -182,17 +182,17 @@ The client provides rich message types that can be rendered in different formats
 from climate_claw_client.client import ClimateClaw
 
 # Create a client instance
-client = ClimateClaw(base_url="https://your-climate-claw-backend.com")
+cc = ClimateClaw(base_url="https://your-climate-claw-backend.com")
 
 # Authenticate with the backend
-client.authenticate()
+cc.authenticate()
 
 # List available models
-print(f"Available models: {client.available_models}")
-client.model = client.available_models[0]
+print(f"Available models: {cc.available_models}")
+cc.model = cc.available_models[0]
 
 # Start a conversation
-response = client.prompt(
+response = cc.prompt(
     "Show me a code example of using the xarray library for analysing climate data!"
 )
 
@@ -233,7 +233,7 @@ if response.messages[1].variant == "Image":
 
 ```python
 # Access raw message chunks (before aggregation)
-response = client.prompt("Hello ClimateClaw! What is your function?")
+response = cc.prompt("Hello ClimateClaw! What is your function?")
 
 for raw_msg in conversation.raw_messages:
     print(raw_msg.message.variant)
@@ -270,33 +270,33 @@ from climate_claw_client import AsyncClimateClaw
 
 async def main():
     # Create an async client instance
-    client = AsyncClimateClaw(
+    cc = AsyncClimateClaw(
         base_url="https://your-climate-claw-backend.com",
         token_store_path="~/.cache/climate-claw-client/token-store.json",
     )
 
     # Authenticate with the backend
-    await client.authenticate()
+    await cc.authenticate()
 
     # List available models
-    print(f"Available models: {client.available_models}")
-    client.model = client.available_models[0]
+    print(f"Available models: {cc.available_models}")
+    cc.model = cc.available_models[0]
 
     # Send a prompt
-    response = await client.prompt(
+    response = await cc.prompt(
         "Please calculate the average temperature over Germany for 1990-2020!"
     )
     print(response)
 
     # Send a streaming prompt
-    stream_resp = await client.prompt("Please explain the ENSO phenomenon to me!", stream=True)
+    stream_resp = await cc.prompt("Please explain the ENSO phenomenon to me!", stream=True)
     async with stream_resp as stream:
         async for markdown_chunk in stream.aiter_for_markdown():
             print(markdown_chunk)
 
     # Thread management
-    thread_id = await client.newthread()
-    response = await client.prompt(
+    thread_id = await cc.newthread()
+    response = await cc.prompt(
         "Please explain how the SOI can be calculated.",
         thread_id=thread_id,
     )
