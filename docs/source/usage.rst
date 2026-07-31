@@ -15,7 +15,7 @@ The library provides two client classes: ``ClimateClaw`` for synchronous operati
 
     from climate_claw_client.client import ClimateClaw
 
-    client = ClimateClaw(
+    cc = ClimateClaw(
         base_url="https://your-climate-claw-backend.com",
         token_store_path="~/.cache/climate-claw-client/token-store.json",
         follow_redirects=True,
@@ -27,23 +27,16 @@ The library provides two client classes: ``ClimateClaw`` for synchronous operati
 
 .. code-block:: python
 
-    import asyncio
     from climate_claw_client.client import AsyncClimateClaw
 
+    cc = AsyncClimateClaw(
+        base_url="https://your-climate-claw-backend.com",
+        token_store_path="~/.cache/climate-claw-client/token-store.json",
+        follow_redirects=True,
+        timeout=30.0,
+        max_retries=3,
+    )
 
-    async def main():
-        client = AsyncClimateClaw(
-            base_url="https://your-climate-claw-backend.com",
-            token_store_path="~/.cache/climate-claw-client/token-store.json",
-            follow_redirects=True,
-            timeout=30.0,
-            max_retries=3,
-        )
-        # Use the client...
-        await client.authenticate()
-
-
-    asyncio.run(main())
 
 
 Configuration Options
@@ -85,15 +78,16 @@ Both clients use OIDC authentication. Call ``authenticate()`` (or ``await authen
 
 .. code-block:: python
 
-    client.authenticate()
+    cc = ClimateClaw(base_url="https://your-climate-claw-backend.com")
+    cc.authenticate()
 
 **Asynchronous:**
 
 .. code-block:: python
 
     async def main():
-        client = AsyncClimateClaw(base_url="https://your-climate-claw-backend.com")
-        await client.authenticate()
+        cc = AsyncClimateClaw(base_url="https://your-climate-claw-backend.com")
+        await cc.authenticate()
 
 
     asyncio.run(main())
@@ -107,14 +101,14 @@ Working with Models
 .. code-block:: python
 
     # List available chatbot models (cached property)
-    models = client.available_models
+    models = cc.available_models
     print(f"Available models: {models}")
 
     # Set a default model for the client
-    client.model = "gpt-4.1"
+    cc.model = "gpt-4.1"
 
     # Or specify model per request
-    conversation = client.prompt("Hello!", model="gpt-4.1")
+    conversation = cc.prompt("Hello!", model="gpt-4.1")
 
     # Note: If no model is set on the client or in the prompt call,
     # a TypeError will be raised
@@ -127,7 +121,7 @@ Sending Prompts
 
 .. code-block:: python
 
-    conversation = client.prompt("Please calculate the average temperature over Germany!")
+    conversation = cc.prompt("Please calculate the average temperature over Germany!")
 
     # Render the entire answer as a human-readable string
     print(conversation)
@@ -146,9 +140,9 @@ Sending Prompts
 
     async def main():
         client = AsyncClimateClaw(base_url="https://your-climate-claw-backend.com")
-        await client.authenticate()
+        await cc.authenticate()
 
-        conversation = await client.prompt("Please calculate the average temperature over Germany!")
+        conversation = await cc.prompt("Please calculate the average temperature over Germany!")
 
         # Render the entire answer as a human-readable string
         print(conversation)
@@ -165,7 +159,7 @@ Sending Prompts
 
 .. code-block:: python
 
-    stream_conv = client.prompt("Please explain the ENSO phenomenon to me!", stream=True)
+    stream_conv = cc.prompt("Please explain the ENSO phenomenon to me!", stream=True)
 
     with stream_conv as stream:
         for markdown_chunk in stream.iter_for_markdown():
@@ -181,9 +175,9 @@ Sending Prompts
 
     async def main():
         client = AsyncClimateClaw(base_url="https://your-climate-claw-backend.com")
-        await client.authenticate()
+        await cc.authenticate()
 
-        stream_conv = await client.prompt("Please explain the ENSO phenomenon to me!", stream=True)
+        stream_conv = await cc.prompt("Please explain the ENSO phenomenon to me!", stream=True)
 
         async with stream_conv as stream:
             async for markdown_chunk in stream.iter_for_markdown():
@@ -233,7 +227,7 @@ For ``AsyncClimateClaw``, all these methods must be awaited.
 
 .. code-block:: python
 
-    thread_id = client.newthread()
+    thread_id = cc.newthread()
     print(f"New thread ID: {thread_id}")
 
 
@@ -243,10 +237,10 @@ For ``AsyncClimateClaw``, all these methods must be awaited.
 
     # Retrieve an existing thread by ID
     thread_id = "your-thread-id"
-    conversation = client.getthread(thread_id=thread_id)
+    conversation = cc.getthread(thread_id=thread_id)
 
     # Or use the current active thread
-    conversation = client.getthread()
+    conversation = cc.getthread()
 
     # Print the entire conversation as a human-readable string
     print(conversation)
@@ -256,7 +250,7 @@ For ``AsyncClimateClaw``, all these methods must be awaited.
 
 .. code-block:: python
 
-    response = client.prompt(
+    response = cc.prompt(
         "Please explain how the SOI can be calculated.",
         thread_id=thread_id,  # optional: uses thread of active conversation otherwise
     )
@@ -269,7 +263,7 @@ Retrieve your recent conversation threads with metadata:
 .. code-block:: python
 
     # Get the 10 most recent threads
-    total_threads, user_threads = client.getuserthreads(num_threads=10)
+    total_threads, user_threads = cc.getuserthreads(num_threads=10)
 
     print(f"Total threads available: {total_threads}")
     print(f"Retrieved {len(user_threads)} threads")
@@ -291,11 +285,11 @@ Set a descriptive topic for a thread to make it easier to search and organize:
 .. code-block:: python
 
     # Set topic for a specific thread
-    new_topic = client.setthreadtopic(new_topic="Analysis of ENSO patterns", thread_id=thread_id)
+    new_topic = cc.setthreadtopic(new_topic="Analysis of ENSO patterns", thread_id=thread_id)
     print(f"Thread topic set to: {new_topic}")
 
     # Or set topic for the current active thread
-    client.setthreadtopic("Climate data analysis")
+    cc.setthreadtopic("Climate data analysis")
 
 
 **Search Threads:**
@@ -305,7 +299,7 @@ Search your threads by topic text:
 .. code-block:: python
 
     # Search for threads containing "ENSO" in their topic
-    total_results, matching_threads = client.searchthreads(query="ENSO", num_threads=10)
+    total_results, matching_threads = cc.searchthreads(query="ENSO", num_threads=10)
 
     print(f"Found {total_results} threads matching 'ENSO'")
     for thread_info in matching_threads:
@@ -319,10 +313,10 @@ Remove a thread that you no longer need:
 .. code-block:: python
 
     # Delete a specific thread
-    client.deletethread(thread_id="thread-id-to-delete")
+    cc.deletethread(thread_id="thread-id-to-delete")
 
     # Or delete the current active thread
-    client.deletethread()
+    cc.deletethread()
 
     # Note: After deletion, the active thread ID is cleared
 
@@ -337,7 +331,7 @@ Create a new thread by forking an existing conversation at a specific message:
     # This creates a new thread with messages 0, 1, 2 from the source thread
     # Message 2 and all subsequent messages are discarded in the new branch
     try:
-        new_thread_id, history = client.editthread(user_index=2, source_thread_id=thread_id)
+        new_thread_id, history = cc.editthread(user_index=2, source_thread_id=thread_id)
         print(f"Created new thread: {new_thread_id}")
         print(f"History in new thread: {history}")
     except IndexError as e:
@@ -353,13 +347,13 @@ Cancel an active streaming conversation and any in-flight tool executions:
 .. code-block:: python
 
     # Start a streaming prompt
-    stream_conv = client.prompt("Perform a complex analysis...", stream=True)
+    stream_conv = cc.prompt("Perform a complex analysis...", stream=True)
 
     # In a different process or after a timeout, stop it
-    client.stop(thread_id=thread_id)
+    cc.stop(thread_id=thread_id)
 
     # Or use with the current active thread
-    client.stop()
+    cc.stop()
 
 
 **Submit User Feedback:**
@@ -369,12 +363,12 @@ Provide feedback on assistant messages to improve future responses:
 .. code-block:: python
 
     # After receiving a response in a conversation
-    conversation = client.prompt("Please give me an example of a climate data analysis!")
+    conversation = cc.prompt("Please give me an example of a climate data analysis!")
 
     # Submit positive feedback for the first assistant message (index 1)
     # Note: Index 0 is typically the user prompt, index 1 is the first assistant response
     try:
-        message = client.userfeedback(
+        message = cc.userfeedback(
             feedback_index=1,
             feedback="up",  # or "down" for negative, "remove" to remove feedback
             thread_id=thread_id,
@@ -393,7 +387,7 @@ The client provides rich message types that can be rendered in different formats
 
 .. code-block:: python
 
-    conversation = client.prompt(
+    conversation = cc.prompt(
         "Show me an example of a climate data analysis using the xarray tutorial datasets!"
     )
 
@@ -439,7 +433,7 @@ Raw Message Access
 
 .. code-block:: python
 
-    conversation = client.prompt("Hello ClimateClaw!")
+    conversation = cc.prompt("Hello ClimateClaw!")
 
     for raw_msg in conversation.raw_messages:
         print(raw_msg.message.variant)
@@ -495,27 +489,27 @@ This is useful when integrating with async frameworks like FastAPI, Quart, or an
 
     async def main():
         # Initialize the async client
-        client = AsyncClimateClaw(
+        cc = AsyncClimateClaw(
             base_url="https://your-climate-claw-backend.com",
             token_store_path="~/.cache/climate-claw-client/token-store.json",
         )
 
         # Authenticate
-        await client.authenticate()
+        await cc.authenticate()
 
         # List available models
-        models = client.available_models
+        models = cc.available_models
         print(f"Available models: {models}")
 
         # Set a default model
-        client.model = "gpt-4.1"
+        cc.model = "gpt-4.1"
 
         # Create a new thread
-        thread_id = await client.newthread()
+        thread_id = await cc.newthread()
         print(f"Created thread: {thread_id}")
 
         # Send a prompt
-        conversation = await client.prompt(
+        conversation = await cc.prompt(
             "Please explain the ENSO phenomenon!",
             thread_id=thread_id,
         )
@@ -530,27 +524,27 @@ This is useful when integrating with async frameworks like FastAPI, Quart, or an
 .. code-block:: python
 
     async def manage_threads():
-        client = AsyncClimateClaw(base_url="https://your-climate-claw-backend.com")
-        await client.authenticate()
+        cc = AsyncClimateClaw(base_url="https://your-climate-claw-backend.com")
+        await cc.authenticate()
 
         # Create and work with threads
-        thread_id = await client.newthread()
+        thread_id = await cc.newthread()
 
         # Get thread
-        conversation = await client.getthread(thread_id=thread_id)
+        conversation = await cc.getthread(thread_id=thread_id)
 
         # List user threads
-        total, threads = await client.getuserthreads(num_threads=10)
+        total, threads = await cc.getuserthreads(num_threads=10)
         print(f"Total threads: {total}")
 
         # Set thread topic
-        await client.setthreadtopic("ENSO analysis", thread_id=thread_id)
+        await cc.setthreadtopic("ENSO analysis", thread_id=thread_id)
 
         # Search threads
-        total_results, matching = await client.searchthreads(query="ENSO", num_threads=5)
+        total_results, matching = await cc.searchthreads(query="ENSO", num_threads=5)
 
         # Delete thread
-        await client.deletethread(thread_id=thread_id)
+        await cc.deletethread(thread_id=thread_id)
 
 
     asyncio.run(manage_threads())
@@ -560,11 +554,11 @@ This is useful when integrating with async frameworks like FastAPI, Quart, or an
 .. code-block:: python
 
     async def stream_example():
-        client = AsyncClimateClaw(base_url="https://your-climate-claw-backend.com")
-        await client.authenticate()
+        cc = AsyncClimateClaw(base_url="https://your-climate-claw-backend.com")
+        await cc.authenticate()
 
         # Use async context manager for streaming
-        stream_conv = await client.prompt("Please explain climate patterns in detail!", stream=True)
+        stream_conv = await cc.prompt("Please explain climate patterns in detail!", stream=True)
 
         async with stream_conv as stream:
             async for markdown_chunk in stream.aiter_for_markdown():
@@ -582,33 +576,33 @@ This is useful when integrating with async frameworks like FastAPI, Quart, or an
 .. code-block:: python
 
     async def advanced_operations():
-        client = AsyncClimateClaw(base_url="https://your-climate-claw-backend.com")
-        await client.authenticate()
+        cc = AsyncClimateClaw(base_url="https://your-climate-claw-backend.com")
+        await cc.authenticate()
 
         # Start a conversation
-        conversation = await client.prompt(
+        conversation = await cc.prompt(
             "Show me an example of climate data analysis!", model="gpt-4.1"
         )
 
         # Submit feedback on assistant message
         try:
-            message = await client.userfeedback(
+            message = await cc.userfeedback(
                 feedback_index=1,
                 feedback="up",
-                thread_id=client.thread_id,
+                thread_id=cc.thread_id,
             )
             print(f"Feedback submitted: {message}")
         except (IndexError, ValueError) as e:
             print(f"Feedback error: {e}")
 
         # Stop a streaming conversation
-        await client.stop(thread_id=client.thread_id)
+        await cc.stop(thread_id=cc.thread_id)
 
         # Fork a thread at a specific message
         try:
-            new_thread_id, history = await client.editthread(
+            new_thread_id, history = await cc.editthread(
                 user_index=2,
-                source_thread_id=client.thread_id,
+                source_thread_id=cc.thread_id,
             )
             print(f"Forked thread: {new_thread_id}")
         except (IndexError, ValueError) as e:
@@ -630,13 +624,13 @@ This is useful when integrating with async frameworks like FastAPI, Quart, or an
         import httpx
 
         async with httpx.AsyncClient(timeout=60.0) as http_client:
-            client = AsyncClimateClaw(
+            cc = AsyncClimateClaw(
                 base_url="https://your-climate-claw-backend.com",
                 http_client=http_client,
             )
 
             # Use the client...
-            conversation = await client.prompt("Hello ClimateClaw!", model="gpt-4.1")
+            conversation = await cc.prompt("Hello ClimateClaw!", model="gpt-4.1")
             print(conversation)
 
             # Client uses the provided http_client

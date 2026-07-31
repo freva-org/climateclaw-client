@@ -38,21 +38,19 @@ Basic Usage Example
     from climate_claw_client.client import ClimateClaw
 
     # Create a client instance
-    client = ClimateClaw(
+    cc = ClimateClaw(
         base_url="https://your-climate-claw-backend.com",
         token_store_path="~/.cache/climate-claw-client/token-store.json",
     )
 
     # Authenticate with the backend
-    client.authenticate()
+    cc.authenticate()
 
     # List available models
-    print(f"Available models: {client.available_models}")
+    print(f"Available models: {cc.available_models}")
 
     # Send a prompt
-    conversation = client.prompt(
-        "Please calculate the average temperature over Germany for 1990-2020!"
-    )
+    conversation = cc.prompt("Please calculate the average temperature over Germany for 1990-2020!")
 
     # Access messages
     for message in conversation.messages:
@@ -65,7 +63,7 @@ Streaming Example
 .. code-block:: python
 
     # Send a prompt with streaming enabled
-    stream_conv = client.prompt("Please explain the ENSO phenomenon to me!", stream=True)
+    stream_conv = cc.prompt("Please explain the ENSO phenomenon to me!", stream=True)
 
     # Iterate over markdown chunks as they arrive
     with stream_conv as stream:
@@ -79,7 +77,7 @@ Asynchronous Client Example
 .. code-block:: python
 
     import asyncio
-    from climate_claw_client.client import AsyncClimateClaw
+    from climate_claw_cc.client import AsyncClimateClaw
 
 
     async def main():
@@ -90,21 +88,21 @@ Asynchronous Client Example
         )
 
         # Authenticate with the backend
-        await client.authenticate()
+        await cc.authenticate()
 
         # List available models
-        print(f"Available models: {client.available_models}")
-        client.model = client.available_models[0]
+        print(f"Available models: {cc.available_models}")
+        cc.model = cc.available_models[0]
 
         # Send a prompt
-        response = await client.prompt(
+        response = await cc.prompt(
             "Please calculate the average temperature over Germany for 1990-2020!"
         )
         print(response)
 
         # Thread management works the same way
-        thread_id = await client.newthread()
-        response = await client.prompt(
+        thread_id = await cc.newthread()
+        response = await cc.prompt(
             "Please explain how the SOI can be calculated.",
             thread_id=thread_id,
         )
@@ -119,25 +117,25 @@ Thread Management Example
 .. code-block:: python
 
     # Create a new conversation thread
-    thread_id = client.newthread()
+    thread_id = cc.newthread()
 
     # Continue a conversation in an existing thread
-    response = client.prompt("Please explain how the SOI can be calculated.", thread_id=thread_id)
+    response = cc.prompt("Please explain how the SOI can be calculated.", thread_id=thread_id)
 
     # List all your conversation threads
-    total_threads, user_threads = client.getuserthreads(num_threads=10)
+    total_threads, user_threads = cc.getuserthreads(num_threads=10)
     print(f"A total number of {total_threads} threads was retrieved.")
     # access individual threads (which are Conversation objects)
     print(user_threads[0])
 
     # Search for threads by topic
-    total_results, matching_threads = client.searchthreads(query="climate analysis", num_threads=5)
+    total_results, matching_threads = cc.searchthreads(query="climate analysis", num_threads=5)
 
     # Set a topic for a thread (useful for searching later)
-    client.setthreadtopic("ENSO analysis", thread_id=thread_id)
+    cc.setthreadtopic("ENSO analysis", thread_id=thread_id)
 
     # Delete a thread when you're done with it
-    client.deletethread(thread_id=thread_id)
+    cc.deletethread(thread_id=thread_id)
 
 
 Features
