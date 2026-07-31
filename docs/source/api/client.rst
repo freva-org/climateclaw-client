@@ -1,6 +1,6 @@
 Client Classes
 --------------
 
-.. automodule:: freva_gpt_client.client
+.. automodule:: climate_claw_client.client
    :members:
    :show-inheritance:

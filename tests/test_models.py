@@ -1,4 +1,4 @@
-"""Unit tests for message models in freva-gpt-client."""
+"""Unit tests for message models in climate-claw-client."""
 
 from pathlib import Path
 
@@ -6,7 +6,7 @@ import PIL.Image
 import pytest
 from pytest_mock import MockerFixture
 
-from freva_gpt_client.models import (
+from climate_claw_client.models import (
     Assistant,
     BaseMessage,
     Code,

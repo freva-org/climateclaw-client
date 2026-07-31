@@ -1,23 +1,23 @@
 Usage Guide
 ============
 
-This guide covers how to use the FrevaGPT Client library, including initialization, configuration, and common use cases.
+This guide covers how to use the ClimateClaw Client library, including initialization, configuration, and common use cases.
 
 
 Initialization
 --------------
 
-The library provides two client classes: ``FrevaGPT`` for synchronous operations and ``AsyncFrevaGPT`` for asynchronous operations.
+The library provides two client classes: ``ClimateClaw`` for synchronous operations and ``AsyncClimateClaw`` for asynchronous operations.
 
 **Synchronous Client:**
 
 .. code-block:: python
 
-    from freva_gpt_client.client import FrevaGPT
+    from climate_claw_client.client import ClimateClaw
 
-    client = FrevaGPT(
-        base_url="https://your-freva-gpt-backend.com",
-        token_store_path="~/.cache/freva-gpt-client/token-store.json",
+    client = ClimateClaw(
+        base_url="https://your-climate-claw-backend.com",
+        token_store_path="~/.cache/climate-claw-client/token-store.json",
         follow_redirects=True,
         timeout=30.0,
         max_retries=3,
@@ -28,13 +28,13 @@ The library provides two client classes: ``FrevaGPT`` for synchronous operations
 .. code-block:: python
 
     import asyncio
-    from freva_gpt_client.client import AsyncFrevaGPT
+    from climate_claw_client.client import AsyncClimateClaw
 
 
     async def main():
-        client = AsyncFrevaGPT(
-            base_url="https://your-freva-gpt-backend.com",
-            token_store_path="~/.cache/freva-gpt-client/token-store.json",
+        client = AsyncClimateClaw(
+            base_url="https://your-climate-claw-backend.com",
+            token_store_path="~/.cache/climate-claw-client/token-store.json",
             follow_redirects=True,
             timeout=30.0,
             max_retries=3,
@@ -54,7 +54,7 @@ The client accepts the following configuration parameters:
 +----------------------+-------------------------------+---------------------+----------------------------------------------------------+
 | Parameter            | Type                          | Default             | Description                                              |
 +======================+===============================+=====================+==========================================================+
-| ``base_url``         | str/URL                       | **Required**        | Base URL of the FrevaGPT backend                         |
+| ``base_url``         | str/URL                       | **Required**        | Base URL of the ClimateClaw backend                         |
 +----------------------+-------------------------------+---------------------+----------------------------------------------------------+
 | ``token_store_path`` | str                           | ``""``              | Path to store OIDC tokens                                |
 +----------------------+-------------------------------+---------------------+----------------------------------------------------------+
@@ -65,7 +65,7 @@ The client accepts the following configuration parameters:
 | ``max_retries``      | int                           | ``3``               | Maximum retry attempts for failed requests               |
 +----------------------+-------------------------------+---------------------+----------------------------------------------------------+
 | ``http_client``      | httpx.Client                  | ``None``            | Pre-configured HTTP client (use httpx.Client for         |
-|                      | httpx.AsyncClient             |                     | FrevaGPT, htppx.AsyncClient for AsyncFrevaGPT)           |
+|                      | httpx.AsyncClient             |                     | ClimateClaw, htppx.AsyncClient for AsyncClimateClaw)           |
 +----------------------+-------------------------------+---------------------+----------------------------------------------------------+
 | ``thread_id``        | str                           | ``None``            | Default thread ID for conversations                      |
 +----------------------+-------------------------------+---------------------+----------------------------------------------------------+
@@ -79,7 +79,7 @@ Authentication
 Both clients use OIDC authentication. Call ``authenticate()`` (or ``await authenticate()`` for async) to trigger the authentication flow:
 
 .. important::
-   When specifying a custom HTTP client during the initialization of FrevaGPT/AsyncFrevaGPT, it is assumed that the specified client handles the `authentication <https://www.python-httpx.org/advanced/authentication/>`__ (if required).
+   When specifying a custom HTTP client during the initialization of ClimateClaw/AsyncClimateClaw, it is assumed that the specified client handles the `authentication <https://www.python-httpx.org/advanced/authentication/>`__ (if required).
 
 **Synchronous:**
 
@@ -92,7 +92,7 @@ Both clients use OIDC authentication. Call ``authenticate()`` (or ``await authen
 .. code-block:: python
 
     async def main():
-        client = AsyncFrevaGPT(base_url="https://your-freva-gpt-backend.com")
+        client = AsyncClimateClaw(base_url="https://your-climate-claw-backend.com")
         await client.authenticate()
 
 
@@ -145,7 +145,7 @@ Sending Prompts
 .. code-block:: python
 
     async def main():
-        client = AsyncFrevaGPT(base_url="https://your-freva-gpt-backend.com")
+        client = AsyncClimateClaw(base_url="https://your-climate-claw-backend.com")
         await client.authenticate()
 
         conversation = await client.prompt("Please calculate the average temperature over Germany!")
@@ -180,7 +180,7 @@ Sending Prompts
 .. code-block:: python
 
     async def main():
-        client = AsyncFrevaGPT(base_url="https://your-freva-gpt-backend.com")
+        client = AsyncClimateClaw(base_url="https://your-climate-claw-backend.com")
         await client.authenticate()
 
         stream_conv = await client.prompt("Please explain the ENSO phenomenon to me!", stream=True)
@@ -200,7 +200,7 @@ Sending Prompts
 Thread Management
 -----------------
 
-The following methods are available for managing conversation threads on both ``FrevaGPT`` and ``AsyncFrevaGPT``:
+The following methods are available for managing conversation threads on both ``ClimateClaw`` and ``AsyncClimateClaw``:
 
 +----------------------+----------------------------------------+--------------------------+
 | Method               | Description                            | Returns                  |
@@ -227,7 +227,7 @@ The following methods are available for managing conversation threads on both ``
 Note: ``getuserthreads()`` and ``searchthreads()`` return a tuple of (total_count, thread_list).
 ``editthread()`` returns a tuple of (new_thread_id, conversation_history).
 
-For ``AsyncFrevaGPT``, all these methods must be awaited.
+For ``AsyncClimateClaw``, all these methods must be awaited.
 
 **Create a New Thread:**
 
@@ -439,7 +439,7 @@ Raw Message Access
 
 .. code-block:: python
 
-    conversation = client.prompt("Hello FrevaGPT!")
+    conversation = client.prompt("Hello ClimateClaw!")
 
     for raw_msg in conversation.raw_messages:
         print(raw_msg.message.variant)
@@ -482,7 +482,7 @@ The library supports the following message variants:
 Asynchronous Client
 -------------------
 
-The ``AsyncFrevaGPT`` class provides the same functionality as ``FrevaGPT`` but with async/await syntax.
+The ``AsyncClimateClaw`` class provides the same functionality as ``ClimateClaw`` but with async/await syntax.
 This is useful when integrating with async frameworks like FastAPI, Quart, or any async Python application.
 
 **Basic Async Usage:**
@@ -490,14 +490,14 @@ This is useful when integrating with async frameworks like FastAPI, Quart, or an
 .. code-block:: python
 
     import asyncio
-    from freva_gpt_client.client import AsyncFrevaGPT
+    from climate_claw_client.client import AsyncClimateClaw
 
 
     async def main():
         # Initialize the async client
-        client = AsyncFrevaGPT(
-            base_url="https://your-freva-gpt-backend.com",
-            token_store_path="~/.cache/freva-gpt-client/token-store.json",
+        client = AsyncClimateClaw(
+            base_url="https://your-climate-claw-backend.com",
+            token_store_path="~/.cache/climate-claw-client/token-store.json",
         )
 
         # Authenticate
@@ -530,7 +530,7 @@ This is useful when integrating with async frameworks like FastAPI, Quart, or an
 .. code-block:: python
 
     async def manage_threads():
-        client = AsyncFrevaGPT(base_url="https://your-freva-gpt-backend.com")
+        client = AsyncClimateClaw(base_url="https://your-climate-claw-backend.com")
         await client.authenticate()
 
         # Create and work with threads
@@ -560,7 +560,7 @@ This is useful when integrating with async frameworks like FastAPI, Quart, or an
 .. code-block:: python
 
     async def stream_example():
-        client = AsyncFrevaGPT(base_url="https://your-freva-gpt-backend.com")
+        client = AsyncClimateClaw(base_url="https://your-climate-claw-backend.com")
         await client.authenticate()
 
         # Use async context manager for streaming
@@ -582,7 +582,7 @@ This is useful when integrating with async frameworks like FastAPI, Quart, or an
 .. code-block:: python
 
     async def advanced_operations():
-        client = AsyncFrevaGPT(base_url="https://your-freva-gpt-backend.com")
+        client = AsyncClimateClaw(base_url="https://your-climate-claw-backend.com")
         await client.authenticate()
 
         # Start a conversation
@@ -622,7 +622,7 @@ This is useful when integrating with async frameworks like FastAPI, Quart, or an
 .. code-block:: python
 
     import asyncio
-    from freva_gpt_client.client import AsyncFrevaGPT
+    from climate_claw_client.client import AsyncClimateClaw
 
 
     async def main():
@@ -630,13 +630,13 @@ This is useful when integrating with async frameworks like FastAPI, Quart, or an
         import httpx
 
         async with httpx.AsyncClient(timeout=60.0) as http_client:
-            client = AsyncFrevaGPT(
-                base_url="https://your-freva-gpt-backend.com",
+            client = AsyncClimateClaw(
+                base_url="https://your-climate-claw-backend.com",
                 http_client=http_client,
             )
 
             # Use the client...
-            conversation = await client.prompt("Hello FrevaGPT!", model="gpt-4.1")
+            conversation = await client.prompt("Hello ClimateClaw!", model="gpt-4.1")
             print(conversation)
 
             # Client uses the provided http_client
@@ -645,5 +645,5 @@ This is useful when integrating with async frameworks like FastAPI, Quart, or an
 
     asyncio.run(main())
 
-**Note:** The ``AsyncFrevaGPT`` class uses ``httpx.AsyncClient`` under the hood and provides all the same methods
-as the synchronous ``FrevaGPT`` client. All methods that perform I/O operations are coroutines and must be awaited.
+**Note:** The ``AsyncClimateClaw`` class uses ``httpx.AsyncClient`` under the hood and provides all the same methods
+as the synchronous ``ClimateClaw`` client. All methods that perform I/O operations are coroutines and must be awaited.

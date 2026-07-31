@@ -12,16 +12,16 @@ from httpx import URL
 
 from ._base_client import AsyncAPIClient, SyncAPIClient
 from ._constants import (
+    CLIMATECLAW_API_ENDPOINTS,
     DEFAULT_MAX_RETRIES,
     DEFAULT_TIMEOUT,
-    FREVAGPT_API_ENDPOINTS,
     OPENAPI_SPEC_PATH,
 )
 from ._streaming import StreamResponse
 from .models import Conversation, MessageModel, StreamConversation
 
 try:
-    __version__ = metadata.version("freva-gpt-client")
+    __version__ = metadata.version("climate-claw-client")
 except metadata.PackageNotFoundError:  # pragma: no cover
     __version__ = "0.0.0"
 
@@ -30,11 +30,11 @@ logger = logging.getLogger(__name__)
 nest_asyncio.apply()
 
 
-class FrevaGPT(SyncAPIClient):
-    """Synchronous client for interacting with the FrevaGPT API.
+class ClimateClaw(SyncAPIClient):
+    """Synchronous client for interacting with the ClimateClaw API.
 
     This class provides a high-level interface for communicating with the
-    FrevaGPT chatbot API, including methods for managing threads, sending
+    ClimateClaw chatbot API, including methods for managing threads, sending
     prompts, and retrieving conversation history.
 
     Attributes:
@@ -60,10 +60,10 @@ class FrevaGPT(SyncAPIClient):
         model: str | None = None,
         interactive_auth: bool = True,
     ):
-        """Initializes the FrevaGPT client.
+        """Initializes the ClimateClaw client.
 
         Args:
-            base_url: Base URL for the FrevaGPT API.
+            base_url: Base URL for the ClimateClaw API.
             token_store_path: Path to store authentication tokens.
             follow_redirects: Whether to follow HTTP redirects.
             timeout: Request timeout in seconds.
@@ -134,28 +134,28 @@ class FrevaGPT(SyncAPIClient):
         # get version info from openapi spec file
         if "version" not in openapi_spec["info"]:
             raise KeyError(
-                "FrevaGPT backend version information could not be retrieved from openapi spec file. Make sure backend is configured correctly."
+                "ClimateClaw backend version information could not be retrieved from openapi spec file. Make sure backend is configured correctly."
             )
-        frevagpt_backend_version = openapi_spec["info"]["version"]
+        cc_backend_version = openapi_spec["info"]["version"]
         # filter relevant paths specific to chatbot
         chatbot_paths = list(
             filter(lambda p: self._root_api_path in p, openapi_spec["paths"].keys())
         )
         # first check that all endpoints located on the backend are included in the client specification, raise warnings if unexpected enpoints are encountered
         for found_path in chatbot_paths:
-            if found_path not in map(self._construct_path, FREVAGPT_API_ENDPOINTS.keys()):
+            if found_path not in map(self._construct_path, CLIMATECLAW_API_ENDPOINTS.keys()):
                 logger.warning(
-                    f"API endpoint {found_path} not included in client specification. The client (version {self._version}) might not be compatible with the backend (version {frevagpt_backend_version})."
+                    f"API endpoint {found_path} not included in client specification. The client (version {self._version}) might not be compatible with the backend (version {cc_backend_version})."
                 )
         # now check that all endpoints expected by the client are available on the backend, raise a KeyError if at least one cannot be found.
-        for endpoint in FREVAGPT_API_ENDPOINTS.keys():
+        for endpoint in CLIMATECLAW_API_ENDPOINTS.keys():
             if (expected_endpoint := self._construct_path(endpoint)) not in chatbot_paths:
                 raise KeyError(
-                    f"FrevaGPT client expected endpoint {expected_endpoint} could not be found in backend specification. Make sure that client (version {self._version}) and backend (version {frevagpt_backend_version}) are up-to-date."
+                    f"ClimateClaw client expected endpoint {expected_endpoint} could not be found in backend specification. Make sure that client (version {self._version}) and backend (version {cc_backend_version}) are up-to-date."
                 )
 
     def authenticate(self) -> None:
-        """Authenticates the client with the FrevaGPT API.
+        """Authenticates the client with the ClimateClaw API.
 
         Triggers the OIDC authentication flow.
         """
@@ -194,11 +194,11 @@ class FrevaGPT(SyncAPIClient):
 
             .. code-block:: python
 
-                from freva_gpt_client import FrevaGPT
+                from climate_claw_client import ClimateClaw
 
-                frevagpt = FrevaGPT(base_url="https://nextgems.dkrz.de", model="gpt-4.1")
+                cc = ClimateClaw(base_url="https://nextgems.dkrz.de", model="gpt-4.1")
 
-                response = frevagpt.prompt(
+                response = cc.prompt(
                     input="Please calculate and plot the average yearly temperature over Germany for the years 1990-2020!"
                 )
                 print(response)
@@ -207,11 +207,11 @@ class FrevaGPT(SyncAPIClient):
 
             .. code-block:: python
 
-                from freva_gpt_client import FrevaGPT
+                from climate_claw_client import ClimateClaw
 
-                frevagpt = FrevaGPT(base_url="https://nextgems.dkrz.de", model="gpt-4.1")
+                cc = ClimateClaw(base_url="https://nextgems.dkrz.de", model="gpt-4.1")
 
-                response = frevagpt.prompt(
+                response = cc.prompt(
                     input="Please calculate and plot the average yearly temperature over Germany for the years 1990-2020!"
                 )
                 for cell in response.code_cells:
@@ -221,11 +221,11 @@ class FrevaGPT(SyncAPIClient):
 
             .. code-block:: python
 
-                from freva_gpt_client import FrevaGPT
+                from climate_claw_client import ClimateClaw
 
-                frevagpt = FrevaGPT(base_url="https://nextgems.dkrz.de", model="gpt-4.1")
+                cc = ClimateClaw(base_url="https://nextgems.dkrz.de", model="gpt-4.1")
 
-                response = frevagpt.prompt(
+                response = cc.prompt(
                     input="Please calculate and plot the average yearly temperature over Germany for the years 1990-2020!"
                 )
                 for i, image in enumerate(response.images):
@@ -235,11 +235,11 @@ class FrevaGPT(SyncAPIClient):
 
             .. code-block:: python
 
-                from freva_gpt_client import FrevaGPT
+                from climate_claw_client import ClimateClaw
 
-                frevagpt = FrevaGPT(base_url="https://nextgems.dkrz.de", model="gpt-4.1")
+                cc = ClimateClaw(base_url="https://nextgems.dkrz.de", model="gpt-4.1")
 
-                with frevagpt.prompt(
+                with cc.prompt(
                     input="Please explain the phenomenon knows as the ENSO to me!", stream=True
                 ) as stream:
                     for variant, md in stream.iter_for_markdown():
@@ -249,11 +249,11 @@ class FrevaGPT(SyncAPIClient):
 
             .. code-block:: python
 
-                from freva_gpt_client import FrevaGPT
+                from climate_claw_client import ClimateClaw
 
-                frevagpt = FrevaGPT(base_url="https://nextgems.dkrz.de", model="gpt-4.1")
+                cc = ClimateClaw(base_url="https://nextgems.dkrz.de", model="gpt-4.1")
 
-                with frevagpt.prompt(
+                with cc.prompt(
                     input="Please explain the phenomenon knows as the ENSO to me!", stream=True
                 ) as stream:
                     for part in stream.iter_raw():
@@ -263,11 +263,11 @@ class FrevaGPT(SyncAPIClient):
 
             .. code-block:: python
 
-                from freva_gpt_client import FrevaGPT
+                from climate_claw_client import ClimateClaw
 
-                frevagpt = FrevaGPT(base_url="https://nextgems.dkrz.de", model="gpt-4.1")
+                cc = ClimateClaw(base_url="https://nextgems.dkrz.de", model="gpt-4.1")
 
-                stream = frevagpt.prompt(
+                stream = cc.prompt(
                     input="Please explain the phenomenon knows as the ENSO to me!", stream=True
                 )
                 for part in stream.iter_raw():
@@ -630,24 +630,24 @@ class FrevaGPT(SyncAPIClient):
         """Constructs the full API path for an endpoint.
 
         Args:
-            endpoint_name (str): Name of the endpoint from FREVAGPT_API_ENDPOINTS.
+            endpoint_name (str): Name of the endpoint from CLIMATECLAW_API_ENDPOINTS.
 
         Returns:
             str: Full path string combining root API path and endpoint path.
         """
-        return f"{self._root_api_path}/{FREVAGPT_API_ENDPOINTS[endpoint_name]}"
+        return f"{self._root_api_path}/{CLIMATECLAW_API_ENDPOINTS[endpoint_name]}"
 
 
-class AsyncFrevaGPT(AsyncAPIClient):
-    """Asynchronous client for interacting with the FrevaGPT API.
+class AsyncClimateClaw(AsyncAPIClient):
+    """Asynchronous client for interacting with the ClimateClaw API.
 
     This class provides an async high-level interface for communicating with
-    the FrevaGPT chatbot API, including methods for managing threads, sending
+    the ClimateClaw chatbot API, including methods for managing threads, sending
     prompts, and retrieving conversation history.
 
     Note:
-        This is the async version of FrevaGPT. Use this class when working
-        with async/await code. For synchronous code, use FrevaGPT instead.
+        This is the async version of ClimateClaw. Use this class when working
+        with async/await code. For synchronous code, use ClimateClaw instead.
 
     Attributes:
         thread_id: Current active thread ID.
@@ -672,10 +672,10 @@ class AsyncFrevaGPT(AsyncAPIClient):
         model: str | None = None,
         interactive_auth: bool = True,
     ):
-        """Initializes the AsyncFrevaGPT client.
+        """Initializes the AsyncClimateClaw client.
 
         Args:
-            base_url: Base URL for the FrevaGPT API.
+            base_url: Base URL for the ClimateClaw API.
             token_store_path: Path to store authentication tokens.
             follow_redirects: Whether to follow HTTP redirects.
             timeout: Request timeout in seconds.
@@ -770,31 +770,31 @@ class AsyncFrevaGPT(AsyncAPIClient):
             )
         if "version" not in openapi_spec["info"]:
             raise KeyError(
-                "FrevaGPT backend version information could not be retrieved from "
+                "ClimateClaw backend version information could not be retrieved from "
                 "openapi spec file. Make sure backend is configured correctly."
             )
-        frevagpt_backend_version = openapi_spec["info"]["version"]
+        cc_backend_version = openapi_spec["info"]["version"]
         chatbot_paths = list(
             filter(lambda p: self._root_api_path in p, openapi_spec["paths"].keys())
         )
         for found_path in chatbot_paths:
-            if found_path not in map(self._construct_path, FREVAGPT_API_ENDPOINTS.keys()):
+            if found_path not in map(self._construct_path, CLIMATECLAW_API_ENDPOINTS.keys()):
                 logger.warning(
                     f"API endpoint {found_path} not included in client specification. "
                     f"The client (version {self._version}) might not be compatible with "
-                    f"the backend (version {frevagpt_backend_version})."
+                    f"the backend (version {cc_backend_version})."
                 )
-        for endpoint in FREVAGPT_API_ENDPOINTS.keys():
+        for endpoint in CLIMATECLAW_API_ENDPOINTS.keys():
             if (expected_endpoint := self._construct_path(endpoint)) not in chatbot_paths:
                 raise KeyError(
-                    f"FrevaGPT client expected endpoint {expected_endpoint} could not be "
+                    f"ClimateClaw client expected endpoint {expected_endpoint} could not be "
                     f"found in backend specification. Make sure that client (version "
-                    f"{self._version}) and backend (version {frevagpt_backend_version}) "
+                    f"{self._version}) and backend (version {cc_backend_version}) "
                     f"are up-to-date."
                 )
 
     async def authenticate(self) -> None:
-        """Authenticates the client with the FrevaGPT API.
+        """Authenticates the client with the ClimateClaw API.
 
         Triggers the OIDC authentication flow.
         """
@@ -834,12 +834,12 @@ class AsyncFrevaGPT(AsyncAPIClient):
             .. code-block:: python
 
                 import asyncio
-                from freva_gpt_client import AsyncFrevaGPT
+                from climate_claw_client import AsyncClimateClaw
 
 
                 async def main():
-                    frevagpt = AsyncFrevaGPT(base_url="https://nextgems.dkrz.de", model="gpt-4.1")
-                    response = await frevagpt.prompt(
+                    cc = AsyncClimateClaw(base_url="https://nextgems.dkrz.de", model="gpt-4.1")
+                    response = await cc.prompt(
                         input="Please calculate and plot the average yearly temperature over Germany for the years 1990-2020!"
                     )
 
@@ -853,12 +853,12 @@ class AsyncFrevaGPT(AsyncAPIClient):
             .. code-block:: python
 
                 import asyncio
-                from freva_gpt_client import AsyncFrevaGPT
+                from climate_claw_client import AsyncClimateClaw
 
 
                 async def main():
-                    frevagpt = AsyncFrevaGPT(base_url="https://nextgems.dkrz.de", model="gpt-4.1")
-                    response = await frevagpt.prompt(
+                    cc = AsyncClimateClaw(base_url="https://nextgems.dkrz.de", model="gpt-4.1")
+                    response = await cc.prompt(
                         input="Please calculate and plot the average yearly temperature over Germany for the years 1990-2020!"
                     )
 
@@ -873,12 +873,12 @@ class AsyncFrevaGPT(AsyncAPIClient):
             .. code-block:: python
 
                 import asyncio
-                from freva_gpt_client import AsyncFrevaGPT
+                from climate_claw_client import AsyncClimateClaw
 
 
                 async def main():
-                    frevagpt = AsyncFrevaGPT(base_url="https://nextgems.dkrz.de", model="gpt-4.1")
-                    response = await frevagpt.prompt(
+                    cc = AsyncClimateClaw(base_url="https://nextgems.dkrz.de", model="gpt-4.1")
+                    response = await cc.prompt(
                         input="Please calculate and plot the average yearly temperature over Germany for the years 1990-2020!"
                     )
 
@@ -893,13 +893,13 @@ class AsyncFrevaGPT(AsyncAPIClient):
             .. code-block:: python
 
                 import asyncio
-                from freva_gpt_client import AsyncFrevaGPT
+                from climate_claw_client import AsyncClimateClaw
 
 
                 async def main():
-                    frevagpt = AsyncFrevaGPT(base_url="https://nextgems.dkrz.de", model="gpt-4.1")
+                    cc = AsyncClimateClaw(base_url="https://nextgems.dkrz.de", model="gpt-4.1")
 
-                    async with frevagpt.prompt(
+                    async with cc.prompt(
                         input="Please explain the phenomenon knows as the ENSO to me!", stream=True
                     ) as stream:
                         async for variant, md in stream.aiter_for_markdown():
@@ -915,13 +915,13 @@ class AsyncFrevaGPT(AsyncAPIClient):
             .. code-block:: python
 
                 import asyncio
-                from freva_gpt_client import AsyncFrevaGPT
+                from climate_claw_client import AsyncClimateClaw
 
 
                 async def main():
-                    frevagpt = AsyncFrevaGPT(base_url="https://nextgems.dkrz.de", model="gpt-4.1")
+                    cc = AsyncClimateClaw(base_url="https://nextgems.dkrz.de", model="gpt-4.1")
 
-                    async with frevagpt.prompt(
+                    async with cc.prompt(
                         input="Please explain the phenomenon knows as the ENSO to me!", stream=True
                     ) as stream:
                         async for part in stream.aiter_raw():
@@ -935,13 +935,13 @@ class AsyncFrevaGPT(AsyncAPIClient):
             .. code-block:: python
 
                 import asyncio
-                from freva_gpt_client import AsyncFrevaGPT
+                from climate_claw_client import AsyncClimateClaw
 
 
                 async def main():
-                    frevagpt = AsyncFrevaGPT(base_url="https://nextgems.dkrz.de", model="gpt-4.1")
+                    cc = AsyncClimateClaw(base_url="https://nextgems.dkrz.de", model="gpt-4.1")
 
-                    stream = await frevagpt.prompt(
+                    stream = await cc.prompt(
                         input="Please explain the phenomenon knows as the ENSO to me!", stream=True
                     )
                     async for part in stream.aiter_raw():
@@ -1294,9 +1294,9 @@ class AsyncFrevaGPT(AsyncAPIClient):
         """Constructs the full API path for an endpoint.
 
         Args:
-            endpoint_name: Name of the endpoint from FREVAGPT_API_ENDPOINTS.
+            endpoint_name: Name of the endpoint from CLIMATECLAW_API_ENDPOINTS.
 
         Returns:
             Full path string combining root API path and endpoint path.
         """
-        return f"{self._root_api_path}/{FREVAGPT_API_ENDPOINTS[endpoint_name]}"
+        return f"{self._root_api_path}/{CLIMATECLAW_API_ENDPOINTS[endpoint_name]}"

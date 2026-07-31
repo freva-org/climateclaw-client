@@ -22,7 +22,7 @@ Headers = Union[Dict, httpx.Headers]
 
 
 class BaseClient(Generic[_HttpxClientT]):
-    """Base client class for FrevaGPT API clients.
+    """Base client class for ClimateClaw API clients.
 
     Provides common functionality for both sync and async HTTP clients,
     including authentication, header management, and URL validation.
@@ -61,7 +61,7 @@ class BaseClient(Generic[_HttpxClientT]):
 
         Args:
             version: Client version string.
-            base_url: Base URL for the FrevaGPT API.
+            base_url: Base URL for the ClimateClaw API.
             token_store_path: Path to store authentication tokens.
             follow_redirects: Whether to follow HTTP redirects.
             max_retries: Maximum number of retry attempts.
@@ -101,7 +101,7 @@ class BaseClient(Generic[_HttpxClientT]):
             for k, v in {
                 "Content-Type": "application/json",
                 "Accept": "application/json",
-                "User-Agent": f"freva-gpt-python/{self._version} ({platform.machine()} {platform.system().lower()}) Python/{platform.python_version()}",
+                "User-Agent": f"climate-claw-python/{self._version} ({platform.machine()} {platform.system().lower()}) Python/{platform.python_version()}",
                 "X-Freva-Vault-URL": f"{self.base_url}:5002",
                 "X-Freva-Rest-URL": f"{self.base_url}:7777",
                 "X-Freva-Config-Path": "/opt/freva/core/freva/evaluation_system.conf",
@@ -161,9 +161,9 @@ class BaseClient(Generic[_HttpxClientT]):
 
 
 class SyncAPIClient(BaseClient[httpx.Client]):
-    """Synchronous API client for FrevaGPT.
+    """Synchronous API client for ClimateClaw.
 
-    Provides sync methods for making HTTP requests to the FrevaGPT API,
+    Provides sync methods for making HTTP requests to the ClimateClaw API,
     including streaming support and automatic retry logic.
 
     Attributes:
@@ -189,7 +189,7 @@ class SyncAPIClient(BaseClient[httpx.Client]):
 
         Args:
             version: Client version string.
-            base_url: Base URL for the FrevaGPT API.
+            base_url: Base URL for the ClimateClaw API.
             token_store_path: Path to store authentication tokens.
             follow_redirects: Whether to follow HTTP redirects.
             max_retries: Maximum number of retry attempts.
@@ -338,9 +338,9 @@ class SyncAPIClient(BaseClient[httpx.Client]):
 
 
 class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
-    """Asynchronous API client for FrevaGPT.
+    """Asynchronous API client for ClimateClaw.
 
-    Provides async methods for making HTTP requests to the FrevaGPT API,
+    Provides async methods for making HTTP requests to the ClimateClaw API,
     including streaming support and automatic retry logic.
 
     Attributes:
@@ -366,7 +366,7 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
 
         Args:
             version: Client version string.
-            base_url: Base URL for the FrevaGPT API.
+            base_url: Base URL for the ClimateClaw API.
             token_store_path: Path to store authentication tokens.
             follow_redirects: Whether to follow HTTP redirects.
             max_retries: Maximum number of retry attempts.
