@@ -1,6 +1,6 @@
 Models
 ------
 
-.. automodule:: climate_claw_client.models
+.. automodule:: climateclaw_client.models
    :members:
    :show-inheritance:

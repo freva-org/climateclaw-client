@@ -1,6 +1,6 @@
 Client Classes
 --------------
 
-.. automodule:: climate_claw_client.client
+.. automodule:: climateclaw_client.client
    :members:
    :show-inheritance:

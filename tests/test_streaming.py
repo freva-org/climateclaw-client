@@ -9,7 +9,7 @@ import pytest_asyncio
 from pytest_httpx import HTTPXMock, IteratorStream
 from pytest_mock import MockerFixture
 
-from climate_claw_client._streaming import StreamResponse
+from climateclaw_client._streaming import StreamResponse
 
 # =============================================================================
 # Fixtures

@@ -13,11 +13,11 @@ The library provides two client classes: ``ClimateClaw`` for synchronous operati
 
 .. code-block:: python
 
-    from climate_claw_client.client import ClimateClaw
+    from climateclaw_client.client import ClimateClaw
 
     cc = ClimateClaw(
         base_url="https://your-climate-claw-backend.com",
-        token_store_path="~/.cache/climate-claw-client/token-store.json",
+        token_store_path="~/.cache/climateclaw-client/token-store.json",
         follow_redirects=True,
         timeout=30.0,
         max_retries=3,
@@ -27,11 +27,11 @@ The library provides two client classes: ``ClimateClaw`` for synchronous operati
 
 .. code-block:: python
 
-    from climate_claw_client.client import AsyncClimateClaw
+    from climateclaw_client.client import AsyncClimateClaw
 
     cc = AsyncClimateClaw(
         base_url="https://your-climate-claw-backend.com",
-        token_store_path="~/.cache/climate-claw-client/token-store.json",
+        token_store_path="~/.cache/climateclaw-client/token-store.json",
         follow_redirects=True,
         timeout=30.0,
         max_retries=3,
@@ -47,7 +47,7 @@ The client accepts the following configuration parameters:
 +----------------------+-------------------------------+---------------------+----------------------------------------------------------+
 | Parameter            | Type                          | Default             | Description                                              |
 +======================+===============================+=====================+==========================================================+
-| ``base_url``         | str/URL                       | **Required**        | Base URL of the ClimateClaw backend                         |
+| ``base_url``         | str/URL                       | **Required**        | Base URL of the ClimateClaw backend                      |
 +----------------------+-------------------------------+---------------------+----------------------------------------------------------+
 | ``token_store_path`` | str                           | ``""``              | Path to store OIDC tokens                                |
 +----------------------+-------------------------------+---------------------+----------------------------------------------------------+
@@ -58,7 +58,7 @@ The client accepts the following configuration parameters:
 | ``max_retries``      | int                           | ``3``               | Maximum retry attempts for failed requests               |
 +----------------------+-------------------------------+---------------------+----------------------------------------------------------+
 | ``http_client``      | httpx.Client                  | ``None``            | Pre-configured HTTP client (use httpx.Client for         |
-|                      | httpx.AsyncClient             |                     | ClimateClaw, htppx.AsyncClient for AsyncClimateClaw)           |
+|                      | httpx.AsyncClient             |                     | ClimateClaw, htppx.AsyncClient for AsyncClimateClaw)     |
 +----------------------+-------------------------------+---------------------+----------------------------------------------------------+
 | ``thread_id``        | str                           | ``None``            | Default thread ID for conversations                      |
 +----------------------+-------------------------------+---------------------+----------------------------------------------------------+
@@ -484,14 +484,14 @@ This is useful when integrating with async frameworks like FastAPI, Quart, or an
 .. code-block:: python
 
     import asyncio
-    from climate_claw_client.client import AsyncClimateClaw
+    from climateclaw_client.client import AsyncClimateClaw
 
 
     async def main():
         # Initialize the async client
         cc = AsyncClimateClaw(
             base_url="https://your-climate-claw-backend.com",
-            token_store_path="~/.cache/climate-claw-client/token-store.json",
+            token_store_path="~/.cache/climateclaw-client/token-store.json",
         )
 
         # Authenticate
@@ -616,7 +616,7 @@ This is useful when integrating with async frameworks like FastAPI, Quart, or an
 .. code-block:: python
 
     import asyncio
-    from climate_claw_client.client import AsyncClimateClaw
+    from climateclaw_client.client import AsyncClimateClaw
 
 
     async def main():

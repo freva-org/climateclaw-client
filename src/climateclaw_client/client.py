@@ -21,7 +21,7 @@ from ._streaming import StreamResponse
 from .models import Conversation, MessageModel, StreamConversation
 
 try:
-    __version__ = metadata.version("climate-claw-client")
+    __version__ = metadata.version("climateclaw-client")
 except metadata.PackageNotFoundError:  # pragma: no cover
     __version__ = "0.0.0"
 
@@ -194,7 +194,7 @@ class ClimateClaw(SyncAPIClient):
 
             .. code-block:: python
 
-                from climate_claw_client import ClimateClaw
+                from climateclaw_client import ClimateClaw
 
                 cc = ClimateClaw(base_url="https://nextgems.dkrz.de", model="gpt-4.1")
 
@@ -207,7 +207,7 @@ class ClimateClaw(SyncAPIClient):
 
             .. code-block:: python
 
-                from climate_claw_client import ClimateClaw
+                from climateclaw_client import ClimateClaw
 
                 cc = ClimateClaw(base_url="https://nextgems.dkrz.de", model="gpt-4.1")
 
@@ -221,7 +221,7 @@ class ClimateClaw(SyncAPIClient):
 
             .. code-block:: python
 
-                from climate_claw_client import ClimateClaw
+                from climateclaw_client import ClimateClaw
 
                 cc = ClimateClaw(base_url="https://nextgems.dkrz.de", model="gpt-4.1")
 
@@ -235,7 +235,7 @@ class ClimateClaw(SyncAPIClient):
 
             .. code-block:: python
 
-                from climate_claw_client import ClimateClaw
+                from climateclaw_client import ClimateClaw
 
                 cc = ClimateClaw(base_url="https://nextgems.dkrz.de", model="gpt-4.1")
 
@@ -249,7 +249,7 @@ class ClimateClaw(SyncAPIClient):
 
             .. code-block:: python
 
-                from climate_claw_client import ClimateClaw
+                from climateclaw_client import ClimateClaw
 
                 cc = ClimateClaw(base_url="https://nextgems.dkrz.de", model="gpt-4.1")
 
@@ -263,7 +263,7 @@ class ClimateClaw(SyncAPIClient):
 
             .. code-block:: python
 
-                from climate_claw_client import ClimateClaw
+                from climateclaw_client import ClimateClaw
 
                 cc = ClimateClaw(base_url="https://nextgems.dkrz.de", model="gpt-4.1")
 
@@ -834,7 +834,7 @@ class AsyncClimateClaw(AsyncAPIClient):
             .. code-block:: python
 
                 import asyncio
-                from climate_claw_client import AsyncClimateClaw
+                from climateclaw_client import AsyncClimateClaw
 
 
                 async def main():
@@ -853,7 +853,7 @@ class AsyncClimateClaw(AsyncAPIClient):
             .. code-block:: python
 
                 import asyncio
-                from climate_claw_client import AsyncClimateClaw
+                from climateclaw_client import AsyncClimateClaw
 
 
                 async def main():
@@ -873,7 +873,7 @@ class AsyncClimateClaw(AsyncAPIClient):
             .. code-block:: python
 
                 import asyncio
-                from climate_claw_client import AsyncClimateClaw
+                from climateclaw_client import AsyncClimateClaw
 
 
                 async def main():
@@ -893,7 +893,7 @@ class AsyncClimateClaw(AsyncAPIClient):
             .. code-block:: python
 
                 import asyncio
-                from climate_claw_client import AsyncClimateClaw
+                from climateclaw_client import AsyncClimateClaw
 
 
                 async def main():
@@ -915,7 +915,7 @@ class AsyncClimateClaw(AsyncAPIClient):
             .. code-block:: python
 
                 import asyncio
-                from climate_claw_client import AsyncClimateClaw
+                from climateclaw_client import AsyncClimateClaw
 
 
                 async def main():
@@ -935,7 +935,7 @@ class AsyncClimateClaw(AsyncAPIClient):
             .. code-block:: python
 
                 import asyncio
-                from climate_claw_client import AsyncClimateClaw
+                from climateclaw_client import AsyncClimateClaw
 
 
                 async def main():

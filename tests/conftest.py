@@ -1,4 +1,4 @@
-"""Pytest fixtures for climate-claw-client tests."""
+"""Pytest fixtures for climateclaw-client tests."""
 
 import json
 import re
@@ -6,7 +6,7 @@ import re
 import pytest
 from pytest_httpx import HTTPXMock, IteratorStream
 
-from climate_claw_client._constants import CLIMATECLAW_API_ENDPOINTS
+from climateclaw_client._constants import CLIMATECLAW_API_ENDPOINTS
 
 
 @pytest.fixture
