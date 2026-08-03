@@ -19,11 +19,11 @@ jobs:
         with:
           python-version: "3.x"
       -
-        name: Install pypa/flit
-        run: python -m pip install flit
+        name: Install pypa/build
+        run: python -m pip install build
       -
         name: Build a binary wheel and a source tarball
-        run: python -m flit build
+        run: python -m build
       -
         name: publish distribution 📦 to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
