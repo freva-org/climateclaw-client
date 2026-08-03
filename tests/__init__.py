@@ -1,1 +1,1 @@
-# Unit tests for climate-claw-client
+# Unit tests for climateclaw-client

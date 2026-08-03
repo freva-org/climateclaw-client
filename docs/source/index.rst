@@ -19,8 +19,8 @@ Install the package from source:
 
 .. code-block:: bash
 
-   git clone https://github.com/freva-org/climate-claw-client.git
-   cd climate-claw-client
+   git clone https://github.com/freva-org/climateclaw-client.git
+   cd climateclaw-client
    pip install -e .
 
 Or using ``uv``:
@@ -35,12 +35,12 @@ Basic Usage Example
 
 .. code-block:: python
 
-    from climate_claw_client.client import ClimateClaw
+    from climateclaw_client.client import ClimateClaw
 
     # Create a client instance
     cc = ClimateClaw(
         base_url="https://your-climate-claw-backend.com",
-        token_store_path="~/.cache/climate-claw-client/token-store.json",
+        token_store_path="~/.cache/climateclaw-client/token-store.json",
     )
 
     # Authenticate with the backend
@@ -84,7 +84,7 @@ Asynchronous Client Example
         # Create an async client instance
         client = AsyncClimateClaw(
             base_url="https://your-climate-claw-backend.com",
-            token_store_path="~/.cache/climate-claw-client/token-store.json",
+            token_store_path="~/.cache/climateclaw-client/token-store.json",
         )
 
         # Authenticate with the backend
@@ -155,9 +155,9 @@ Features
 Project Links
 -------------
 
-- **Source Code**: https://github.com/freva-org/climate-claw-client
+- **Source Code**: https://github.com/freva-org/climateclaw-client
 - **Backend Repository**: https://github.com/freva-org/climateclaw
-- **Issue Tracker**: https://github.com/freva-org/climate-claw-client/issues
+- **Issue Tracker**: https://github.com/freva-org/climateclaw-client/issues
 - **License**: European Union Public Licence 1.2 (EUPL-1.2)
 
 

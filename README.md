@@ -2,7 +2,7 @@
 
 [![License](https://github.com/eClip-/EUPL-badge/blob/master/eupl_1.2.svg)](LICENSE)
 [![docs](https://readthedocs.org/projects/climate-claw-client/badge/?version=latest)](https://climate-claw-client.readthedocs.io/latest/?badge=latest)
-[![codecov](https://codecov.io/github/freva-org/climate-claw-client/graph/badge.svg?token=kDsGq9llcK)](https://codecov.io/github/freva-org/climate-claw-client)
+[![codecov](https://codecov.io/github/freva-org/climateclaw-client/graph/badge.svg?token=kDsGq9llcK)](https://codecov.io/github/freva-org/climateclaw-client)
 
 A Python client library for interacting with the [ClimateClaw backend](https://github.com/freva-org/climateclaw). This library provides both synchronous and asynchronous interfaces for communicating with a ClimateClaw chatbot instance.
 
@@ -31,8 +31,8 @@ A Python client library for interacting with the [ClimateClaw backend](https://g
 Currently, this package is in development and must be installed from source:
 
 ```bash
-git clone https://github.com/freva-org/climate-claw-client.git
-cd climate-claw-client
+git clone https://github.com/freva-org/climateclaw-client.git
+cd climateclaw-client
 pip install -e .
 ```
 
@@ -47,12 +47,12 @@ uv pip install -e .
 ### Initialization
 
 ```python
-from climate_claw_client.client import ClimateClaw
+from climateclaw_client.client import ClimateClaw
 
 # Create a client instance
 cc = ClimateClaw(
     base_url="https://your-climate-claw-backend.com",
-    token_store_path="~/.cache/climate-claw-client/token-store.json",  # Optional: path to store auth tokens
+    token_store_path="~/.cache/climateclaw-client/token-store.json",  # Optional: path to store auth tokens
 )
 
 # Authenticate with the backend (triggers OIDC flow)
@@ -179,7 +179,7 @@ cc.deletethread(thread_id=thread_id)
 The client provides rich message types that can be rendered in different formats:
 
 ```python
-from climate_claw_client.client import ClimateClaw
+from climateclaw_client.client import ClimateClaw
 
 # Create a client instance
 cc = ClimateClaw(base_url="https://your-climate-claw-backend.com")
@@ -265,14 +265,14 @@ The library includes an `AsyncClimateClaw` class for async operations, providing
 
 ```python
 import asyncio
-from climate_claw_client import AsyncClimateClaw
+from climateclaw_client import AsyncClimateClaw
 
 
 async def main():
     # Create an async client instance
     cc = AsyncClimateClaw(
         base_url="https://your-climate-claw-backend.com",
-        token_store_path="~/.cache/climate-claw-client/token-store.json",
+        token_store_path="~/.cache/climateclaw-client/token-store.json",
     )
 
     # Authenticate with the backend
@@ -326,10 +326,10 @@ asyncio.run(main())
 
 ## Project Links
 
-- **Source Code**: https://github.com/freva-org/climate-claw-client
+- **Source Code**: https://github.com/freva-org/climateclaw-client
 - **Backend Repository**: https://github.com/freva-org/climateclaw
-- **Documentation**: https://climate-claw-client.readthedocs.io/en/latest/
-- **Issue Tracker**: https://github.com/freva-org/climate-claw-client/issues
+- **Documentation**: https://climate-claw-client.readthedocs.io/latest/
+- **Issue Tracker**: https://github.com/freva-org/climateclaw-client/issues
 
 ## License
 

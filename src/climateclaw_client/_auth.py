@@ -39,7 +39,7 @@ class TokenAuth(httpx.Auth):
         base_url: httpx.URL,
         token_store_path: str | Path | None = None,
         timeout: float = DEFAULT_AUTH_TIMEOUT,
-        app_name: str = "climate-claw-client",
+        app_name: str = "climateclaw-client",
         interactive: bool = True,
     ):
         """Initializes TokenAuth with base URL and token store configuration.

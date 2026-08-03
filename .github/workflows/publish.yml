@@ -9,6 +9,10 @@ on:
 jobs:
   pipy:
     runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+      contents: read
     steps:
       -
         name: Checkout
@@ -27,5 +31,3 @@ jobs:
       -
         name: publish distribution 📦 to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          password: ${{ secrets.PYPI_API_TOKEN }}

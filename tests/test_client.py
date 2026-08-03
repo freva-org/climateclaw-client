@@ -4,10 +4,10 @@ import httpx
 import pytest
 from pytest_mock import MockerFixture
 
-from climate_claw_client._base_client import BaseClient
-from climate_claw_client._constants import CLIMATECLAW_API_ENDPOINTS
-from climate_claw_client.client import ClimateClaw, logger
-from climate_claw_client.models import Conversation, StreamConversation
+from climateclaw_client._base_client import BaseClient
+from climateclaw_client._constants import CLIMATECLAW_API_ENDPOINTS
+from climateclaw_client.client import ClimateClaw, logger
+from climateclaw_client.models import Conversation, StreamConversation
 
 # =============================================================================
 # Fixtures

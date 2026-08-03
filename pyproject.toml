@@ -3,7 +3,7 @@ requires = ["setuptools>=61", "versioneer[toml]"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "climate-claw-client"
+name = "climateclaw-client"
 dynamic = ["version"]
 description = "ClimateClaw Client library for connecting and interacting with an instance of the ClimateClaw chatbot."
 
@@ -38,12 +38,12 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/freva-org/climate-claw-client"
+Homepage = "https://github.com/freva-org/climateclaw-client"
 
 Documentation = "https://climate-claw-client.readthedocs.io/en/latest/"
 
-Source = "https://github.com/freva-org/climate-claw-client"
-Tracker = "https://github.com/freva-org/climate-claw-client/issues"
+Source = "https://github.com/freva-org/climateclaw-client"
+Tracker = "https://github.com/freva-org/climateclaw-client/issues"
 
 
 [project.optional-dependencies]
@@ -70,8 +70,8 @@ docs = [
     "myst-parser>=2.0",
 ]
 dev = [
-    "climate_claw_client[testsite]",
-    "climate_claw_client[docs]",
+    "climateclaw_client[testsite]",
+    "climateclaw_client[docs]",
 ]
 
 [tool.mypy]
@@ -83,7 +83,7 @@ plugins = ['pydantic.mypy'] # type: ignore[misc]
 zip-safe = false
 
 [tool.setuptools.package-data]
-climate_claw_client = ["py.typed"]
+climateclaw_client = ["py.typed"]
 
 [tool.setuptools.packages.find]
 namespaces = false
@@ -101,20 +101,20 @@ pythonpath = [
 [tool.versioneer]
 VCS = 'git'
 style = 'pep440'
-versionfile_source = 'src/climate_claw_client/_version.py'
-versionfile_build = 'src/climate_claw_client/_version.py'
+versionfile_source = 'src/climateclaw_client/_version.py'
+versionfile_build = 'src/climateclaw_client/_version.py'
 tag_prefix = ''
 
 [tool.isort]
 profile = "black"
 line_length = 100
-src_paths = ["src/climate_claw_client"]
+src_paths = ["src/climateclaw_client"]
 float_to_top = true
-known_first_party = "climate_claw_client"
+known_first_party = "climateclaw_client"
 
 [tool.black]
 line-length = 100
 target-version = ['py310']
 
 [tool.coverage.run]
-omit = ["src/climate_claw_client/_version.py", "tests/*"]
+omit = ["src/climateclaw_client/_version.py", "tests/*"]

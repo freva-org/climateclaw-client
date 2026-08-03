@@ -1,1 +1,1 @@
-src/climate_claw_client/_version.py export-subst
+src/climateclaw_client/_version.py export-subst

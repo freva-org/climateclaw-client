@@ -10,20 +10,23 @@ import os
 import sys
 from datetime import datetime
 
-import climate_claw_client
-
 # Add the project root to the Python path
 sys.path.insert(0, os.path.abspath("../../src"))
 
+# isort: off
+import climateclaw_client  # noqa: E402
+
+# isort: on
+
 
 # debug that building expected version
-print(f"Building Documentation for ClimateClaw Client: {climate_claw_client.__version__}")
+print(f"Building Documentation for ClimateClaw Client: {climateclaw_client.__version__}")
 
-project = "climate-claw-client"
+project = "climateclaw-client"
 copyright = f"{datetime.now().year}, DKRZ"
 author = "Felix Oertel"
 # extract version tag, label as "latest" if version string includes more than just a version tag
-full_version: str = str(climate_claw_client.__version__)
+full_version: str = str(climateclaw_client.__version__)
 version_parts = full_version.split("+")
 version = "latest" if len(version_parts) > 1 else full_version
 release = version
@@ -51,7 +54,7 @@ html_theme_options = {
     "icon_links": [
         {
             "name": "GitHub",
-            "url": "https://github.com/freva-org/climate-claw-client",
+            "url": "https://github.com/freva-org/climateclaw-client",
             "icon": "fa-brands fa-github",
         }
     ],
@@ -118,7 +121,7 @@ latex_elements = {
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ("index", "climate-claw-client", "ClimateClaw Client Documentation", [author], 1),
+    ("index", "climateclaw-client", "ClimateClaw Client Documentation", [author], 1),
 ]
 
 # -- Options for Texinfo output ---------------------------------------------
@@ -129,10 +132,10 @@ man_pages = [
 texinfo_documents = [
     (
         "index",
-        "climate_claw_client",
+        "climateclaw_client",
         "ClimateClaw Client Documentation",
         author,
-        "climate_claw_client",
+        "climateclaw_client",
         "A Python client library for interacting with the ClimateClaw backend.",
         "Miscellaneous",
     ),
