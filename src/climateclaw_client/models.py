@@ -199,8 +199,10 @@ class CodeOutput(BaseMessage):
         """
         markdown_str = ""
         if self.content:
+            markdown_str += "---\n```python"
             for line in self.content.split("\n"):
-                markdown_str += f"\n> {line}"
+                markdown_str += f"\n{line}"
+            markdown_str += "\n```\n---"
         return markdown_str
 
 
@@ -656,8 +658,12 @@ class StreamConversation(AbstractContextManager, AbstractAsyncContextManager):
             variants.extend(previous_variant)
             self._current_message = MessageModel(**message_chunk.model_dump())
         else:
-            # Accumulate content
-            self._current_message.content += content  # type: ignore[operator]
+            if isinstance(self._current_message.content, str):
+                # Accumulate content if it is current message is of type string
+                self._current_message.content += content
+            else:
+                # Otherwise, content is set to content of new chunk
+                self._current_message.content = message_chunk.content  # type: ignore[assignment]
 
         # Type-specific handling for current variant
         if variant == "Image":
@@ -742,16 +748,19 @@ class StreamConversation(AbstractContextManager, AbstractAsyncContextManager):
             # if buffered content ends with suffix, indicates end of code
             if self._buffered_content.endswith(suffix):
                 code_content += (
-                    self._buffered_content.lstrip(prefix).rstrip(suffix).lstrip(' "') + "\n```\n\n"
+                    self._buffered_content.removeprefix(prefix)
+                    .removesuffix(suffix)
+                    .removeprefix('"')
+                    + "\n```\n\n"
                 )
                 self._code_started = False  # reset code-started flag
             # parse buffered content if it does not end with a (potentially) incomplete escape sequence
             elif self._buffered_content[-1] != "\\":
                 code_content += (
                     self._parse_escaped_chars(self._buffered_content)
-                    .lstrip(prefix)
-                    .rstrip(suffix)
-                    .lstrip('"')
+                    .removeprefix(prefix)
+                    .removesuffix(suffix)
+                    .removeprefix('"')
                 )
                 # reset buffered content
                 self._buffered_content = ""
