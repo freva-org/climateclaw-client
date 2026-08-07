@@ -244,8 +244,6 @@ class TestCodeOutputMessage:
     def test_repr_markdown_single_line(self):
         """Test repr_markdown with single line."""
         msg = CodeOutput(variant="CodeOutput", content="output line")
-        print(msg.repr_markdown())
-        print("expected", "---\n```python\noutput line\n```\n---")
         assert msg.repr_markdown() == "---\n```python\noutput line\n```\n---"
 
     def test_repr_markdown_multiple_lines(self):
@@ -268,8 +266,6 @@ class TestCodeOutputMessage:
         """Test repr_markdown preserves leading/trailing whitespace in lines."""
         msg = CodeOutput(variant="CodeOutput", content="  indented  \n  also  ")
         expected = "---\n```python\n  indented  \n  also  \n```\n---"
-        print(expected)
-        print(msg.repr_markdown())
         assert msg.repr_markdown() == expected
 
 
@@ -875,7 +871,6 @@ class TestStreamConversation:
                 expected_md = f"\n![Image](data:image/png;base64,{message.content})\n\n"
             else:
                 expected_md = message.content
-            print(markdown_result)
             index = [md for _, md in markdown_result].index(expected_md)
             variant = markdown_result[index][0]
             assert variant == message.variant
