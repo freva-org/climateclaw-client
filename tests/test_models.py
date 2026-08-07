@@ -217,7 +217,7 @@ class TestCodeMessage:
 
     def test_repr_markdown_valid(self):
         """Test repr_markdown with valid code."""
-        code_json = '{"code": "x = 1"}'
+        code_json = '{"code":"x = 1"}'
         msg = Code(variant="Code", content=code_json)
         expected = "\n```python\nx = 1\n```\n"
         assert msg.repr_markdown() == expected
@@ -244,12 +244,14 @@ class TestCodeOutputMessage:
     def test_repr_markdown_single_line(self):
         """Test repr_markdown with single line."""
         msg = CodeOutput(variant="CodeOutput", content="output line")
-        assert msg.repr_markdown() == "\n> output line"
+        print(msg.repr_markdown())
+        print("expected", "---\n```python\noutput line\n```\n---")
+        assert msg.repr_markdown() == "---\n```python\noutput line\n```\n---"
 
     def test_repr_markdown_multiple_lines(self):
         """Test repr_markdown with multiple lines."""
         msg = CodeOutput(variant="CodeOutput", content="line1\nline2\nline3")
-        expected = "\n> line1\n> line2\n> line3"
+        expected = "---\n```python\nline1\nline2\nline3\n```\n---"
         assert msg.repr_markdown() == expected
 
     def test_repr_markdown_empty(self):
@@ -260,12 +262,14 @@ class TestCodeOutputMessage:
     def test_repr_markdown_with_special_chars(self):
         """Test repr_markdown with special characters."""
         msg = CodeOutput(variant="CodeOutput", content="Error: 404 Not Found!")
-        assert msg.repr_markdown() == "\n> Error: 404 Not Found!"
+        assert msg.repr_markdown() == "---\n```python\nError: 404 Not Found!\n```\n---"
 
     def test_repr_markdown_preserves_whitespace(self):
         """Test repr_markdown preserves leading/trailing whitespace in lines."""
         msg = CodeOutput(variant="CodeOutput", content="  indented  \n  also  ")
-        expected = "\n>   indented  \n>   also  "
+        expected = "---\n```python\n  indented  \n  also  \n```\n---"
+        print(expected)
+        print(msg.repr_markdown())
         assert msg.repr_markdown() == expected
 
 
@@ -849,8 +853,9 @@ class TestStreamConversation:
         mock_response = mocker.MagicMock()
         message_dicts = [
             dict(variant="Assistant", content="Running the code!"),
-            dict(variant="Code", content='{"code": "import xarray as xr"}'),
+            dict(variant="Code", content='{"code":"import xarray as xr"}'),
             dict(variant="ServerHint", content='{"id": 123}'),
+            dict(variant="ServerHint", content='{"id": 456}'),
             dict(variant="Image", content="base64encodedImage"),
             dict(variant="Assistant", content="Code execution complete!"),
             dict(variant="StreamEnd", content="Stream ended."),
@@ -870,6 +875,7 @@ class TestStreamConversation:
                 expected_md = f"\n![Image](data:image/png;base64,{message.content})\n\n"
             else:
                 expected_md = message.content
+            print(markdown_result)
             index = [md for _, md in markdown_result].index(expected_md)
             variant = markdown_result[index][0]
             assert variant == message.variant
@@ -881,7 +887,7 @@ class TestStreamConversation:
         mock_response = mocker.MagicMock()
         message_dicts = [
             dict(variant="Assistant", content="Running the code!"),
-            dict(variant="Code", content='{"code": "import xarray as xr"}'),
+            dict(variant="Code", content='{"code":"import xarray as xr"}'),
             dict(variant="ServerHint", content='{"id": 123}'),
             dict(variant="Image", content="base64encodedImage"),
             dict(variant="Assistant", content="Code execution complete!"),
@@ -922,7 +928,7 @@ class TestStreamConversation:
         mock_response = mocker.MagicMock()
         message_dicts = [
             dict(variant="Assistant", content="Running the code!"),
-            dict(variant="Code", content='{"code": "import xarray as xr"}'),
+            dict(variant="Code", content='{"code":"import xarray as xr"}'),
             dict(variant="ServerHint", content='{"id": 123}'),
             dict(variant="Image", content="base64encodedImage"),
             dict(variant="Assistant", content="Code execution complete!"),
@@ -960,7 +966,7 @@ class TestStreamConversation:
         mock_response = mocker.MagicMock()
         message_dicts = [
             dict(variant="Assistant", content="Running the code!"),
-            dict(variant="Code", content='{"code": "import xarray as xr"}'),
+            dict(variant="Code", content='{"code":"import xarray as xr"}'),
             dict(variant="ServerHint", content='{"id": 123}'),
             dict(variant="Image", content="base64encodedImage"),
             dict(variant="Assistant", content="Code execution complete!"),
