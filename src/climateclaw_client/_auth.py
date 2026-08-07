@@ -71,9 +71,7 @@ class TokenAuth(httpx.Auth):
                 timeout=self.timeout,
             )
         except Exception as e:
-            raise AuthError(
-                f"Could not generate a new token. Please try again or reauthenticate. {e}"
-            )
+            raise AuthError(f"Could not generate a new token. Error: {e}")
 
     def _update_token_or_store(self) -> None:
         """Updates the token store with the current auth token."""
@@ -86,20 +84,21 @@ class TokenAuth(httpx.Auth):
     def _validate_token_store(self) -> TokenStore:
         """Validates and initializes the token store."""
         # load token store
-        token_store = self.token_store
-        auth_token = self.auth_token
-        test_token = token_store.get(str(self.base_url))
-        # if auth token is not set, but token store contains correct token, update token from token store
-        if not auth_token and test_token:
-            self.auth_token = test_token
-        # if not in interactive mode, and no auth token set, raise AuthError
-        elif not (self._interactive or self.auth_token):
-            raise AuthError("New token can only be generated in interactive mode.") from None
-        # else start oidc device flow
-        else:
-            self.auth_token = self._authenticate()
+        stored_token = self.token_store.get(str(self.base_url))
+        if not self.auth_token:
+            # if auth token is not set, but token store contains correct token, update token from token store
+            if stored_token:
+                self.auth_token = stored_token
+            # if not in interactive mode, and no auth token set, raise AuthError
+            elif not self._interactive:
+                raise AuthError(
+                    f"Token store does not contain token for {self.base_url}. New token can only be generated in interactive mode."
+                ) from None
+            # else start oidc device flow and prompt user to login
+            else:
+                self.auth_token = self._authenticate()
         self._update_token_or_store()
-        return token_store
+        return self.token_store
 
     def _validate_token(self) -> Token:
         """Validates the current authentication token."""
@@ -167,26 +166,26 @@ class TokenAuth(httpx.Auth):
                 timeout=self.timeout,
             )
         except Exception as e:
-            raise AuthError(
-                f"Could not generate a new token. Please try again or reauthenticate. {e}"
-            )
+            raise AuthError(f"Could not generate a new token. Error: {e}")
 
     async def _async_validate_token_store(self) -> TokenStore:
         """Validates and initializes the token store."""
         # load token store
-        token_store = self.token_store
-        auth_token = self.auth_token
-        test_token = token_store.get(str(self.base_url))
-        # if auth token is not set, but token store contains correct token, update token from token store
-        if not auth_token and test_token:
-            self.auth_token = test_token
-        # if not in interactive mode, and no auth token set, raise AuthError
-        elif not (self._interactive or self.auth_token):
-            raise AuthError("New token can only be generated in interactive mode.") from None
-        # else start oidc device flow
-        else:
-            self.auth_token = await self._async_authenticate()
+        stored_token = self.token_store.get(str(self.base_url))
+        if not self.auth_token:
+            # if auth token is not set, but token store contains correct token, update token from token store
+            if stored_token:
+                self.auth_token = stored_token
+            # if not in interactive mode, and no auth token set, raise AuthError
+            elif not self._interactive:
+                raise AuthError(
+                    f"Token store does not contain token for {self.base_url}. New token can only be generated in interactive mode."
+                ) from None
+            # else start oidc device flow and prompt user to login
+            else:
+                self.auth_token = await self._async_authenticate()
         self._update_token_or_store()
+        return self.token_store
 
     async def _async_validate_token(self) -> Token:
         """Validates the current authentication token."""
