@@ -280,11 +280,11 @@ class TestThreadManagement:
     ):
         """Test retrieving a thread by ID."""
         client: AsyncClimateClaw = create_async_client()
-        spy = mocker.spy(client, "get")
+        spy = mocker.spy(client, "post")
         client.thread_id = mock_thread_id
         mock_request("getthread", is_reusable=True)
         thread = await client.getthread(mock_new_thread_id)
-        assert spy.call_args_list[-1].kwargs["params"].get("thread_id") == mock_new_thread_id
+        assert spy.call_args_list[-1].kwargs["json"].get("thread_id") == mock_new_thread_id
         assert len(thread.messages) == 2
         assert thread.messages[0].message.variant == "User"
         assert thread.messages[1].message.variant == "Assistant"
@@ -312,9 +312,9 @@ class TestThreadManagement:
         client: AsyncClimateClaw = create_async_client()
         mock_request("setthreadtopic")
         client.thread_id = mock_thread_id
-        spy_get = mocker.spy(client, "get")
+        spy_get = mocker.spy(client, "post")
         await client.setthreadtopic("Test topic")
-        assert spy_get.call_args_list[-1].kwargs["params"]["thread_id"] == client.thread_id
+        assert spy_get.call_args_list[-1].kwargs["json"]["thread_id"] == client.thread_id
 
     @pytest.mark.asyncio
     async def test_setthreadtopic_no_thread_raises_type_error(self, create_async_client):
@@ -673,10 +673,10 @@ class TestPrompting:
         client: AsyncClimateClaw = create_async_client(model=mock_available_models[0])
         client.thread_id = mock_thread_id
         client.stop = mocker.AsyncMock()
-        client.get = mocker.Mock(side_effect=KeyboardInterrupt)
+        client.post = mocker.Mock(side_effect=KeyboardInterrupt)
         with pytest.raises(KeyboardInterrupt):
             await client.prompt("Test prompt", model=client.model, stream=False)
-        client.get.assert_called_once()
+        client.post.assert_called_once()
         client.stop.assert_called_once()
 
     @pytest.mark.asyncio
@@ -701,10 +701,10 @@ class TestPrompting:
         client: AsyncClimateClaw = create_async_client()
         client.thread_id = mock_thread_id
         mock_request("stop")
-        spy_get = mocker.spy(client, "get")
+        spy_get = mocker.spy(client, "post")
         result = await client.stop()
         assert result is True
-        assert spy_get.call_args_list[-1].kwargs["params"]["thread_id"] == client.thread_id
+        assert spy_get.call_args_list[-1].kwargs["json"]["thread_id"] == client.thread_id
 
     @pytest.mark.asyncio
     async def test_stop_no_thread_raises_type_error(self, create_async_client):

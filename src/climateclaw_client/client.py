@@ -58,6 +58,8 @@ class ClimateClaw(SyncAPIClient):
         http_client: httpx.Client | None = None,
         thread_id: str | None = None,
         model: str | None = None,
+        custom_headers: dict[str, Any] = {},
+        auth_url: str | URL = "",
         interactive_auth: bool = True,
     ):
         """Initializes the ClimateClaw client.
@@ -71,6 +73,7 @@ class ClimateClaw(SyncAPIClient):
             http_client: Optional pre-configured httpx.Client.
             thread_id: Optional thread ID for an existing conversation.
             model: Optional chatbot model to use for requests.
+            auth_url: Optional url to determine location of auth endpoint.
             interactive_auth: Optional boolean to determine if authentication should be performed interactively.
 
         Raises:
@@ -84,6 +87,8 @@ class ClimateClaw(SyncAPIClient):
             max_retries=max_retries,
             timeout=timeout,
             http_client=http_client,
+            custom_headers=custom_headers,
+            auth_url=auth_url,
             interactive_auth=interactive_auth,
         )
         self._validate_backend_endpoints()
@@ -301,9 +306,9 @@ class ClimateClaw(SyncAPIClient):
         elif not thread_id:
             thread_id = self.thread_id
         try:
-            response: httpx.Response | StreamResponse = self.get(
+            response: httpx.Response | StreamResponse = self.post(
                 path=self._construct_path("streamresponse"),
-                params={
+                json={
                     "input": input,
                     "thread_id": thread_id,
                     "chatbot": model,
@@ -346,9 +351,9 @@ class ClimateClaw(SyncAPIClient):
             raise TypeError(
                 "Argument 'thread_id' has to be specified, if no conversation was started previously."
             )
-        response = self.get(
+        response = self.post(
             path=self._construct_path("getthread"),
-            params={"thread_id": thread_id},
+            json={"thread_id": thread_id},
         )
         messages = [MessageModel(message=m) for m in response.json()]
         return Conversation(raw_messages=messages)
@@ -371,9 +376,9 @@ class ClimateClaw(SyncAPIClient):
         """
         if num_threads <= 0:
             raise ValueError("Value 'num_threads' has to be at least 1.")
-        response: httpx.Response = self.get(
+        response: httpx.Response = self.post(
             path=self._construct_path("getuserthreads"),
-            params={
+            json={
                 "num_threads": num_threads,
                 "page": 0,  # currently hardcoded to be 0 (other values seem to always return an empty list)
             },
@@ -409,7 +414,7 @@ class ClimateClaw(SyncAPIClient):
             raise TypeError(
                 "Argument 'thread_id' has to be specified, if no conversation was started previously."
             )
-        self.get(path=self._construct_path("deletethread"), params={"thread_id": thread_id})
+        self.post(path=self._construct_path("deletethread"), json={"thread_id": thread_id})
         # reset self.thread_id in case it is identical to id of deleted thread
         self.thread_id = None if self.thread_id == thread_id else self.thread_id
 
@@ -433,9 +438,9 @@ class ClimateClaw(SyncAPIClient):
             raise TypeError(
                 "Argument 'thread_id' has to be specified, if no conversation was started previously."
             )
-        self.get(
+        self.post(
             path=self._construct_path("setthreadtopic"),
-            params={"thread_id": thread_id, "topic": new_topic},
+            json={"thread_id": thread_id, "topic": new_topic},
         )
         return new_topic
 
@@ -458,9 +463,9 @@ class ClimateClaw(SyncAPIClient):
         """
         if num_threads <= 0:
             raise ValueError("Value 'num_threads' has to be at least 1.")
-        response: httpx.Response = self.get(
+        response: httpx.Response = self.post(
             path=self._construct_path("searchthreads"),
-            params={
+            json={
                 "query": query,
                 "num_threads": num_threads,
             },
@@ -499,7 +504,7 @@ class ClimateClaw(SyncAPIClient):
                 "Argument 'thread_id' has to be specified, if no conversation was started previously."
             )
         try:
-            self.get(path=self._construct_path("stop"), params={"thread_id": thread_id})
+            self.post(path=self._construct_path("stop"), json={"thread_id": thread_id})
             return True
         except ConnectionError as e:
             if e.errno == 404:
@@ -539,9 +544,9 @@ class ClimateClaw(SyncAPIClient):
                 "Argument 'source_thread_id' has to be specified, if no conversation was started previously."
             )
         try:
-            response: httpx.Response = self.get(
+            response: httpx.Response = self.post(
                 path=self._construct_path("editthread"),
-                params={
+                json={
                     "source_thread_id": source_thread_id,
                     "user_index": user_index,
                 },
@@ -598,7 +603,7 @@ class ClimateClaw(SyncAPIClient):
         if feedback not in (allowed_feedback := ["up", "down", "remove"]):
             raise ValueError(f"Feedback string must be one of {allowed_feedback}.")
         try:
-            response: httpx.Response = self.get(
+            response: httpx.Response = self.post(
                 path=self._construct_path("userfeedback"),
                 params={
                     "thread_id": thread_id,
@@ -670,6 +675,7 @@ class AsyncClimateClaw(AsyncAPIClient):
         http_client: httpx.AsyncClient | None = None,
         thread_id: str | None = None,
         model: str | None = None,
+        auth_url: str | URL = "",
         interactive_auth: bool = True,
     ):
         """Initializes the AsyncClimateClaw client.
@@ -683,6 +689,7 @@ class AsyncClimateClaw(AsyncAPIClient):
             http_client: Optional pre-configured httpx.AsyncClient.
             thread_id: Optional thread ID for an existing conversation.
             model: Optional chatbot model to use for requests.
+            auth_url: Optional url to determine location of auth endpoint.
             interactive_auth: Optional boolean to determine if authentication should be performed interactively.
 
         """
@@ -694,6 +701,7 @@ class AsyncClimateClaw(AsyncAPIClient):
             max_retries=max_retries,
             timeout=timeout,
             http_client=http_client,
+            auth_url=auth_url,
             interactive_auth=interactive_auth,
         )
         asyncio.run(self._validate_backend_endpoints())
@@ -973,9 +981,9 @@ class AsyncClimateClaw(AsyncAPIClient):
             thread_id = self.thread_id
 
         try:
-            response: httpx.Response | StreamResponse = await self.get(
+            response: httpx.Response | StreamResponse = await self.post(
                 path=self._construct_path("streamresponse"),
-                params={
+                json={
                     "input": input,
                     "thread_id": thread_id,
                     "chatbot": model,
@@ -1021,9 +1029,9 @@ class AsyncClimateClaw(AsyncAPIClient):
             raise TypeError(
                 "Argument 'thread_id' has to be specified, if no conversation was started previously."
             )
-        response = await self.get(
+        response = await self.post(
             path=self._construct_path("getthread"),
-            params={"thread_id": thread_id},
+            json={"thread_id": thread_id},
         )
         messages = [MessageModel(message=m) for m in response.json()]
         return Conversation(raw_messages=messages)
@@ -1044,9 +1052,12 @@ class AsyncClimateClaw(AsyncAPIClient):
         """
         if num_threads <= 0:
             raise ValueError("Value 'num_threads' has to be at least 1.")
-        response = await self.get(
+        response = await self.post(
             path=self._construct_path("getuserthreads"),
-            params={"num_threads": num_threads, "page": 0},
+            json={
+                "num_threads": num_threads,
+                "page": 0,  # currently hardcoded to be 0 (other values seem to always return an empty list)
+            },
         )
         data = response.json()
         user_threads: List[Dict[str, Any]] = data[0]
@@ -1079,9 +1090,9 @@ class AsyncClimateClaw(AsyncAPIClient):
             raise TypeError(
                 "Argument 'thread_id' has to be specified, if no conversation was started previously."
             )
-        await self.get(
+        await self.post(
             path=self._construct_path("deletethread"),
-            params={"thread_id": thread_id},
+            json={"thread_id": thread_id},
         )
         self.thread_id = None if self.thread_id == thread_id else self.thread_id
 
@@ -1104,9 +1115,9 @@ class AsyncClimateClaw(AsyncAPIClient):
             raise TypeError(
                 "Argument 'thread_id' has to be specified, if no conversation was started previously."
             )
-        await self.get(
+        await self.post(
             path=self._construct_path("setthreadtopic"),
-            params={"thread_id": thread_id, "topic": new_topic},
+            json={"thread_id": thread_id, "topic": new_topic},
         )
         return new_topic
 
@@ -1127,9 +1138,9 @@ class AsyncClimateClaw(AsyncAPIClient):
         """
         if num_threads <= 0:
             raise ValueError("Value 'num_threads' has to be at least 1.")
-        response = await self.get(
+        response = await self.post(
             path=self._construct_path("searchthreads"),
-            params={"query": query, "num_threads": num_threads},
+            json={"query": query, "num_threads": num_threads},
         )
         user_threads, n_threads = response.json()
 
@@ -1165,9 +1176,9 @@ class AsyncClimateClaw(AsyncAPIClient):
                 "Argument 'thread_id' has to be specified, if no conversation was started previously."
             )
         try:
-            await self.get(
+            await self.post(
                 path=self._construct_path("stop"),
-                params={"thread_id": thread_id},
+                json={"thread_id": thread_id},
             )
             return True
         except ConnectionError as e:
@@ -1206,9 +1217,9 @@ class AsyncClimateClaw(AsyncAPIClient):
                 "Argument 'source_thread_id' has to be specified, if no conversation was started previously."
             )
         try:
-            response = await self.get(
+            response = await self.post(
                 path=self._construct_path("editthread"),
-                params={"source_thread_id": source_thread_id, "user_index": user_index},
+                json={"source_thread_id": source_thread_id, "user_index": user_index},
             )
         except ConnectionError as e:
             if e.errno == 404:
@@ -1261,9 +1272,9 @@ class AsyncClimateClaw(AsyncAPIClient):
         if feedback not in (allowed_feedback := ["up", "down", "remove"]):
             raise ValueError(f"Feedback string must be one of {allowed_feedback}.")
         try:
-            response = await self.get(
+            response = await self.post(
                 path=self._construct_path("userfeedback"),
-                params={
+                json={
                     "thread_id": thread_id,
                     "feedback_index": feedback_index,
                     "feedback": feedback,

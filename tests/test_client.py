@@ -266,11 +266,11 @@ class TestThreadManagement:
     ):
         """Test retrieving a thread by ID."""
         client: ClimateClaw = create_client()
-        spy = mocker.spy(client, "get")
+        spy = mocker.spy(client, "post")
         client.thread_id = mock_thread_id
         mock_request("getthread", is_reusable=True)
         thread = client.getthread(mock_new_thread_id)
-        assert spy.call_args_list[-1].kwargs["params"].get("thread_id") == mock_new_thread_id
+        assert spy.call_args_list[-1].kwargs["json"].get("thread_id") == mock_new_thread_id
         assert len(thread.messages) == 2
         assert thread.messages[0].message.variant == "User"
         assert thread.messages[1].message.variant == "Assistant"
@@ -298,9 +298,9 @@ class TestThreadManagement:
         client: ClimateClaw = create_client()
         mock_request("setthreadtopic")
         client.thread_id = mock_thread_id
-        spy_get = mocker.spy(client, "get")
+        spy_get = mocker.spy(client, "post")
         client.setthreadtopic("Test topic")
-        assert spy_get.call_args_list[-1].kwargs["params"]["thread_id"] == client.thread_id
+        assert spy_get.call_args_list[-1].kwargs["json"]["thread_id"] == client.thread_id
 
     def test_setthreadtopic_no_thread_raises_type_error(self, create_client):
         """Test that setthreadtopic raises TypeError if no thread_id provided."""
@@ -639,10 +639,10 @@ class TestPrompting:
         client: ClimateClaw = create_client(model=mock_available_models[0])
         client.thread_id = mock_thread_id
         client.stop = mocker.MagicMock()
-        client.get = mocker.Mock(side_effect=KeyboardInterrupt)
+        client.post = mocker.Mock(side_effect=KeyboardInterrupt)
         with pytest.raises(KeyboardInterrupt):
             client.prompt("Test prompt", model=client.model, stream=False)
-        client.get.assert_called_once()
+        client.post.assert_called_once()
         client.stop.assert_called_once()
 
     def test_stop_with_specified_thread_id_success(
@@ -665,10 +665,10 @@ class TestPrompting:
         client: ClimateClaw = create_client()
         client.thread_id = mock_thread_id
         mock_request("stop")
-        spy_get = mocker.spy(client, "get")
+        spy_get = mocker.spy(client, "post")
         result = client.stop()
         assert result is True
-        assert spy_get.call_args_list[-1].kwargs["params"]["thread_id"] == client.thread_id
+        assert spy_get.call_args_list[-1].kwargs["json"]["thread_id"] == client.thread_id
 
     def test_stop_no_thread_raises_type_error(self, create_client):
         """Test that stop raises a TypeError if no thread is specified and no instance thread id is set."""

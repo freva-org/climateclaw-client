@@ -31,13 +31,14 @@ def base_client_config(base_url):
         "max_retries": 5,
         "timeout": 0.5,
         "custom_headers": {},
+        "auth_url": "http://test-auth:7777",
     }
 
 
 @pytest.fixture
 def make_base_client(mocker: MockerFixture, base_client_config):
     mock_validate_base_url = mocker.patch.object(BaseClient, "_validate_base_url")
-    mock_validate_base_url.return_value = base_client_config["base_url"]
+    mock_validate_base_url.side_effect = lambda url: httpx.URL(url)
     return BaseClient(**base_client_config)
 
 
@@ -47,7 +48,7 @@ def make_sync_api_client(mocker: MockerFixture, base_client_config):
         mocked_token_auth = mocker.patch.object(climateclaw_client._base_client, "TokenAuth")
         mocked_token_auth.return_value = None
         mock_validate_base_url = mocker.patch.object(SyncAPIClient, "_validate_base_url")
-        mock_validate_base_url.return_value = base_client_config["base_url"]
+        mock_validate_base_url.side_effect = lambda url: httpx.URL(url)
         return SyncAPIClient(**base_client_config, http_client=http_client)
 
     return prep_api_client
@@ -59,7 +60,7 @@ def make_async_api_client(mocker: MockerFixture, base_client_config):
         mocked_token_auth = mocker.patch.object(climateclaw_client._base_client, "TokenAuth")
         mocked_token_auth.return_value = None
         mock_validate_base_url = mocker.patch.object(AsyncAPIClient, "_validate_base_url")
-        mock_validate_base_url.return_value = base_client_config["base_url"]
+        mock_validate_base_url.side_effect = lambda url: httpx.URL(url)
         return AsyncAPIClient(**base_client_config, http_client=http_client)
 
     return prep_api_client
@@ -84,6 +85,7 @@ class TestBaseClient:
             base_client_config["custom_headers"]
         )
         assert base_client._version == base_client_config["version"]
+        assert base_client.auth_url == base_client_config["auth_url"]
 
     def test_auth(self, mocker: MockerFixture, make_base_client):
         """Test that _auth property can be accessed correctly."""
@@ -96,7 +98,7 @@ class TestBaseClient:
         assert base_client._auth == {}
         # because the auth token is cached, the underlying TokenAuth should only be called once.
         mocked_token_auth.assert_called_once_with(
-            base_url=base_client.base_url,
+            base_url=base_client.auth_url,
             token_store_path=base_client._token_store_path,
             interactive=True,
         )
@@ -112,9 +114,9 @@ class TestBaseClient:
         assert "user-agent" in default_headers
         assert "climate-claw-python" in default_headers["user-agent"]
         assert "x-freva-vault-url" in default_headers
-        assert base_client.base_url in default_headers["x-freva-vault-url"]
+        assert str(base_client.base_url) in default_headers["x-freva-vault-url"]
         assert "x-freva-rest-url" in default_headers
-        assert base_client.base_url in default_headers["x-freva-rest-url"]
+        assert str(base_client.base_url) in default_headers["x-freva-rest-url"]
         assert "x-freva-config-path" in default_headers
 
     def test_build_headers(self, make_base_client):
@@ -479,12 +481,21 @@ class TestSyncAPIClient:
         api_client._stream.assert_not_called()
 
     def test_get(self, mocker: MockerFixture, make_sync_api_client):
-        """Test get triggers a call to get with method=GET and passes on arguments correctly"""
+        """Test get triggers a call to request with method=GET and passes on arguments correctly"""
         api_client: SyncAPIClient = make_sync_api_client()
         api_client.request = mocker.MagicMock()
         api_client.get(path="/api", stream=True, params={"test": "hello"})
         api_client.request.assert_called_with(
             url="/api", method="GET", stream=True, params={"test": "hello"}
+        )
+
+    def test_post(self, mocker: MockerFixture, make_sync_api_client):
+        """Test post triggers a call to request with method=POST and passes on arguments correctly"""
+        api_client: SyncAPIClient = make_sync_api_client()
+        api_client.request = mocker.MagicMock()
+        api_client.post(path="/api", stream=True, json={"test": "hello"})
+        api_client.request.assert_called_with(
+            url="/api", method="POST", stream=True, json={"test": "hello"}
         )
 
 
@@ -775,10 +786,20 @@ class TestAsyncAPIClient:
 
     @pytest.mark.asyncio
     async def test_get(self, mocker: MockerFixture, make_async_api_client):
-        """Test get triggers a call to get with method=GET and passes on arguments correctly"""
+        """Test get triggers a call to request with method=GET and passes on arguments correctly"""
         api_client: AsyncAPIClient = make_async_api_client()
         api_client.request = mocker.AsyncMock()
         await api_client.get(path="/api", stream=True, params={"test": "hello"})
         api_client.request.assert_called_with(
             url="/api", method="GET", stream=True, params={"test": "hello"}
+        )
+
+    @pytest.mark.asyncio
+    async def test_post(self, mocker: MockerFixture, make_async_api_client):
+        """Test post triggers a call to request with method=POST and passes on arguments correctly"""
+        api_client: AsyncAPIClient = make_async_api_client()
+        api_client.request = mocker.AsyncMock()
+        await api_client.post(path="/api", stream=True, json={"test": "hello"})
+        api_client.request.assert_called_with(
+            url="/api", method="POST", stream=True, json={"test": "hello"}
         )
