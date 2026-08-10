@@ -102,7 +102,8 @@ class ClimateClaw(SyncAPIClient):
         Returns:
             List[str]: List of available model names.
         """
-        response = self.get(path=self._construct_path("chatbots"))
+        response = self.get(path=self._construct_path("chatbots"), stream=False)
+        response = cast(httpx.Response, response)
         available_models = response.json()
         return available_models
 
@@ -128,9 +129,8 @@ class ClimateClaw(SyncAPIClient):
             KeyError: If required keys ('paths', 'info') are missing from the OpenAPI spec,
                 or if expected endpoints are not found in the backend specification.
         """
-        r: httpx.Response = self.get(
-            path=f"{self._root_api_path}/{OPENAPI_SPEC_PATH}", stream=False
-        )
+        r = self.get(path=f"{self._root_api_path}/{OPENAPI_SPEC_PATH}", stream=False)
+        r = cast(httpx.Response, r)
         openapi_spec = r.json()
         if (key := "paths") not in openapi_spec or (key := "info") not in openapi_spec:
             raise KeyError(
@@ -172,7 +172,8 @@ class ClimateClaw(SyncAPIClient):
         Returns:
             str: The ID of the newly created thread.
         """
-        response = self.get(path=self._construct_path("newthread"))
+        response = self.get(path=self._construct_path("newthread"), stream=False)
+        response = cast(httpx.Response, response)
         thread_id = response.json()
         self.thread_id = thread_id
         return thread_id
@@ -354,7 +355,9 @@ class ClimateClaw(SyncAPIClient):
         response = self.post(
             path=self._construct_path("getthread"),
             json={"thread_id": thread_id},
+            stream=False,
         )
+        response = cast(httpx.Response, response)
         messages = [MessageModel(message=m) for m in response.json()]
         return Conversation(raw_messages=messages)
 
@@ -376,13 +379,15 @@ class ClimateClaw(SyncAPIClient):
         """
         if num_threads <= 0:
             raise ValueError("Value 'num_threads' has to be at least 1.")
-        response: httpx.Response = self.post(
+        response = self.post(
             path=self._construct_path("getuserthreads"),
             json={
                 "num_threads": num_threads,
                 "page": 0,  # currently hardcoded to be 0 (other values seem to always return an empty list)
             },
+            stream=False,
         )
+        response = cast(httpx.Response, response)
         user_threads: List[Dict[str, Any]] = response.json()[0]
         n_threads: int = response.json()[1]
 
@@ -414,7 +419,9 @@ class ClimateClaw(SyncAPIClient):
             raise TypeError(
                 "Argument 'thread_id' has to be specified, if no conversation was started previously."
             )
-        self.post(path=self._construct_path("deletethread"), json={"thread_id": thread_id})
+        self.post(
+            path=self._construct_path("deletethread"), json={"thread_id": thread_id}, stream=False
+        )
         # reset self.thread_id in case it is identical to id of deleted thread
         self.thread_id = None if self.thread_id == thread_id else self.thread_id
 
@@ -441,6 +448,7 @@ class ClimateClaw(SyncAPIClient):
         self.post(
             path=self._construct_path("setthreadtopic"),
             json={"thread_id": thread_id, "topic": new_topic},
+            stream=False,
         )
         return new_topic
 
@@ -463,13 +471,15 @@ class ClimateClaw(SyncAPIClient):
         """
         if num_threads <= 0:
             raise ValueError("Value 'num_threads' has to be at least 1.")
-        response: httpx.Response = self.post(
+        response = self.post(
             path=self._construct_path("searchthreads"),
             json={
                 "query": query,
                 "num_threads": num_threads,
             },
+            stream=False,
         )
+        response = cast(httpx.Response, response)
         user_threads, n_threads = response.json()
 
         def map_key_value(k: str, v: Any):
@@ -504,7 +514,9 @@ class ClimateClaw(SyncAPIClient):
                 "Argument 'thread_id' has to be specified, if no conversation was started previously."
             )
         try:
-            self.post(path=self._construct_path("stop"), json={"thread_id": thread_id})
+            self.post(
+                path=self._construct_path("stop"), json={"thread_id": thread_id}, stream=False
+            )
             return True
         except ConnectionError as e:
             if e.errno == 404:
@@ -544,13 +556,15 @@ class ClimateClaw(SyncAPIClient):
                 "Argument 'source_thread_id' has to be specified, if no conversation was started previously."
             )
         try:
-            response: httpx.Response = self.post(
+            response = self.post(
                 path=self._construct_path("editthread"),
                 json={
                     "source_thread_id": source_thread_id,
                     "user_index": user_index,
                 },
+                stream=False,
             )
+            response = cast(httpx.Response, response)
         except ConnectionError as e:
             if e.errno == 404:
                 raise ValueError(f"No thread found for id '{source_thread_id}'!")
@@ -603,14 +617,16 @@ class ClimateClaw(SyncAPIClient):
         if feedback not in (allowed_feedback := ["up", "down", "remove"]):
             raise ValueError(f"Feedback string must be one of {allowed_feedback}.")
         try:
-            response: httpx.Response = self.post(
+            response = self.post(
                 path=self._construct_path("userfeedback"),
                 params={
                     "thread_id": thread_id,
                     "feedback_index": feedback_index,
                     "feedback": feedback,
                 },
+                stream=False,
             )
+            response = cast(httpx.Response, response)
             response_dict: Dict[str, str] = response.json()
             message: str = response_dict.get(
                 "detail",
@@ -715,7 +731,8 @@ class AsyncClimateClaw(AsyncAPIClient):
         Returns:
             List of available model names.
         """
-        response = asyncio.run(self.get(path=self._construct_path("chatbots")))
+        response = asyncio.run(self.get(path=self._construct_path("chatbots"), stream=False))
+        response = cast(httpx.Response, response)
         return response.json()
 
     @property
@@ -766,9 +783,8 @@ class AsyncClimateClaw(AsyncAPIClient):
             KeyError: If required keys ('paths', 'info') are missing from the OpenAPI spec,
                 or if expected endpoints are not found in the backend specification.
         """
-        r: httpx.Response = await self.get(
-            path=f"{self._root_api_path}/{OPENAPI_SPEC_PATH}", stream=False
-        )
+        r = await self.get(path=f"{self._root_api_path}/{OPENAPI_SPEC_PATH}", stream=False)
+        r = cast(httpx.Response, r)
         openapi_spec = r.json()
         if (key := "paths") not in openapi_spec or (key := "info") not in openapi_spec:
             raise KeyError(
@@ -814,7 +830,8 @@ class AsyncClimateClaw(AsyncAPIClient):
         Returns:
             The ID of the newly created thread.
         """
-        response = await self.get(path=self._construct_path("newthread"))
+        response = await self.get(path=self._construct_path("newthread"), stream=False)
+        response = cast(httpx.Response, response)
         thread_id = response.json()
         self.thread_id = thread_id
         return thread_id
@@ -1032,7 +1049,9 @@ class AsyncClimateClaw(AsyncAPIClient):
         response = await self.post(
             path=self._construct_path("getthread"),
             json={"thread_id": thread_id},
+            stream=False,
         )
+        response = cast(httpx.Response, response)
         messages = [MessageModel(message=m) for m in response.json()]
         return Conversation(raw_messages=messages)
 
@@ -1058,7 +1077,9 @@ class AsyncClimateClaw(AsyncAPIClient):
                 "num_threads": num_threads,
                 "page": 0,  # currently hardcoded to be 0 (other values seem to always return an empty list)
             },
+            stream=False,
         )
+        response = cast(httpx.Response, response)
         data = response.json()
         user_threads: List[Dict[str, Any]] = data[0]
         n_threads: int = data[1]
@@ -1093,6 +1114,7 @@ class AsyncClimateClaw(AsyncAPIClient):
         await self.post(
             path=self._construct_path("deletethread"),
             json={"thread_id": thread_id},
+            stream=False,
         )
         self.thread_id = None if self.thread_id == thread_id else self.thread_id
 
@@ -1118,6 +1140,7 @@ class AsyncClimateClaw(AsyncAPIClient):
         await self.post(
             path=self._construct_path("setthreadtopic"),
             json={"thread_id": thread_id, "topic": new_topic},
+            stream=False,
         )
         return new_topic
 
@@ -1141,7 +1164,9 @@ class AsyncClimateClaw(AsyncAPIClient):
         response = await self.post(
             path=self._construct_path("searchthreads"),
             json={"query": query, "num_threads": num_threads},
+            stream=False,
         )
+        response = cast(httpx.Response, response)
         user_threads, n_threads = response.json()
 
         def map_key_value(k: str, v: Any) -> Any:
@@ -1179,6 +1204,7 @@ class AsyncClimateClaw(AsyncAPIClient):
             await self.post(
                 path=self._construct_path("stop"),
                 json={"thread_id": thread_id},
+                stream=False,
             )
             return True
         except ConnectionError as e:
@@ -1220,7 +1246,9 @@ class AsyncClimateClaw(AsyncAPIClient):
             response = await self.post(
                 path=self._construct_path("editthread"),
                 json={"source_thread_id": source_thread_id, "user_index": user_index},
+                stream=False,
             )
+            response = cast(httpx.Response, response)
         except ConnectionError as e:
             if e.errno == 404:
                 raise ValueError(f"No thread found for id '{source_thread_id}'!")
@@ -1279,7 +1307,9 @@ class AsyncClimateClaw(AsyncAPIClient):
                     "feedback_index": feedback_index,
                     "feedback": feedback,
                 },
+                stream=False,
             )
+            response = cast(httpx.Response, response)
             response_dict: Dict[str, str] = response.json()
             message: str = response_dict.get(
                 "detail",

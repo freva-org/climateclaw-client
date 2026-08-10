@@ -331,7 +331,7 @@ class SyncAPIClient(BaseClient[httpx.Client]):
         else:
             return self._request_raw(*args, **kwargs)
 
-    def get(self, path: str, *, stream: bool = False, **kwargs):
+    def get(self, path: str, *, stream: bool = False, **kwargs) -> StreamResponse | httpx.Response:
         """Makes a GET request to the specified path.
 
         Args:
@@ -344,11 +344,11 @@ class SyncAPIClient(BaseClient[httpx.Client]):
         """
         return self.request(method="GET", url=path, stream=stream, **kwargs)
 
-    def post(self, path: str, *, stream: bool = False, **kwargs):
+    def post(self, path: str, *, stream: bool = False, **kwargs) -> StreamResponse | httpx.Response:
         """Makes a POST request to the specified path.
 
         Args:
-            path: URL path for the GET request.
+            path: URL path for the POST request.
             stream: If True, returns a StreamResponse for streaming.
             **kwargs: Additional keyword arguments for the request.
 
@@ -515,7 +515,9 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
         else:
             return await self._request_raw(*args, **kwargs)
 
-    async def get(self, path: str, *, stream: bool = False, **kwargs):
+    async def get(
+        self, path: str, *, stream: bool = False, **kwargs
+    ) -> StreamResponse | httpx.Response:
         """Makes a GET request to the specified path.
 
         Args:
@@ -528,11 +530,13 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
         """
         return await self.request(method="GET", url=path, stream=stream, **kwargs)
 
-    async def post(self, path: str, *, stream: bool = False, **kwargs):
+    async def post(
+        self, path: str, *, stream: bool = False, **kwargs
+    ) -> StreamResponse | httpx.Response:
         """Makes a POST request to the specified path.
 
         Args:
-            path: URL path for the GET request.
+            path: URL path for the POST request.
             stream: If True, returns a StreamResponse for streaming.
             **kwargs: Additional keyword arguments for the request.
 
