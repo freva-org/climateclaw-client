@@ -92,7 +92,7 @@ def token_store_content(request, base_url):
     params=[[True, None], [True, "/path/to/token.json"], [False, None]],
     ids=["no_store_path", "custom_store_path", "no_initial_token"],
 )
-def token_auth_instance(request, mocker, base_url, mock_token_store, token_store_content):
+def token_auth_instance(request, base_url, mock_token_store, token_store_content):
     """
     Fixture providing a TokenAuth instance with mocked dependencies.
 
@@ -110,20 +110,17 @@ def token_auth_instance(request, mocker, base_url, mock_token_store, token_store
     # Configure mock to return token data based on token_store_content
     mock_instance.get.side_effect = lambda key: token_store_content.get(str(key), {}).get("token")
 
-    # Set up Token mock
-    mock_token_cls = mocker.patch.object(auth, "Token", spec=True)
-    mock_token_cls.return_value = {}
-
-    if str(base_url) in token_store_content and token_set:
-        mock_token_cls.return_value = token_store_content[str(base_url)]["token"]
-        mock_token_cls.get.side_effect = lambda key: token_store_content[str(base_url)].get(key)
-
-    return auth.TokenAuth(
+    token_auth = auth.TokenAuth(
         base_url=base_url,
         token_store_path=token_store_path,
         timeout=10,
         app_name="auth-test",
     )
+
+    if token_set and base_url in token_store_content:
+        token_auth.auth_token = token_store_content[str(base_url)]["token"]
+
+    return token_auth
 
 
 # =============================================================================
@@ -138,7 +135,6 @@ def test_token_auth_init(token_auth_instance, mock_token_store):
     # Check timeout and app_name are always set correctly
     assert token_auth_instance.timeout == 10
     assert token_auth_instance.app_name == "auth-test"
-    assert token_auth_instance.auth_token is None
 
     # TokenStore should be instantiated with correct app_name
     assert all(call[1]["app_name"] == "auth-test" for call in mock_cls.call_args_list)
@@ -240,7 +236,8 @@ def test_validate_token_no_token_non_interactive_raises(
     stored_token = mock_instance.get(str(base_url))
     if not (stored_token or token_auth_instance.auth_token):
         with pytest.raises(
-            auth.AuthError, match="New token can only be generated in interactive mode."
+            auth.AuthError,
+            match=r"Token store does not contain token for.*. New token can only be generated in interactive mode.",
         ):
             token_auth_instance._validate_token_store()
 
@@ -284,7 +281,8 @@ async def test_async_validate_token_no_token_non_interactive_raises(
     stored_token = mock_instance.get(str(base_url))
     if not (stored_token or token_auth_instance.auth_token):
         with pytest.raises(
-            auth.AuthError, match="New token can only be generated in interactive mode."
+            auth.AuthError,
+            match=r"Token store does not contain token for.*. New token can only be generated in interactive mode.",
         ):
             await token_auth_instance._async_validate_token_store()
 

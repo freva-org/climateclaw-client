@@ -1,6 +1,6 @@
 # ClimateClaw Client
 
-[![License](https://github.com/eClip-/EUPL-badge/blob/master/eupl_1.2.svg)](LICENSE)
+[![License](https://raw.githubusercontent.com/eClip-/EUPL-badge/refs/heads/master/eupl_1.2.svg)](LICENSE)
 [![docs](https://readthedocs.org/projects/climate-claw-client/badge/?version=latest)](https://climate-claw-client.readthedocs.io/latest/?badge=latest)
 [![codecov](https://codecov.io/github/freva-org/climateclaw-client/graph/badge.svg?token=kDsGq9llcK)](https://codecov.io/github/freva-org/climateclaw-client)
 

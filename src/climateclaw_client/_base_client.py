@@ -30,20 +30,22 @@ class BaseClient(Generic[_HttpxClientT]):
     Attributes:
         _client: The underlying httpx client (Client or AsyncClient).
         _version: Client version string.
-        _base_url: Base URL for API requests.
+        base_url: Base URL for API requests.
         follow_redirects: Whether to follow HTTP redirects.
         max_retries: Maximum number of retry attempts for failed requests.
         timeout: Request timeout in seconds.
         token_store_path: Path to the token store file.
+        auth_url: URL determining location of auth endpoint.
     """
 
     _client: _HttpxClientT
     _version: str
-    _base_url: httpx.URL
+    base_url: httpx.URL
     follow_redirects: bool
     max_retries: int
     timeout: float
     token_store_path: str
+    auth_url: httpx.URL
 
     def __init__(
         self,
@@ -55,6 +57,7 @@ class BaseClient(Generic[_HttpxClientT]):
         max_retries: int = DEFAULT_MAX_RETRIES,
         timeout: float = DEFAULT_TIMEOUT,
         custom_headers: Headers = {},
+        auth_url: str | httpx.URL = "",
         interactive_auth=True,
     ):
         """Initializes the base client with configuration options.
@@ -67,6 +70,7 @@ class BaseClient(Generic[_HttpxClientT]):
             max_retries: Maximum number of retry attempts.
             timeout: Request timeout in seconds.
             custom_headers: Optional custom headers to include in requests.
+            auth_url: Optional url to determine location of auth endpoint.
             interactive_auth: Optional boolean to determine if authentication can be done interactively.
         """
         self._version = version
@@ -76,13 +80,14 @@ class BaseClient(Generic[_HttpxClientT]):
         self.max_retries = max_retries
         self.headers = self._build_headers(custom_headers)
         self._token_store_path = token_store_path
+        self.auth_url = self._validate_base_url(auth_url) if auth_url else self.base_url
         self._interactive_auth = interactive_auth
 
     @cached_property
     def _auth(self) -> TokenAuth:
         """Lazy-loaded authentication handler."""
         return TokenAuth(
-            base_url=self.base_url,
+            base_url=self.auth_url,
             token_store_path=self._token_store_path,
             interactive=self._interactive_auth,
         )
@@ -102,8 +107,8 @@ class BaseClient(Generic[_HttpxClientT]):
                 "Content-Type": "application/json",
                 "Accept": "application/json",
                 "User-Agent": f"climate-claw-python/{self._version} ({platform.machine()} {platform.system().lower()}) Python/{platform.python_version()}",
-                "X-Freva-Vault-URL": f"{self.base_url}:5002",
-                "X-Freva-Rest-URL": f"{self.base_url}:7777",
+                "X-Freva-Vault-URL": f"{self.base_url.scheme}://{self.base_url.host}:5002",
+                "X-Freva-Rest-URL": f"{self.base_url.scheme}://{self.base_url.host}:7777",
                 "X-Freva-Config-Path": "/opt/freva/core/freva/evaluation_system.conf",
             }.items()
         }
@@ -183,6 +188,7 @@ class SyncAPIClient(BaseClient[httpx.Client]):
         timeout: float = DEFAULT_TIMEOUT,
         custom_headers: Headers = {},
         http_client: httpx.Client | None = None,
+        auth_url: str | httpx.URL = "",
         interactive_auth: bool = True,
     ):
         """Initializes the sync client.
@@ -196,6 +202,7 @@ class SyncAPIClient(BaseClient[httpx.Client]):
             timeout: Request timeout in seconds.
             custom_headers: Optional custom headers to include in requests.
             http_client: Optional pre-configured httpx.Client.
+            auth_url: Optional url to determine location of auth endpoint.
             interactive_auth: Optional boolean to determine if authentication can be done interactively.
 
         Raises:
@@ -215,6 +222,7 @@ class SyncAPIClient(BaseClient[httpx.Client]):
             max_retries=max_retries,
             timeout=timeout,
             custom_headers=custom_headers,
+            auth_url=auth_url,
             interactive_auth=interactive_auth,
         )
         if http_client:
@@ -323,7 +331,7 @@ class SyncAPIClient(BaseClient[httpx.Client]):
         else:
             return self._request_raw(*args, **kwargs)
 
-    def get(self, path: str, *, stream: bool = False, **kwargs):
+    def get(self, path: str, *, stream: bool = False, **kwargs) -> StreamResponse | httpx.Response:
         """Makes a GET request to the specified path.
 
         Args:
@@ -335,6 +343,19 @@ class SyncAPIClient(BaseClient[httpx.Client]):
             StreamResponse if stream=True, otherwise httpx.Response.
         """
         return self.request(method="GET", url=path, stream=stream, **kwargs)
+
+    def post(self, path: str, *, stream: bool = False, **kwargs) -> StreamResponse | httpx.Response:
+        """Makes a POST request to the specified path.
+
+        Args:
+            path: URL path for the POST request.
+            stream: If True, returns a StreamResponse for streaming.
+            **kwargs: Additional keyword arguments for the request.
+
+        Returns:
+            StreamResponse if stream=True, otherwise httpx.Response.
+        """
+        return self.request(method="POST", url=path, stream=stream, **kwargs)
 
 
 class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
@@ -360,6 +381,7 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
         timeout: float = DEFAULT_TIMEOUT,
         custom_headers: Headers = {},
         http_client: httpx.AsyncClient | None = None,
+        auth_url: str | httpx.URL = "",
         interactive_auth: bool = True,
     ):
         """Initializes the async client.
@@ -373,6 +395,7 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
             timeout: Request timeout in seconds.
             custom_headers: Optional custom headers to include in requests.
             http_client: Optional pre-configured httpx.AsyncClient.
+            auth_url: Optional url to determine location of auth endpoint.
             interactive_auth: Optional boolean to determine if authentication can be done interactively.
 
         Raises:
@@ -392,6 +415,7 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
             max_retries=max_retries,
             timeout=timeout,
             custom_headers=custom_headers,
+            auth_url=auth_url,
             interactive_auth=interactive_auth,
         )
         if http_client:
@@ -491,7 +515,9 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
         else:
             return await self._request_raw(*args, **kwargs)
 
-    async def get(self, path: str, *, stream: bool = False, **kwargs):
+    async def get(
+        self, path: str, *, stream: bool = False, **kwargs
+    ) -> StreamResponse | httpx.Response:
         """Makes a GET request to the specified path.
 
         Args:
@@ -503,3 +529,18 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
             StreamResponse if stream=True, otherwise httpx.Response.
         """
         return await self.request(method="GET", url=path, stream=stream, **kwargs)
+
+    async def post(
+        self, path: str, *, stream: bool = False, **kwargs
+    ) -> StreamResponse | httpx.Response:
+        """Makes a POST request to the specified path.
+
+        Args:
+            path: URL path for the POST request.
+            stream: If True, returns a StreamResponse for streaming.
+            **kwargs: Additional keyword arguments for the request.
+
+        Returns:
+            StreamResponse if stream=True, otherwise httpx.Response.
+        """
+        return await self.request(method="POST", url=path, stream=stream, **kwargs)
