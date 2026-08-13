@@ -25,7 +25,7 @@ from pydantic import BaseModel, Field, computed_field, field_validator
 
 from ._streaming import StreamResponse
 
-if sys.version_info.minor < 11:  # pragma: no cover
+if sys.version_info.minor <= 11:  # pragma: no cover
     from typing_extensions import Self, TypedDict
 else:
     from typing import Self, TypedDict
