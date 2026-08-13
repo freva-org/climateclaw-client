@@ -17,7 +17,6 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
-    TypedDict,
     Union,
 )
 
@@ -27,9 +26,9 @@ from pydantic import BaseModel, Field, computed_field, field_validator
 from ._streaming import StreamResponse
 
 if sys.version_info.minor < 11:  # pragma: no cover
-    from typing_extensions import Self
+    from typing_extensions import Self, TypedDict
 else:
-    from typing import Self
+    from typing import Self, TypedDict
 
 
 class BaseMessage(BaseModel):
