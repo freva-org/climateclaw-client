@@ -43,10 +43,10 @@ class StreamResponse:
 
     @staticmethod
     def _process_chunks(chunk: str, partial_response: str = "") -> Tuple[List[Dict], str]:
-        """Processes a chunk of string data containing JSON-like objects.
+        """Processes a chunk of string data containing newline-delimited JSON objects.
 
-        Handles cases where JSON objects are split across chunks by tracking
-        partial responses and combining them when complete objects are received.
+        Handles incomplete JSON objects at chunk boundaries by tracking brace depth
+        and properly handling string literals.
 
         Args:
             chunk: A string that may contain full or partial JSON-like objects.
@@ -65,69 +65,66 @@ class StreamResponse:
                         d[key] = recurse_dict(json.loads(value))
             return d
 
-        # sanitize input string
-        chunk = chunk.strip().replace("\n", "")
-        # check that chunk is not empty
-        if not chunk:
-            return [], partial_response
-        # Attempt to split the input chunk into potential JSON-like parts based on "}{"
-        chunk_split = chunk.split("}{")
-        # If there is no "}{", the chunk might represent a single or partial JSON-like object
-        if len(chunk_split) == 1:
-            # Case 1: The chunk starts with "{" and ends with "}" (a complete JSON object)
-            if chunk[0] == "{" and chunk[-1] == "}":
-                return [recurse_dict(json.loads(chunk))], ""
+        # Combine with partial response from previous chunks
+        combined = partial_response + chunk
+        results: List[Dict] = []
+        remaining = ""
 
-            # Case 2: The chunk starts with "{" but does not end with "}" (partial JSON object)
-            elif chunk[0] == "{" and chunk[-1] != "}":
-                partial_response = chunk  # Save the partial object for later
-                return [], partial_response
+        i = 0
+        while i < len(combined):
+            # Skip whitespace and newlines
+            while i < len(combined) and combined[i] in " \t\n\r":
+                i += 1
 
-            # Case 3: The chunk ends with "}" but does not start with "{" (completes a partial JSON object)
-            elif chunk[-1] == "}":
-                partial_response += chunk  # Append to the saved partial object
-                return [
-                    recurse_dict(json.loads(partial_response))
-                ], ""  # Return the completed object
-
-            # Case 4: Neither starts with "{" nor ends with "}" (still an incomplete JSON object)
-            else:
-                partial_response += chunk  # Append to the saved partial object
-                return [], partial_response
-
-        # If there are multiple parts after splitting, handle them as potential JSON objects
-        else:
-            complete_parts = []
-
-            for i, part in enumerate(chunk_split):
-                if i == 0:
-                    fixed_part = part + "}"  # Add closing brace to make it a complete object
-                    # Check if it is a continuation of a partial response
-                    if part[0] != "{":
-                        partial_response += fixed_part  # Append to the saved partial object
-                        complete_parts.append(
-                            recurse_dict(json.loads(partial_response))
-                        )  # Add the completed object to the list
+            if i >= len(combined):
+                break
+            # Only process if we find a starting brace
+            if combined[i] == "{":
+                brace_depth = 1
+                in_string = False
+                escape_next = False
+                json_start = i
+                parsed = {}
+                for j in range(i + 1, len(combined)):
+                    char = combined[j]
+                    if escape_next:
+                        escape_next = False
                         continue
-                    else:
-                        complete_parts.append(
-                            recurse_dict(json.loads(fixed_part))
-                        )  # the first part is a complete json object, append to result
 
-                elif i == len(chunk_split) - 1:
-                    fixed_part = "{" + part  # Add opening brace to make it a complete object
-                    # If it is still incomplete, save it as the new partial response
-                    if part[-1] != "}":
-                        partial_response = fixed_part
-                    # If it is complete, add to the list and clear partial response
-                    else:
-                        complete_parts.append(recurse_dict(json.loads(fixed_part)))
-                        partial_response = ""
-                else:
-                    fixed_part = "{" + part + "}"
-                    complete_parts.append(recurse_dict(json.loads(fixed_part)))
+                    if char == "\\":
+                        escape_next = True
+                        continue
 
-        return complete_parts, partial_response
+                    if char == '"' and not escape_next:
+                        in_string = not in_string
+                        continue
+
+                    if not in_string:
+                        if char == "{":
+                            brace_depth += 1
+                        elif char == "}":
+                            brace_depth -= 1
+                            if brace_depth == 0:
+                                # Found complete JSON object
+                                json_str = combined[json_start : j + 1]
+                                try:
+                                    remaining = ""
+                                    parsed = recurse_dict(json.loads(json_str))
+                                    results.append(parsed)
+                                    i = j + 1
+                                    break
+                                except json.JSONDecodeError:
+                                    # Not valid JSON, treat as partial
+                                    break
+                if not parsed:
+                    # Reached end without finding complete object
+                    remaining = combined[json_start:]
+                    i = len(combined)
+                    break
+            else:
+                # Skip non-JSON content
+                i += 1
+        return results, remaining
 
     def iter_json_objects(self) -> Generator[Dict[str, Any], None, None]:
         """Generator that yields complete JSON dicts from the stream.

@@ -198,7 +198,7 @@ def test_is_closed_true(make_closed_stream_response):
         ),
         # Split across boundary: first chunk partial, second completes
         (
-            '{"key": "value"}',
+            'key": "value"}',
             '{"',
             [{"key": "value"}],
             "",
@@ -247,6 +247,29 @@ def test_is_closed_true(make_closed_stream_response):
             [{"a": {"b": 2}}],
             "",
         ),
+        # json-string contains dictionary
+        (
+            '{"a":{"b":{"c":1}}}',
+            "",
+            [{"a": {"b": {"c": 1}}}],
+            "",
+        ),
+        # Object contains "}{" token as a value
+        (
+            '{"a": "}{"}{"b":5}',
+            "",
+            [{"a": "}{"}, {"b": 5}],
+            "",
+        ),
+        # malformed json-string returns unchanged
+        ('{"a": "ab"c}', "", [], '{"a": "ab"c}'),
+        # non json content
+        (
+            "Hello my darling",
+            "",
+            [],
+            "",
+        ),
     ],
     ids=[
         "single_complete",
@@ -265,6 +288,10 @@ def test_is_closed_true(make_closed_stream_response):
         "multiple_with_partial",
         "multiple_with_incomplete_end",
         "recursive_dict_continuation",
+        "json_chunk_with_nested_dictionary",
+        "curly_braces_as_value",
+        "malformed_json_string_returns_incomplete",
+        "non_json_content_gets_ignored",
     ],
 )
 def test_process_chunks(
