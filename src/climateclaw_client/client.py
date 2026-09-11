@@ -329,7 +329,12 @@ class ClimateClaw(SyncAPIClient):
             raise
         except Exception:
             logger.error(
-                f"Encountered error when prompting backend for request with id {request_id}."
+                "Encountered error when prompting backend.",
+                exc_info=True,
+                extra={
+                    "request_id": request_id,
+                    "thread_id": thread_id,
+                },
             )
             raise
         if not stream:
@@ -1029,7 +1034,12 @@ class AsyncClimateClaw(AsyncAPIClient):
             raise
         except Exception:
             logger.error(
-                f"Encountered error when prompting backend for request with id {request_id}."
+                "Encountered error when prompting backend.",
+                exc_info=True,
+                extra={
+                    "request_id": request_id,
+                    "thread_id": thread_id,
+                },
             )
             raise
 
