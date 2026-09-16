@@ -532,7 +532,17 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
         return r
 
     async def request(self, *args, stream=False, **kwargs) -> StreamResponse | httpx.Response:
-        """Makes an HTTP request, either streaming or non-streaming."""
+        """Makes an HTTP request, either streaming or non-streaming.
+
+        Args:
+            *args: Positional arguments passed to the request method.
+            stream: If True, returns a StreamResponse for streaming JSON objects.
+            **kwargs: Keyword arguments passed to the request method.
+
+        Returns:
+            StreamResponse if stream=True, otherwise httpx.Response.
+        """
+
         headers = self._request_headers(kwargs)
         if headers:
             kwargs["headers"] = headers
