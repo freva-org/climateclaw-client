@@ -7,7 +7,7 @@ import socket
 import time
 import urllib.parse
 from functools import cached_property
-from typing import Any, Dict, Generic, TypeVar, Union
+from typing import Any, Dict, Generic, Mapping, TypeVar, Union
 
 import httpx
 
@@ -106,7 +106,7 @@ class BaseClient(Generic[_HttpxClientT]):
             for k, v in {
                 "Content-Type": "application/json",
                 "Accept": "application/json",
-                "User-Agent": f"climate-claw-python/{self._version} ({platform.machine()} {platform.system().lower()}) Python/{platform.python_version()}",
+                "User-Agent": f"climateclaw-python/{self._version} ({platform.machine()} {platform.system().lower()}) Python/{platform.python_version()}",
                 "X-Freva-Vault-URL": f"{self.base_url.scheme}://{self.base_url.host}:5002",
                 "X-Freva-Rest-URL": f"{self.base_url.scheme}://{self.base_url.host}:7777",
                 "X-Freva-Config-Path": "/opt/freva/core/freva/evaluation_system.conf",
@@ -118,6 +118,25 @@ class BaseClient(Generic[_HttpxClientT]):
         """Builds request headers by merging default and custom headers."""
         headers = {**self.default_headers, **custom_headers}
         return httpx.Headers(headers)
+
+    def _request_headers(self, kwargs: dict[str, Any] = {}) -> httpx.Headers | None:
+        """Conditionally set request headers, depending if body contains certain keys-value pairs."""
+        body = kwargs.get("json") or kwargs.get("params")
+
+        headers = {}
+
+        if isinstance(body, Mapping):
+            if (model := body.get("chatbot")) is not None:
+                headers["X-Freva-Bot-Model"] = str(model)
+
+            if (thread_id := body.get("thread_id")) is not None:
+                headers["X-Freva-Thread-Id"] = str(thread_id)
+
+        # Update headers, with per-request ones taking precedence
+        headers.update(kwargs.get("headers", {}))
+        if headers:
+            return httpx.Headers(headers)
+        return None
 
     @classmethod
     def _validate_base_url(cls, base_url: Union[str, httpx.URL]) -> httpx.URL:
@@ -326,6 +345,10 @@ class SyncAPIClient(BaseClient[httpx.Client]):
         Returns:
             StreamResponse if stream=True, otherwise httpx.Response.
         """
+
+        headers = self._request_headers(kwargs)
+        if headers:
+            kwargs["headers"] = headers
         if stream:
             return self._stream(*args, **kwargs)
         else:
@@ -510,6 +533,9 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
 
     async def request(self, *args, stream=False, **kwargs) -> StreamResponse | httpx.Response:
         """Makes an HTTP request, either streaming or non-streaming."""
+        headers = self._request_headers(kwargs)
+        if headers:
+            kwargs["headers"] = headers
         if stream:
             return await self._stream(*args, **kwargs)
         else:
