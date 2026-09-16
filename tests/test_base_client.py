@@ -149,6 +149,10 @@ class TestBaseClient:
         # assert that calling _request_headers without arguments simply returns an empty headers instance
         headers = base_client._request_headers()
         assert headers is None
+        # assert that any headers already included in request are preserved
+        custom_header = httpx.Headers({"Test-Header": "Value123"})
+        headers = base_client._request_headers({"headers": custom_header})
+        assert headers == custom_header
         # assert that _request_headers adds "X-Freva-Thread-Id" to the result if "thread_id" is contained in request
         headers = base_client._request_headers({body_key: {"thread_id": mock_thread_id}})
         assert "X-Freva-Thread-Id" in headers and headers.get("X-Freva-Thread-Id") == mock_thread_id
