@@ -12,7 +12,7 @@ from typing import Any, Dict, Generic, TypeVar, Union
 import httpx
 
 from ._auth import TokenAuth
-from ._constants import DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT
+from ._constants import DEFAULT_MAX_RETRIES, DEFAULT_READ_TIMEOUT, DEFAULT_TIMEOUT
 from ._streaming import StreamResponse
 
 logger: logging.Logger = logging.getLogger(__name__)
@@ -236,7 +236,7 @@ class SyncAPIClient(BaseClient[httpx.Client]):
         return httpx.Client(
             base_url=self.base_url,
             follow_redirects=self.follow_redirects,
-            timeout=httpx.Timeout(DEFAULT_TIMEOUT, connect=self.timeout),
+            timeout=httpx.Timeout(DEFAULT_TIMEOUT, read=DEFAULT_READ_TIMEOUT, connect=self.timeout),
             headers=self.headers,
             auth=self._auth,
         )
@@ -429,7 +429,7 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
         return httpx.AsyncClient(
             base_url=self.base_url,
             follow_redirects=self.follow_redirects,
-            timeout=httpx.Timeout(DEFAULT_TIMEOUT, connect=self.timeout),
+            timeout=httpx.Timeout(DEFAULT_TIMEOUT, read=DEFAULT_READ_TIMEOUT, connect=self.timeout),
             headers=self.headers,
             auth=self._auth,
         )
