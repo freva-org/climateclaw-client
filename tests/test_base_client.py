@@ -8,7 +8,7 @@ from pytest_mock import MockerFixture
 
 import climateclaw_client._base_client
 from climateclaw_client._base_client import AsyncAPIClient, BaseClient, SyncAPIClient  # noqa
-from climateclaw_client._constants import DEFAULT_TIMEOUT
+from climateclaw_client._constants import DEFAULT_READ_TIMEOUT, DEFAULT_TIMEOUT
 from climateclaw_client._streaming import StreamResponse
 
 # =============================================================================
@@ -262,7 +262,9 @@ class TestSyncAPIClient:
         spy_client.assert_called_once_with(
             base_url=api_client.base_url,
             follow_redirects=api_client.follow_redirects,
-            timeout=httpx.Timeout(DEFAULT_TIMEOUT, connect=api_client.timeout),
+            timeout=httpx.Timeout(
+                DEFAULT_TIMEOUT, read=DEFAULT_READ_TIMEOUT, connect=api_client.timeout
+            ),
             headers=api_client.headers,
             auth=api_client._auth,
         )
@@ -541,7 +543,9 @@ class TestAsyncAPIClient:
         spy_client.assert_called_once_with(
             base_url=api_client.base_url,
             follow_redirects=api_client.follow_redirects,
-            timeout=httpx.Timeout(DEFAULT_TIMEOUT, connect=api_client.timeout),
+            timeout=httpx.Timeout(
+                DEFAULT_TIMEOUT, read=DEFAULT_READ_TIMEOUT, connect=api_client.timeout
+            ),
             headers=api_client.headers,
             auth=api_client._auth,
         )
