@@ -2,6 +2,7 @@ import asyncio
 import getpass
 import json
 import logging
+import uuid
 from functools import cached_property
 from importlib import metadata
 from typing import Any, Dict, List, Literal, Tuple, cast
@@ -306,6 +307,10 @@ class ClimateClaw(SyncAPIClient):
             thread_id = self.newthread()
         elif not thread_id:
             thread_id = self.thread_id
+
+        # set a unique id for each prompt to the backend
+        request_id = uuid.uuid4().hex
+
         try:
             response: httpx.Response | StreamResponse = self.post(
                 path=self._construct_path("streamresponse"),
@@ -316,10 +321,21 @@ class ClimateClaw(SyncAPIClient):
                     "store_thread": store_thread,
                 },
                 stream=stream,
+                headers={"X-Request-Id": request_id},
             )
         except KeyboardInterrupt:
             logger.debug("Registered keyboard-interrupt. Stopping thread.")
             self.stop(thread_id=thread_id)
+            raise
+        except Exception:
+            logger.error(
+                "Encountered error when prompting backend.",
+                exc_info=True,
+                extra={
+                    "request_id": request_id,
+                    "thread_id": thread_id,
+                },
+            )
             raise
         if not stream:
             response = cast(httpx.Response, response)
@@ -997,6 +1013,9 @@ class AsyncClimateClaw(AsyncAPIClient):
         elif not thread_id:
             thread_id = self.thread_id
 
+        # set a unique id for each prompt to the backend
+        request_id = uuid.uuid4().hex
+
         try:
             response: httpx.Response | StreamResponse = await self.post(
                 path=self._construct_path("streamresponse"),
@@ -1007,10 +1026,21 @@ class AsyncClimateClaw(AsyncAPIClient):
                     "store_thread": store_thread,
                 },
                 stream=stream,
+                headers={"X-Request-Id": request_id},
             )
         except KeyboardInterrupt:
             logger.debug("Registered keyboard-interrupt. Stopping thread.")
             await self.stop(thread_id=thread_id)
+            raise
+        except Exception:
+            logger.error(
+                "Encountered error when prompting backend.",
+                exc_info=True,
+                extra={
+                    "request_id": request_id,
+                    "thread_id": thread_id,
+                },
+            )
             raise
 
         if not stream:

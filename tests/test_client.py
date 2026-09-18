@@ -6,7 +6,7 @@ from pytest_mock import MockerFixture
 
 from climateclaw_client._base_client import BaseClient
 from climateclaw_client._constants import CLIMATECLAW_API_ENDPOINTS
-from climateclaw_client.client import ClimateClaw, logger
+from climateclaw_client.client import ClimateClaw, logger, uuid
 from climateclaw_client.models import Conversation, StreamConversation
 
 # =============================================================================
@@ -644,6 +644,27 @@ class TestPrompting:
             client.prompt("Test prompt", model=client.model, stream=False)
         client.post.assert_called_once()
         client.stop.assert_called_once()
+
+    def test_prompt_general_exception_raises(
+        self, mocker: MockerFixture, create_client, mock_available_models, mock_thread_id
+    ):
+        """Test that a general exception (except KeyboardInterrupt) raises and triggers log call."""
+        mocked_uuid4 = mocker.patch.object(uuid, "uuid4")
+        mocked_uuid4.return_value.hex = mocker.sentinel.hex
+        spy_logger = mocker.spy(logger, "error")
+        client: ClimateClaw = create_client(model=mock_available_models[0])
+        client.thread_id = mock_thread_id
+        client.post = mocker.Mock(side_effect=Exception("General exception"))
+        with pytest.raises(Exception, match="General exception"):
+            client.prompt("Test prompt")
+        spy_logger.assert_called_with(
+            "Encountered error when prompting backend.",
+            exc_info=True,
+            extra={
+                "request_id": mocker.sentinel.hex,
+                "thread_id": mock_thread_id,
+            },
+        )
 
     def test_stop_with_specified_thread_id_success(
         self, create_client, mock_thread_id, mock_request
