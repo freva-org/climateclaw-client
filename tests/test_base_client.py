@@ -112,7 +112,7 @@ class TestBaseClient:
         assert "accept" in default_headers
         assert default_headers["accept"] == "application/json"
         assert "user-agent" in default_headers
-        assert "climate-claw-python" in default_headers["user-agent"]
+        assert "climateclaw-python" in default_headers["user-agent"]
         assert "x-freva-vault-url" in default_headers
         assert str(base_client.base_url) in default_headers["x-freva-vault-url"]
         assert "x-freva-rest-url" in default_headers
@@ -142,6 +142,36 @@ class TestBaseClient:
         custom_headers = {"accept": "Any"}
         headers = base_client._build_headers(custom_headers)
         assert headers["accept"] == custom_headers["accept"]
+
+    @pytest.mark.parametrize("body_key", ["json", "params"], ids=["json_body", "params_body"])
+    def test_request_headers(self, body_key, make_base_client, mock_thread_id):
+        base_client: BaseClient = make_base_client
+        # assert that calling _request_headers without arguments simply returns an empty headers instance
+        headers = base_client._request_headers()
+        assert headers is None
+        # assert that any headers already included in request are preserved
+        custom_header = httpx.Headers({"Test-Header": "Value123"})
+        headers = base_client._request_headers({"headers": custom_header})
+        assert headers == custom_header
+        # assert that _request_headers adds "X-Freva-Thread-Id" to the result if "thread_id" is contained in request
+        headers = base_client._request_headers({body_key: {"thread_id": mock_thread_id}})
+        assert "X-Freva-Thread-Id" in headers and headers.get("X-Freva-Thread-Id") == mock_thread_id
+        assert "X-Freva-Bot-Model" not in headers
+        # do the same for "model", asserting that _request_headers adds "X-Freva-Bot-Model" is added to the header
+        headers = base_client._request_headers({body_key: {"chatbot": "gpt-4.1"}})
+        assert "X-Freva-Bot-Model" in headers and headers.get("X-Freva-Bot-Model") == "gpt-4.1"
+        assert "X-Freva-Thread-Id" not in headers
+        # assert that both headers are present if both "model" and "thread_id" are contained in request body
+        headers = base_client._request_headers(
+            {
+                body_key: {
+                    "thread_id": mock_thread_id,
+                    "chatbot": "gpt-4.1",
+                }
+            }
+        )
+        assert "X-Freva-Thread-Id" in headers and headers.get("X-Freva-Thread-Id") == mock_thread_id
+        assert "X-Freva-Bot-Model" in headers and headers.get("X-Freva-Bot-Model") == "gpt-4.1"
 
     @pytest.mark.parametrize(
         argnames="url",

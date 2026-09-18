@@ -619,7 +619,7 @@ class ClimateClaw(SyncAPIClient):
         try:
             response = self.post(
                 path=self._construct_path("userfeedback"),
-                params={
+                json={
                     "thread_id": thread_id,
                     "feedback_index": feedback_index,
                     "feedback": feedback,
