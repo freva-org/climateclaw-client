@@ -6,8 +6,9 @@ import random
 import socket
 import time
 import urllib.parse
+import uuid
 from functools import cached_property
-from typing import Any, Dict, Generic, TypeVar, Union
+from typing import Any, Dict, Generic, TypeVar, Union, cast
 
 import httpx
 
@@ -326,10 +327,24 @@ class SyncAPIClient(BaseClient[httpx.Client]):
         Returns:
             StreamResponse if stream=True, otherwise httpx.Response.
         """
-        if stream:
-            return self._stream(*args, **kwargs)
-        else:
-            return self._request_raw(*args, **kwargs)
+        # set a unique id for each prompt to the backend
+        request_id = uuid.uuid4().hex
+        # update headers to include unique request id
+        headers = kwargs.get("headers", {})
+        headers = cast(Dict[str, Any], headers)
+        headers.update({"X-Request-Id": request_id})
+        try:
+            if stream:
+                return self._stream(*args, **kwargs)
+            else:
+                return self._request_raw(*args, **kwargs)
+        except Exception:
+            logger.error(
+                f"Encountered error during {"streaming " if stream else ""}request.",
+                exc_info=True,
+                extra={"request_id": request_id},
+            )
+            raise
 
     def get(self, path: str, *, stream: bool = False, **kwargs) -> StreamResponse | httpx.Response:
         """Makes a GET request to the specified path.
@@ -510,10 +525,24 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
 
     async def request(self, *args, stream=False, **kwargs) -> StreamResponse | httpx.Response:
         """Makes an HTTP request, either streaming or non-streaming."""
-        if stream:
-            return await self._stream(*args, **kwargs)
-        else:
-            return await self._request_raw(*args, **kwargs)
+        # set a unique id for each prompt to the backend
+        request_id = uuid.uuid4().hex
+        # update headers to include unique request id
+        headers = kwargs.get("headers", {})
+        headers = cast(Dict[str, Any], headers)
+        headers.update({"X-Request-Id": request_id})
+        try:
+            if stream:
+                return await self._stream(*args, **kwargs)
+            else:
+                return await self._request_raw(*args, **kwargs)
+        except Exception:
+            logger.error(
+                f"Encountered error during {"streaming " if stream else ""}request.",
+                exc_info=True,
+                extra={"request_id": request_id},
+            )
+            raise
 
     async def get(
         self, path: str, *, stream: bool = False, **kwargs
