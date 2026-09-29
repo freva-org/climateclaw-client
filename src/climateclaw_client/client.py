@@ -2,7 +2,6 @@ import asyncio
 import getpass
 import json
 import logging
-import uuid
 from functools import cached_property
 from importlib import metadata
 from typing import Any, Dict, List, Literal, Tuple, cast
@@ -308,9 +307,6 @@ class ClimateClaw(SyncAPIClient):
         elif not thread_id:
             thread_id = self.thread_id
 
-        # set a unique id for each prompt to the backend
-        request_id = uuid.uuid4().hex
-
         try:
             response: httpx.Response | StreamResponse = self.post(
                 path=self._construct_path("streamresponse"),
@@ -321,10 +317,14 @@ class ClimateClaw(SyncAPIClient):
                     "store_thread": store_thread,
                 },
                 stream=stream,
-                headers={"X-Request-Id": request_id},
             )
         except KeyboardInterrupt:
-            logger.debug("Registered keyboard-interrupt. Stopping thread.")
+            logger.debug(
+                "Registered keyboard-interrupt. Stopping thread.",
+                extra={
+                    "thread_id": thread_id,
+                },
+            )
             self.stop(thread_id=thread_id)
             raise
         except Exception:
@@ -332,7 +332,6 @@ class ClimateClaw(SyncAPIClient):
                 "Encountered error when prompting backend.",
                 exc_info=True,
                 extra={
-                    "request_id": request_id,
                     "thread_id": thread_id,
                 },
             )
@@ -368,13 +367,21 @@ class ClimateClaw(SyncAPIClient):
             raise TypeError(
                 "Argument 'thread_id' has to be specified, if no conversation was started previously."
             )
-        response = self.post(
-            path=self._construct_path("getthread"),
-            json={"thread_id": thread_id},
-            stream=False,
-        )
-        response = cast(httpx.Response, response)
-        messages = [MessageModel(message=m) for m in response.json()]
+        try:
+            response = self.post(
+                path=self._construct_path("getthread"),
+                json={"thread_id": thread_id},
+                stream=False,
+            )
+            response = cast(httpx.Response, response)
+            messages = [MessageModel(message=m) for m in response.json()]
+        except Exception:
+            logger.error(
+                "Encountered error when trying to get thread.",
+                exc_info=True,
+                extra={"thread_id": thread_id},
+            )
+            raise
         return Conversation(raw_messages=messages)
 
     def getuserthreads(
@@ -395,28 +402,32 @@ class ClimateClaw(SyncAPIClient):
         """
         if num_threads <= 0:
             raise ValueError("Value 'num_threads' has to be at least 1.")
-        response = self.post(
-            path=self._construct_path("getuserthreads"),
-            json={
-                "num_threads": num_threads,
-                "page": 0,  # currently hardcoded to be 0 (other values seem to always return an empty list)
-            },
-            stream=False,
-        )
-        response = cast(httpx.Response, response)
-        user_threads: List[Dict[str, Any]] = response.json()[0]
-        n_threads: int = response.json()[1]
-
-        def map_key_value(k: str, v: Any):
-            return (
-                Conversation(raw_messages=[MessageModel(message=m) for m in v])
-                if k.lower() == "content"
-                else str(v)
+        try:
+            response = self.post(
+                path=self._construct_path("getuserthreads"),
+                json={
+                    "num_threads": num_threads,
+                    "page": 0,  # currently hardcoded to be 0 (other values seem to always return an empty list)
+                },
+                stream=False,
             )
+            response = cast(httpx.Response, response)
+            user_threads: List[Dict[str, Any]] = response.json()[0]
+            n_threads: int = response.json()[1]
 
-        thread_data = [
-            {key: map_key_value(key, value) for key, value in ut.items()} for ut in user_threads
-        ]
+            def map_key_value(k: str, v: Any):
+                return (
+                    Conversation(raw_messages=[MessageModel(message=m) for m in v])
+                    if k.lower() == "content"
+                    else str(v)
+                )
+
+            thread_data = [
+                {key: map_key_value(key, value) for key, value in ut.items()} for ut in user_threads
+            ]
+        except Exception:
+            logger.error("Encountered error when trying to get user threads.", exc_info=True)
+            raise
         return n_threads, thread_data
 
     def deletethread(self, thread_id: str | None = None) -> None:
@@ -435,9 +446,19 @@ class ClimateClaw(SyncAPIClient):
             raise TypeError(
                 "Argument 'thread_id' has to be specified, if no conversation was started previously."
             )
-        self.post(
-            path=self._construct_path("deletethread"), json={"thread_id": thread_id}, stream=False
-        )
+        try:
+            self.post(
+                path=self._construct_path("deletethread"),
+                json={"thread_id": thread_id},
+                stream=False,
+            )
+        except Exception:
+            logger.error(
+                "Encountered error when trying to delete thread.",
+                exc_info=True,
+                extra={"thread_id": thread_id},
+            )
+            raise
         # reset self.thread_id in case it is identical to id of deleted thread
         self.thread_id = None if self.thread_id == thread_id else self.thread_id
 
@@ -461,11 +482,19 @@ class ClimateClaw(SyncAPIClient):
             raise TypeError(
                 "Argument 'thread_id' has to be specified, if no conversation was started previously."
             )
-        self.post(
-            path=self._construct_path("setthreadtopic"),
-            json={"thread_id": thread_id, "topic": new_topic},
-            stream=False,
-        )
+        try:
+            self.post(
+                path=self._construct_path("setthreadtopic"),
+                json={"thread_id": thread_id, "topic": new_topic},
+                stream=False,
+            )
+        except Exception:
+            logger.error(
+                "Encountered error when trying to set topic of thread.",
+                exc_info=True,
+                extra={"thread_id": thread_id},
+            )
+            raise
         return new_topic
 
     def searchthreads(
@@ -487,27 +516,31 @@ class ClimateClaw(SyncAPIClient):
         """
         if num_threads <= 0:
             raise ValueError("Value 'num_threads' has to be at least 1.")
-        response = self.post(
-            path=self._construct_path("searchthreads"),
-            json={
-                "query": query,
-                "num_threads": num_threads,
-            },
-            stream=False,
-        )
-        response = cast(httpx.Response, response)
-        user_threads, n_threads = response.json()
-
-        def map_key_value(k: str, v: Any):
-            return (
-                Conversation(raw_messages=[MessageModel(message=m) for m in v])
-                if k.lower() == "content"
-                else str(v)
+        try:
+            response = self.post(
+                path=self._construct_path("searchthreads"),
+                json={
+                    "query": query,
+                    "num_threads": num_threads,
+                },
+                stream=False,
             )
+            response = cast(httpx.Response, response)
+            user_threads, n_threads = response.json()
 
-        thread_data = [
-            {key: map_key_value(key, value) for key, value in ut.items()} for ut in user_threads
-        ]
+            def map_key_value(k: str, v: Any):
+                return (
+                    Conversation(raw_messages=[MessageModel(message=m) for m in v])
+                    if k.lower() == "content"
+                    else str(v)
+                )
+
+            thread_data = [
+                {key: map_key_value(key, value) for key, value in ut.items()} for ut in user_threads
+            ]
+        except Exception:
+            logger.error("Encountered error when trying to search threads.", exc_info=True)
+            raise
         return n_threads, thread_data
 
     def stop(self, thread_id: str | None = None) -> bool:
@@ -536,12 +569,26 @@ class ClimateClaw(SyncAPIClient):
             return True
         except ConnectionError as e:
             if e.errno == 404:
-                logger.warning(f"No active thread could be found under thread_id {thread_id}.")
+                logger.warning("No active thread could be found.", extra={"thread_id": thread_id})
                 return True
             elif e.errno == 505:
-                raise ConnectionError(
-                    "Could not stop thread due to an internal server error."
-                ) from e
+                logger.error(
+                    "Could not stop thread due to an internal server error.",
+                    extra={"thread_id": thread_id},
+                )
+            else:
+                logger.error(
+                    "Encountered error trying to stop active thread.",
+                    exc_info=True,
+                    extra={"thread_id": thread_id},
+                )
+            raise ConnectionError from e
+        except Exception:
+            logger.error(
+                "Encountered error trying to stop active thread.",
+                exc_info=True,
+                extra={"thread_id": thread_id},
+            )
             raise
 
     def editthread(
@@ -581,24 +628,36 @@ class ClimateClaw(SyncAPIClient):
                 stream=False,
             )
             response = cast(httpx.Response, response)
+            response_dict: Dict[str, Any] = response.json()
+            if not response_dict.keys() >= (expected_keys := {"new_thread_id", "history"}):
+                raise KeyError(
+                    f"The response to editing thread '{source_thread_id}' did not include keys {expected_keys}."
+                )
+            new_thread_id = response_dict["new_thread_id"]
+            history = Conversation(
+                raw_messages=[MessageModel(message=m) for m in response_dict["history"]]
+            )
         except ConnectionError as e:
             if e.errno == 404:
-                raise ValueError(f"No thread found for id '{source_thread_id}'!")
+                logger.error("Thread not found.", extra={"thread_id": source_thread_id})
             elif e.errno == 422:
-                raise IndexError(f"User message index {user_index} out of bounds!")
+                logger.error(
+                    f"User message index {user_index} out of bounds!",
+                    extra={"thread_id": source_thread_id},
+                )
             else:
-                raise ConnectionError(
-                    "Editing thread failed due to an internal server error."
-                ) from e
-        response_dict: Dict[str, Any] = response.json()
-        if not response_dict.keys() >= (expected_keys := {"new_thread_id", "history"}):
-            raise KeyError(
-                f"The response to editing thread '{source_thread_id}' did not include keys {expected_keys}."
+                logger.error(
+                    "Editing thread failed due to an internal server error.",
+                    extra={"thread_id": source_thread_id},
+                )
+            raise ConnectionError from e
+        except Exception:
+            logger.error(
+                "Encountered error when trying to edit thread.",
+                exc_info=True,
+                extra={"thread_id": source_thread_id},
             )
-        new_thread_id = response_dict["new_thread_id"]
-        history = Conversation(
-            raw_messages=[MessageModel(message=m) for m in response_dict["history"]]
-        )
+            raise
         return new_thread_id, history
 
     def userfeedback(
@@ -648,20 +707,42 @@ class ClimateClaw(SyncAPIClient):
                 "detail",
                 "Empty message was returned. User feedback was possibly not correctly processed by the backend.",
             )
-            return message
         except ConnectionError as e:
             if e.errno == 404:
                 if e.strerror and "thread not found" in e.strerror.lower():
-                    raise ValueError(f"No thread found for id '{thread_id}'.")
+                    logger.error("Thread not found.", extra={"thread_id": thread_id})
                 elif e.strerror and "feedback not found" in e.strerror.lower():
-                    raise IndexError(
-                        f"Feedback not found at index {feedback_index} for thread '{thread_id}'."
+                    logger.error(
+                        f"Feedback not found at index {feedback_index}.",
+                        extra={"thread_id": thread_id},
+                    )
+                else:
+                    logger.error(
+                        "Encountered 404 error when trying to save/modify user feedback.",
+                        exc_info=True,
+                        extra={"thread_id": thread_id},
                     )
             elif e.errno == 422:
-                raise IndexError(f"Index {feedback_index} is out of bounds.")
+                logger.error(
+                    f"Index {feedback_index} is out of bounds.", extra={"thread_id": thread_id}
+                )
             elif e.errno in (500, 503):
-                raise ConnectionError("Error on the backend saving/modifying feedback.")
+                raise ConnectionError("Error on the backend saving/modifying feedback.") from e
+            else:
+                logger.error(
+                    "Encountered error when trying to save/modify user feedback.",
+                    exc_info=True,
+                    extra={"thread_id": thread_id},
+                )
+            raise ConnectionError from e
+        except Exception:
+            logger.error(
+                "Encountered error when trying to save/modify user feedback.",
+                exc_info=True,
+                extra={"thread_id": thread_id},
+            )
             raise
+        return message
 
     def _construct_path(self, endpoint_name: str) -> str:
         """Constructs the full API path for an endpoint.
@@ -1013,9 +1094,6 @@ class AsyncClimateClaw(AsyncAPIClient):
         elif not thread_id:
             thread_id = self.thread_id
 
-        # set a unique id for each prompt to the backend
-        request_id = uuid.uuid4().hex
-
         try:
             response: httpx.Response | StreamResponse = await self.post(
                 path=self._construct_path("streamresponse"),
@@ -1026,10 +1104,14 @@ class AsyncClimateClaw(AsyncAPIClient):
                     "store_thread": store_thread,
                 },
                 stream=stream,
-                headers={"X-Request-Id": request_id},
             )
         except KeyboardInterrupt:
-            logger.debug("Registered keyboard-interrupt. Stopping thread.")
+            logger.debug(
+                "Registered keyboard-interrupt. Stopping thread.",
+                extra={
+                    "thread_id": thread_id,
+                },
+            )
             await self.stop(thread_id=thread_id)
             raise
         except Exception:
@@ -1037,7 +1119,6 @@ class AsyncClimateClaw(AsyncAPIClient):
                 "Encountered error when prompting backend.",
                 exc_info=True,
                 extra={
-                    "request_id": request_id,
                     "thread_id": thread_id,
                 },
             )
@@ -1076,13 +1157,21 @@ class AsyncClimateClaw(AsyncAPIClient):
             raise TypeError(
                 "Argument 'thread_id' has to be specified, if no conversation was started previously."
             )
-        response = await self.post(
-            path=self._construct_path("getthread"),
-            json={"thread_id": thread_id},
-            stream=False,
-        )
-        response = cast(httpx.Response, response)
-        messages = [MessageModel(message=m) for m in response.json()]
+        try:
+            response = await self.post(
+                path=self._construct_path("getthread"),
+                json={"thread_id": thread_id},
+                stream=False,
+            )
+            response = cast(httpx.Response, response)
+            messages = [MessageModel(message=m) for m in response.json()]
+        except Exception:
+            logger.error(
+                "Encountered error when trying to get thread.",
+                exc_info=True,
+                extra={"thread_id": thread_id},
+            )
+            raise
         return Conversation(raw_messages=messages)
 
     async def getuserthreads(
@@ -1101,29 +1190,33 @@ class AsyncClimateClaw(AsyncAPIClient):
         """
         if num_threads <= 0:
             raise ValueError("Value 'num_threads' has to be at least 1.")
-        response = await self.post(
-            path=self._construct_path("getuserthreads"),
-            json={
-                "num_threads": num_threads,
-                "page": 0,  # currently hardcoded to be 0 (other values seem to always return an empty list)
-            },
-            stream=False,
-        )
-        response = cast(httpx.Response, response)
-        data = response.json()
-        user_threads: List[Dict[str, Any]] = data[0]
-        n_threads: int = data[1]
-
-        def map_key_value(k: str, v: Any) -> Any:
-            return (
-                Conversation(raw_messages=[MessageModel(message=m) for m in v])
-                if k.lower() == "content"
-                else str(v)
+        try:
+            response = await self.post(
+                path=self._construct_path("getuserthreads"),
+                json={
+                    "num_threads": num_threads,
+                    "page": 0,  # currently hardcoded to be 0 (other values seem to always return an empty list)
+                },
+                stream=False,
             )
+            response = cast(httpx.Response, response)
+            data = response.json()
+            user_threads: List[Dict[str, Any]] = data[0]
+            n_threads: int = data[1]
 
-        thread_data = [
-            {key: map_key_value(key, value) for key, value in ut.items()} for ut in user_threads
-        ]
+            def map_key_value(k: str, v: Any) -> Any:
+                return (
+                    Conversation(raw_messages=[MessageModel(message=m) for m in v])
+                    if k.lower() == "content"
+                    else str(v)
+                )
+
+            thread_data = [
+                {key: map_key_value(key, value) for key, value in ut.items()} for ut in user_threads
+            ]
+        except Exception:
+            logger.error("Encountered error when trying to get user threads.", exc_info=True)
+            raise
         return n_threads, thread_data
 
     async def deletethread(self, thread_id: str | None = None) -> None:
@@ -1141,11 +1234,19 @@ class AsyncClimateClaw(AsyncAPIClient):
             raise TypeError(
                 "Argument 'thread_id' has to be specified, if no conversation was started previously."
             )
-        await self.post(
-            path=self._construct_path("deletethread"),
-            json={"thread_id": thread_id},
-            stream=False,
-        )
+        try:
+            await self.post(
+                path=self._construct_path("deletethread"),
+                json={"thread_id": thread_id},
+                stream=False,
+            )
+        except Exception:
+            logger.error(
+                "Encountered error when trying to delete thread.",
+                exc_info=True,
+                extra={"thread_id": thread_id},
+            )
+            raise
         self.thread_id = None if self.thread_id == thread_id else self.thread_id
 
     async def setthreadtopic(self, new_topic: str, thread_id: str | None = None) -> str:
@@ -1167,11 +1268,19 @@ class AsyncClimateClaw(AsyncAPIClient):
             raise TypeError(
                 "Argument 'thread_id' has to be specified, if no conversation was started previously."
             )
-        await self.post(
-            path=self._construct_path("setthreadtopic"),
-            json={"thread_id": thread_id, "topic": new_topic},
-            stream=False,
-        )
+        try:
+            await self.post(
+                path=self._construct_path("setthreadtopic"),
+                json={"thread_id": thread_id, "topic": new_topic},
+                stream=False,
+            )
+        except Exception:
+            logger.error(
+                "Encountered error when trying to set topic of thread.",
+                exc_info=True,
+                extra={"thread_id": thread_id},
+            )
+            raise
         return new_topic
 
     async def searchthreads(
@@ -1191,24 +1300,28 @@ class AsyncClimateClaw(AsyncAPIClient):
         """
         if num_threads <= 0:
             raise ValueError("Value 'num_threads' has to be at least 1.")
-        response = await self.post(
-            path=self._construct_path("searchthreads"),
-            json={"query": query, "num_threads": num_threads},
-            stream=False,
-        )
-        response = cast(httpx.Response, response)
-        user_threads, n_threads = response.json()
-
-        def map_key_value(k: str, v: Any) -> Any:
-            return (
-                Conversation(raw_messages=[MessageModel(message=m) for m in v])
-                if k.lower() == "content"
-                else str(v)
+        try:
+            response = await self.post(
+                path=self._construct_path("searchthreads"),
+                json={"query": query, "num_threads": num_threads},
+                stream=False,
             )
+            response = cast(httpx.Response, response)
+            user_threads, n_threads = response.json()
 
-        thread_data = [
-            {key: map_key_value(key, value) for key, value in ut.items()} for ut in user_threads
-        ]
+            def map_key_value(k: str, v: Any) -> Any:
+                return (
+                    Conversation(raw_messages=[MessageModel(message=m) for m in v])
+                    if k.lower() == "content"
+                    else str(v)
+                )
+
+            thread_data = [
+                {key: map_key_value(key, value) for key, value in ut.items()} for ut in user_threads
+            ]
+        except Exception:
+            logger.error("Encountered error when trying to search threads.", exc_info=True)
+            raise
         return n_threads, thread_data
 
     async def stop(self, thread_id: str | None = None) -> bool:
@@ -1239,12 +1352,26 @@ class AsyncClimateClaw(AsyncAPIClient):
             return True
         except ConnectionError as e:
             if e.errno == 404:
-                logger.warning(f"No active thread could be found under thread_id {thread_id}.")
+                logger.warning("No active thread could be found.", extra={"thread_id": thread_id})
                 return True
             elif e.errno == 505:
-                raise ConnectionError(
-                    "Could not stop thread due to an internal server error."
-                ) from e
+                logger.error(
+                    "Could not stop thread due to an internal server error.",
+                    extra={"thread_id": thread_id},
+                )
+            else:
+                logger.error(
+                    "Encountered error trying to stop active thread.",
+                    exc_info=True,
+                    extra={"thread_id": thread_id},
+                )
+            raise ConnectionError from e
+        except Exception:
+            logger.error(
+                "Encountered error trying to stop active thread.",
+                exc_info=True,
+                extra={"thread_id": thread_id},
+            )
             raise
 
     async def editthread(
@@ -1279,24 +1406,36 @@ class AsyncClimateClaw(AsyncAPIClient):
                 stream=False,
             )
             response = cast(httpx.Response, response)
+            response_dict: Dict[str, Any] = response.json()
+            if not response_dict.keys() >= (expected_keys := {"new_thread_id", "history"}):
+                raise KeyError(
+                    f"The response to editing thread '{source_thread_id}' did not include keys {expected_keys}."
+                )
+            new_thread_id = response_dict["new_thread_id"]
+            history = Conversation(
+                raw_messages=[MessageModel(message=m) for m in response_dict["history"]]
+            )
         except ConnectionError as e:
             if e.errno == 404:
-                raise ValueError(f"No thread found for id '{source_thread_id}'!")
+                logger.error("Thread not found.", extra={"thread_id": source_thread_id})
             elif e.errno == 422:
-                raise IndexError(f"User message index {user_index} out of bounds!")
+                logger.error(
+                    f"User message index {user_index} out of bounds!",
+                    extra={"thread_id": source_thread_id},
+                )
             else:
-                raise ConnectionError(
-                    "Editing thread failed due to an internal server error."
-                ) from e
-        response_dict: Dict[str, Any] = response.json()
-        if not response_dict.keys() >= (expected_keys := {"new_thread_id", "history"}):
-            raise KeyError(
-                f"The response to editing thread '{source_thread_id}' did not include keys {expected_keys}."
+                logger.error(
+                    "Editing thread failed due to an internal server error.",
+                    extra={"thread_id": source_thread_id},
+                )
+            raise ConnectionError from e
+        except Exception:
+            logger.error(
+                "Encountered error when trying to edit thread.",
+                exc_info=True,
+                extra={"thread_id": source_thread_id},
             )
-        new_thread_id = response_dict["new_thread_id"]
-        history = Conversation(
-            raw_messages=[MessageModel(message=m) for m in response_dict["history"]]
-        )
+            raise
         return new_thread_id, history
 
     async def userfeedback(
@@ -1345,21 +1484,43 @@ class AsyncClimateClaw(AsyncAPIClient):
                 "detail",
                 "Empty message was returned. User feedback was possibly not correctly processed by the backend.",
             )
-            return message
         except ConnectionError as e:
             if e.errno == 404:
-                err_str = str(e.strerror or "")
-                if "thread not found" in err_str.lower():
-                    raise ValueError(f"No thread found for id '{thread_id}'.")
-                elif "feedback not found" in err_str.lower():
-                    raise IndexError(
-                        f"Feedback not found at index {feedback_index} for thread '{thread_id}'."
+                if e.strerror and "thread not found" in e.strerror.lower():
+                    logger.error("Thread not found.", extra={"thread_id": thread_id})
+                elif e.strerror and "feedback not found" in e.strerror.lower():
+                    logger.error(
+                        f"Feedback not found at index {feedback_index}.",
+                        extra={"thread_id": thread_id},
+                    )
+                else:
+                    logger.error(
+                        "Encountered 404 error when trying to save/modify user feedback.",
+                        exc_info=True,
+                        extra={"thread_id": thread_id},
                     )
             elif e.errno == 422:
-                raise IndexError(f"Index {feedback_index} is out of bounds.")
+                logger.error(
+                    f"Index {feedback_index} is out of bounds.",
+                    extra={"thread_id": thread_id},
+                )
             elif e.errno in (500, 503):
-                raise ConnectionError("Error on the backend saving/modifying feedback.")
+                raise ConnectionError("Error on the backend saving/modifying feedback.") from e
+            else:
+                logger.error(
+                    "Encountered error when trying to save/modify user feedback.",
+                    exc_info=True,
+                    extra={"thread_id": thread_id},
+                )
+            raise ConnectionError from e
+        except Exception:
+            logger.error(
+                "Encountered error when trying to save/modify user feedback.",
+                exc_info=True,
+                extra={"thread_id": thread_id},
+            )
             raise
+        return message
 
     def _construct_path(self, endpoint_name: str) -> str:
         """Constructs the full API path for an endpoint.

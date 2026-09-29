@@ -7,7 +7,7 @@ from pytest_mock import MockerFixture
 
 from climateclaw_client._base_client import BaseClient
 from climateclaw_client._constants import CLIMATECLAW_API_ENDPOINTS
-from climateclaw_client.client import AsyncClimateClaw, logger, uuid
+from climateclaw_client.client import AsyncClimateClaw, logger
 from climateclaw_client.models import Conversation, StreamConversation
 
 # =============================================================================
@@ -297,6 +297,22 @@ class TestThreadManagement:
             await client.getthread()
 
     @pytest.mark.asyncio
+    async def test_getthread_unexpected_error_is_logged_and_reraised(
+        self, mocker: MockerFixture, create_async_client, mock_thread_id
+    ):
+        """Test getthread logs and reraises unexpected errors correctly."""
+        client: AsyncClimateClaw = create_async_client()
+        client.post = mocker.AsyncMock(side_effect=RuntimeError("get thread failed"))
+        spy_logger = mocker.spy(logger, "error")
+        with pytest.raises(RuntimeError, match="get thread failed"):
+            await client.getthread(mock_thread_id)
+        spy_logger.assert_called_with(
+            "Encountered error when trying to get thread.",
+            exc_info=True,
+            extra={"thread_id": mock_thread_id},
+        )
+
+    @pytest.mark.asyncio
     async def test_setthreadtopic_success(self, create_async_client, mock_thread_id, mock_request):
         """Test setthreadtopic sets topic for a thread."""
         client: AsyncClimateClaw = create_async_client()
@@ -322,6 +338,22 @@ class TestThreadManagement:
         client: AsyncClimateClaw = create_async_client()
         with pytest.raises(TypeError, match="Argument 'thread_id' has to be specified"):
             await client.setthreadtopic("New Topic")
+
+    @pytest.mark.asyncio
+    async def test_setthreadtopic_unexpected_error_is_logged_and_reraised(
+        self, mocker: MockerFixture, create_async_client, mock_thread_id
+    ):
+        """Test setthread logs and reraises unexpected errors correctly."""
+        client: AsyncClimateClaw = create_async_client()
+        client.post = mocker.AsyncMock(side_effect=RuntimeError("set topic failed"))
+        spy_logger = mocker.spy(logger, "error")
+        with pytest.raises(RuntimeError, match="set topic failed"):
+            await client.setthreadtopic("New Topic", mock_thread_id)
+        spy_logger.assert_called_with(
+            "Encountered error when trying to set topic of thread.",
+            exc_info=True,
+            extra={"thread_id": mock_thread_id},
+        )
 
     @pytest.mark.asyncio
     async def test_deletethread_success(self, create_async_client, mock_thread_id, mock_request):
@@ -366,6 +398,22 @@ class TestThreadManagement:
             await client.deletethread()
 
     @pytest.mark.asyncio
+    async def test_deletethread_unexpected_error_is_logged_and_reraised(
+        self, mocker: MockerFixture, create_async_client, mock_thread_id
+    ):
+        """Test deletethread logs and reraises unexpected errors correctly."""
+        client: AsyncClimateClaw = create_async_client()
+        client.post = mocker.AsyncMock(side_effect=RuntimeError("delete thread failed"))
+        spy_logger = mocker.spy(logger, "error")
+        with pytest.raises(RuntimeError, match="delete thread failed"):
+            await client.deletethread(mock_thread_id)
+        spy_logger.assert_called_with(
+            "Encountered error when trying to delete thread.",
+            exc_info=True,
+            extra={"thread_id": mock_thread_id},
+        )
+
+    @pytest.mark.asyncio
     async def test_editthread_minimal_params_success(
         self, create_async_client, mock_request, mock_thread_id, mock_new_thread_id
     ):
@@ -398,39 +446,63 @@ class TestThreadManagement:
             await client.editthread(user_index=0)
 
     @pytest.mark.asyncio
-    async def test_editthread_thread_not_found_raises_value_error(
-        self, create_async_client, mock_thread_id, mock_request
+    async def test_editthread_unexpected_error_is_logged_and_reraised(
+        self, mocker: MockerFixture, create_async_client, mock_thread_id
     ):
-        """Test editthread raises ValueError when source thread is not found."""
+        client: AsyncClimateClaw = create_async_client()
+        client.post = mocker.AsyncMock(side_effect=RuntimeError("edit thread failed"))
+        spy_logger = mocker.spy(logger, "error")
+        with pytest.raises(RuntimeError, match="edit thread failed"):
+            await client.editthread(user_index=1, source_thread_id=mock_thread_id)
+        spy_logger.assert_called_with(
+            "Encountered error when trying to edit thread.",
+            exc_info=True,
+            extra={"thread_id": mock_thread_id},
+        )
+
+    @pytest.mark.asyncio
+    async def test_editthread_thread_not_found_logs_and_reraises_connection_error(
+        self, mocker: MockerFixture, create_async_client, mock_thread_id, mock_request
+    ):
+        """Test editthread logs and re-raises when the source thread is not found."""
         client: AsyncClimateClaw = create_async_client()
         client.thread_id = mock_thread_id
         mock_request("editthread", status_code=404, json={"detail": "No thread found"})
-        with pytest.raises(ValueError, match=f"No thread found for id '{mock_thread_id}'"):
+        spy_logger = mocker.spy(logger, "error")
+        with pytest.raises(ConnectionError):
             await client.editthread(user_index=0)
+        spy_logger.assert_called_with("Thread not found.", extra={"thread_id": mock_thread_id})
 
     @pytest.mark.asyncio
-    async def test_editthread_index_out_of_bounds_raises_index_error(
-        self, create_async_client, mock_thread_id, mock_request
+    async def test_editthread_index_out_of_bounds_logs_and_reraises_connection_error(
+        self, mocker: MockerFixture, create_async_client, mock_thread_id, mock_request
     ):
-        """Test editthread raises IndexError when user_index is out of bounds."""
+        """Test editthread logs and re-raises when user_index is out of bounds."""
         client: AsyncClimateClaw = create_async_client()
         client.thread_id = mock_thread_id
         mock_request("editthread", status_code=422, json={"detail": "Index out of bounds"})
-        with pytest.raises(IndexError, match="User message index 200 out of bounds!"):
+        spy_logger = mocker.spy(logger, "error")
+        with pytest.raises(ConnectionError):
             await client.editthread(user_index=200)
+        spy_logger.assert_called_with(
+            "User message index 200 out of bounds!", extra={"thread_id": mock_thread_id}
+        )
 
     @pytest.mark.asyncio
     async def test_editthread_internal_server_error_raises(
         self, mocker: MockerFixture, create_async_client, mock_request, mock_thread_id
     ):
-        """Test that editthread raises a ConnectionError if backend returns a status code other than 200, 404, 422."""
+        """Test that editthread logs and re-raises an unexpected backend error."""
         client: AsyncClimateClaw = create_async_client()
         client.thread_id = mock_thread_id
         mock_request("editthread", status_code=500)
-        with pytest.raises(
-            ConnectionError, match="Editing thread failed due to an internal server error."
-        ):
+        spy_logger = mocker.spy(logger, "error")
+        with pytest.raises(ConnectionError):
             await client.editthread(user_index=200)
+        spy_logger.assert_called_with(
+            "Editing thread failed due to an internal server error.",
+            extra={"thread_id": mock_thread_id},
+        )
 
     @pytest.mark.asyncio
     async def test_editthread_missing_keys_in_response_raises(
@@ -516,10 +588,25 @@ class TestUserFeedback:
             await client.userfeedback(feedback_index=0, feedback="invalid")
 
     @pytest.mark.asyncio
-    async def test_userfeedback_thread_not_found_raises_value_error(
-        self, create_async_client, mock_thread_id, mock_request
+    async def test_userfeedback_unexpected_error_is_logged_and_reraised(
+        self, mocker: MockerFixture, create_async_client, mock_thread_id
     ):
-        """Test userfeedback raises ValueError when thread is not found."""
+        client: AsyncClimateClaw = create_async_client()
+        client.post = mocker.AsyncMock(side_effect=RuntimeError("feedback failed"))
+        spy_logger = mocker.spy(logger, "error")
+        with pytest.raises(RuntimeError, match="feedback failed"):
+            await client.userfeedback(feedback_index=2, feedback="up", thread_id=mock_thread_id)
+        spy_logger.assert_called_with(
+            "Encountered error when trying to save/modify user feedback.",
+            exc_info=True,
+            extra={"thread_id": mock_thread_id},
+        )
+
+    @pytest.mark.asyncio
+    async def test_userfeedback_thread_not_found_logs_and_reraises_connection_error(
+        self, mocker: MockerFixture, create_async_client, mock_thread_id, mock_request
+    ):
+        """Test userfeedback logs and re-raises when the thread is not found."""
         client: AsyncClimateClaw = create_async_client()
         client.thread_id = mock_thread_id
         mock_request(
@@ -527,19 +614,25 @@ class TestUserFeedback:
             status_code=404,
             json={"detail": "Thread not found"},
         )
-        with pytest.raises(ValueError, match=f"No thread found for id '{mock_thread_id}'"):
+        spy_logger = mocker.spy(logger, "error")
+        with pytest.raises(ConnectionError):
             await client.userfeedback(feedback_index=0, feedback="up")
+        spy_logger.assert_called_with("Thread not found.", extra={"thread_id": mock_thread_id})
 
     @pytest.mark.asyncio
-    async def test_userfeedback_feedback_not_found_raises_index_error(
+    async def test_userfeedback_feedback_not_found_logs_and_reraises_connection_error(
         self, mocker: MockerFixture, create_async_client, mock_request, mock_thread_id
     ):
         """Test that userfeedback raises an IndexError if backend returns a 404 status error with a 'feedback not found' message."""
         client: AsyncClimateClaw = create_async_client()
         client.thread_id = mock_thread_id
         mock_request("userfeedback", status_code=404, text="feedback not found")
-        with pytest.raises(IndexError, match="Feedback not found at index "):
+        spy_logger = mocker.spy(logger, "error")
+        with pytest.raises(ConnectionError):
             await client.userfeedback(feedback_index=2, feedback="remove")
+        spy_logger.assert_called_with(
+            "Feedback not found at index 2.", extra={"thread_id": mock_thread_id}
+        )
 
     @pytest.mark.asyncio
     async def test_userfeedback_general_404_error_raises(
@@ -549,14 +642,20 @@ class TestUserFeedback:
         client: AsyncClimateClaw = create_async_client()
         client.thread_id = mock_thread_id
         mock_request("userfeedback", status_code=404, text="resource not found")
+        spy_logger = mocker.spy(logger, "error")
         with pytest.raises(ConnectionError):
             await client.userfeedback(feedback_index=2, feedback="up")
+        spy_logger.assert_called_with(
+            "Encountered 404 error when trying to save/modify user feedback.",
+            exc_info=True,
+            extra={"thread_id": mock_thread_id},
+        )
 
     @pytest.mark.asyncio
-    async def test_userfeedback_index_oob_raises_index_error(
-        self, create_async_client, mock_thread_id, mock_request
+    async def test_userfeedback_index_oob_logs_and_reraises_connection_error(
+        self, mocker: MockerFixture, create_async_client, mock_thread_id, mock_request
     ):
-        """Test userfeedback raises IndexError when index is out of bounds."""
+        """Test userfeedback logs and re-raises when the index is out of bounds."""
         client: AsyncClimateClaw = create_async_client()
         client.thread_id = mock_thread_id
         mock_request(
@@ -564,8 +663,12 @@ class TestUserFeedback:
             status_code=422,
             json={"detail": "Index out of bounds"},
         )
-        with pytest.raises(IndexError, match="Index 0 is out of bounds."):
+        spy_logger = mocker.spy(logger, "error")
+        with pytest.raises(ConnectionError):
             await client.userfeedback(feedback_index=0, feedback="up")
+        spy_logger.assert_called_with(
+            "Index 0 is out of bounds.", extra={"thread_id": mock_thread_id}
+        )
 
     @pytest.mark.asyncio
     async def test_userfeedback_internal_server_error_raises_connection_error(
@@ -593,8 +696,14 @@ class TestUserFeedback:
         client: AsyncClimateClaw = create_async_client()
         client.thread_id = mock_thread_id
         mock_request("userfeedback", status_code=401)
-        with pytest.raises(ConnectionError, match=r"\[Errno 401\] Error connecting to url.*"):
+        spy_logger = mocker.spy(logger, "error")
+        with pytest.raises(ConnectionError):
             await client.userfeedback(feedback_index=20, feedback="remove")
+        spy_logger.assert_called_with(
+            "Encountered error when trying to save/modify user feedback.",
+            exc_info=True,
+            extra={"thread_id": mock_thread_id},
+        )
 
 
 # =============================================================================
@@ -684,8 +793,6 @@ class TestPrompting:
         self, mocker: MockerFixture, create_async_client, mock_available_models, mock_thread_id
     ):
         """Test that a general exception (except KeyboardInterrupt) raises and triggers log call."""
-        mocked_uuid4 = mocker.patch.object(uuid, "uuid4")
-        mocked_uuid4.return_value.hex = mocker.sentinel.hex
         spy_logger = mocker.spy(logger, "error")
         client: AsyncClimateClaw = create_async_client(model=mock_available_models[0])
         client.thread_id = mock_thread_id
@@ -695,10 +802,7 @@ class TestPrompting:
         spy_logger.assert_called_with(
             "Encountered error when prompting backend.",
             exc_info=True,
-            extra={
-                "request_id": mocker.sentinel.hex,
-                "thread_id": mock_thread_id,
-            },
+            extra={"thread_id": mock_thread_id},
         )
 
     @pytest.mark.asyncio
@@ -746,22 +850,25 @@ class TestPrompting:
         spy_logger = mocker.spy(logger, "warning")
         result = await client.stop()
         spy_logger.assert_called_with(
-            f"No active thread could be found under thread_id {mock_thread_id}."
+            "No active thread could be found.", extra={"thread_id": mock_thread_id}
         )
         assert result is True
 
     @pytest.mark.asyncio
-    async def test_stop_internal_server_error_raises(
-        self, create_async_client, mock_thread_id, mock_request
+    async def test_stop_internal_server_error_logs_and_reraises(
+        self, mocker: MockerFixture, create_async_client, mock_thread_id, mock_request
     ):
         """Test that stop triggers an error if backend responds with a 505 internal-error status message."""
         client: AsyncClimateClaw = create_async_client()
         client.thread_id = mock_thread_id
         mock_request("stop", status_code=505)
-        with pytest.raises(
-            ConnectionError, match="Could not stop thread due to an internal server error."
-        ):
+        spy_logger = mocker.spy(logger, "error")
+        with pytest.raises(ConnectionError):
             await client.stop()
+        spy_logger.assert_called_with(
+            "Could not stop thread due to an internal server error.",
+            extra={"thread_id": mock_thread_id},
+        )
 
     @pytest.mark.asyncio
     async def test_stop_other_http_error_raises(
@@ -771,8 +878,29 @@ class TestPrompting:
         client: AsyncClimateClaw = create_async_client()
         client.thread_id = mock_thread_id
         mock_request("stop", status_code=401)
-        with pytest.raises(ConnectionError, match=r"\[Errno 401\] Error connecting to url.*"):
+        spy_logger = mocker.spy(logger, "error")
+        with pytest.raises(ConnectionError):
             await client.stop()
+        spy_logger.assert_called_with(
+            "Encountered error trying to stop active thread.",
+            exc_info=True,
+            extra={"thread_id": mock_thread_id},
+        )
+
+    @pytest.mark.asyncio
+    async def test_stop_unexpected_error_is_logged_and_reraised(
+        self, mocker: MockerFixture, create_async_client, mock_thread_id
+    ):
+        client: AsyncClimateClaw = create_async_client()
+        client.post = mocker.AsyncMock(side_effect=RuntimeError("stop failed"))
+        spy_logger = mocker.spy(logger, "error")
+        with pytest.raises(RuntimeError, match="stop failed"):
+            await client.stop(mock_thread_id)
+        spy_logger.assert_called_with(
+            "Encountered error trying to stop active thread.",
+            exc_info=True,
+            extra={"thread_id": mock_thread_id},
+        )
 
 
 # =============================================================================
@@ -806,6 +934,19 @@ class TestThreadSearch:
             await client.getuserthreads(num_threads=0)
 
     @pytest.mark.asyncio
+    async def test_getuserthreads_unexpected_error_is_logged_and_reraised(
+        self, mocker: MockerFixture, create_async_client
+    ):
+        client: AsyncClimateClaw = create_async_client()
+        client.post = mocker.AsyncMock(side_effect=RuntimeError("get user threads failed"))
+        spy_logger = mocker.spy(logger, "error")
+        with pytest.raises(RuntimeError, match="get user threads failed"):
+            await client.getuserthreads()
+        spy_logger.assert_called_with(
+            "Encountered error when trying to get user threads.", exc_info=True
+        )
+
+    @pytest.mark.asyncio
     async def test_searchthreads_success(self, create_async_client, mock_request, mock_thread_list):
         """Test searching user threads."""
         client: AsyncClimateClaw = create_async_client()
@@ -821,3 +962,16 @@ class TestThreadSearch:
         client: AsyncClimateClaw = create_async_client()
         with pytest.raises(ValueError, match="has to be at least 1"):
             await client.searchthreads(query="test", num_threads=0)
+
+    @pytest.mark.asyncio
+    async def test_searchthreads_unexpected_error_is_logged_and_reraised(
+        self, mocker: MockerFixture, create_async_client
+    ):
+        client: AsyncClimateClaw = create_async_client()
+        client.post = mocker.AsyncMock(side_effect=RuntimeError("search threads failed"))
+        spy_logger = mocker.spy(logger, "error")
+        with pytest.raises(RuntimeError, match="search threads failed"):
+            await client.searchthreads("test")
+        spy_logger.assert_called_with(
+            "Encountered error when trying to search threads.", exc_info=True
+        )
