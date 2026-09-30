@@ -268,6 +268,33 @@ class TestCodeOutputMessage:
         expected = "---\n```python\n  indented  \n  also  \n```\n---"
         assert msg.repr_markdown() == expected
 
+    def test_repr_markdown_code_output_content(self):
+        """Test repr_markdown returns 'result_repr' values and preview images in the right markdown representation"""
+        msg = CodeOutput(
+            variant="CodeOutput",
+            content={
+                "stdout": "",
+                "stderr": "",
+                "result_repr": "Computation result: 123",
+                "display_data": [],
+                "error": "",
+                "created_files": [
+                    {
+                        "path": "era5_soi_1980_2010.png",
+                        "mime_type": "image/png",
+                        "preview_url": "https://test-server/era5_soi_1980_2010.png",
+                    },
+                    {
+                        "path": "era5_soi_1980_2010.nc",
+                        "mime_type": "application/x-netcdf",
+                        "preview_url": "https://test-server/era5_soi_1980_2010.nc",
+                    },
+                ],
+            },
+        )
+        expected = "---\n```python\nComputation result: 123\n```\n---\n![era5_soi_1980_2010.png](https://test-server/era5_soi_1980_2010.png)\n\nOutput file: [era5_soi_1980_2010.nc](https://test-server/era5_soi_1980_2010.nc)\n"
+        assert msg.repr_markdown() == expected
+
 
 # =============================================================================
 # ServerHint Message Tests
@@ -1003,7 +1030,7 @@ class TestProcessCodeChunk:
         chunks = [
             MessageModel(message={"variant": "Code", "content": '{"'}),
             MessageModel(message={"variant": "Code", "content": "code"}),
-            MessageModel(message={"variant": "Code", "content": '":'}),
+            MessageModel(message={"variant": "Code", "content": '":"'}),
         ]
         for chunk in chunks[:-1]:
             stream_conv.process_chunk(chunk)

@@ -51,7 +51,7 @@ def get_config() -> VersioneerConfig:
     cfg.VCS = "git"
     cfg.style = "pep440"
     cfg.tag_prefix = ""
-    cfg.parentdir_prefix = "None"
+    cfg.parentdir_prefix = "climateclaw_client-"
     cfg.versionfile_source = "src/climateclaw_client/_version.py"
     cfg.verbose = False
     return cfg

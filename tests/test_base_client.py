@@ -14,7 +14,7 @@ from climateclaw_client._base_client import (  # noqa
     logger,
     uuid,
 )
-from climateclaw_client._constants import DEFAULT_TIMEOUT
+from climateclaw_client._constants import DEFAULT_READ_TIMEOUT, DEFAULT_TIMEOUT
 from climateclaw_client._streaming import StreamResponse
 
 # =============================================================================
@@ -118,7 +118,7 @@ class TestBaseClient:
         assert "accept" in default_headers
         assert default_headers["accept"] == "application/json"
         assert "user-agent" in default_headers
-        assert "climate-claw-python" in default_headers["user-agent"]
+        assert "climateclaw-python" in default_headers["user-agent"]
         assert "x-freva-vault-url" in default_headers
         assert str(base_client.base_url) in default_headers["x-freva-vault-url"]
         assert "x-freva-rest-url" in default_headers
@@ -148,6 +148,42 @@ class TestBaseClient:
         custom_headers = {"accept": "Any"}
         headers = base_client._build_headers(custom_headers)
         assert headers["accept"] == custom_headers["accept"]
+
+    @pytest.mark.parametrize("body_key", ["json", "params"], ids=["json_body", "params_body"])
+    def test_request_headers(
+        self, mocker: MockerFixture, body_key, make_base_client, mock_thread_id
+    ):
+        base_client: BaseClient = make_base_client
+        mocked_uuid4 = mocker.patch.object(uuid, "uuid4")
+        mocked_uuid4.return_value.hex = "request_id"
+        request_id_header = httpx.Headers({"X-Request-Id": "request_id"})
+        # assert that calling _request_headers without arguments returns header with "X-Request-Id"
+        headers = base_client._request_headers()
+        assert headers == request_id_header
+        # assert that any headers already included in request are preserved
+        custom_header = httpx.Headers({"Test-Header": "Value123"})
+        headers = base_client._request_headers({"headers": custom_header})
+        custom_header.update(request_id_header)
+        assert headers == custom_header
+        # assert that _request_headers adds "X-Freva-Thread-Id" to the result if "thread_id" is contained in request
+        headers = base_client._request_headers({body_key: {"thread_id": mock_thread_id}})
+        assert "X-Freva-Thread-Id" in headers and headers.get("X-Freva-Thread-Id") == mock_thread_id
+        assert "X-Freva-Bot-Model" not in headers
+        # do the same for "model", asserting that _request_headers adds "X-Freva-Bot-Model" is added to the header
+        headers = base_client._request_headers({body_key: {"chatbot": "gpt-4.1"}})
+        assert "X-Freva-Bot-Model" in headers and headers.get("X-Freva-Bot-Model") == "gpt-4.1"
+        assert "X-Freva-Thread-Id" not in headers
+        # assert that both headers are present if both "model" and "thread_id" are contained in request body
+        headers = base_client._request_headers(
+            {
+                body_key: {
+                    "thread_id": mock_thread_id,
+                    "chatbot": "gpt-4.1",
+                }
+            }
+        )
+        assert "X-Freva-Thread-Id" in headers and headers.get("X-Freva-Thread-Id") == mock_thread_id
+        assert "X-Freva-Bot-Model" in headers and headers.get("X-Freva-Bot-Model") == "gpt-4.1"
 
     @pytest.mark.parametrize(
         argnames="url",
@@ -268,7 +304,9 @@ class TestSyncAPIClient:
         spy_client.assert_called_once_with(
             base_url=api_client.base_url,
             follow_redirects=api_client.follow_redirects,
-            timeout=httpx.Timeout(DEFAULT_TIMEOUT, connect=api_client.timeout),
+            timeout=httpx.Timeout(
+                DEFAULT_TIMEOUT, read=DEFAULT_READ_TIMEOUT, connect=api_client.timeout
+            ),
             headers=api_client.headers,
             auth=api_client._auth,
         )
@@ -473,6 +511,8 @@ class TestSyncAPIClient:
         api_client: SyncAPIClient = make_sync_api_client()
         api_client._stream = mocker.MagicMock()
         api_client._request_raw = mocker.MagicMock()
+        api_client._request_headers = mocker.MagicMock()
+        api_client._request_headers.return_value = httpx.Headers()
         api_client.request(method="GET", url="/api", stream=True)
         api_client._stream.assert_called_once_with(method="GET", url="/api")
         api_client._request_raw.assert_not_called()
@@ -483,9 +523,9 @@ class TestSyncAPIClient:
         api_client._stream = mocker.MagicMock()
         api_client._stream.side_effect = Exception("General error.")
         api_client._request_raw = mocker.MagicMock()
+        api_client._request_headers = mocker.MagicMock()
+        api_client._request_headers.return_value = httpx.Headers()
         spy_logger = mocker.spy(logger, "error")
-        mocked_uuid4 = mocker.patch.object(uuid, "uuid4")
-        mocked_uuid4.return_value.hex = mocker.sentinel.hex
         with pytest.raises(Exception, match="General error."):
             api_client.request(method="GET", url="/api", stream=True)
             api_client._stream.assert_called_once_with(method="GET", url="/api")
@@ -501,6 +541,8 @@ class TestSyncAPIClient:
         api_client: SyncAPIClient = make_sync_api_client()
         api_client._stream = mocker.MagicMock()
         api_client._request_raw = mocker.MagicMock()
+        api_client._request_headers = mocker.MagicMock()
+        api_client._request_headers.return_value = httpx.Headers()
         api_client.request(method="GET", url="/api", stream=False)
         api_client._request_raw.assert_called_once_with(method="GET", url="/api")
         api_client._stream.assert_not_called()
@@ -511,6 +553,8 @@ class TestSyncAPIClient:
         api_client._stream = mocker.MagicMock()
         api_client._request_raw = mocker.MagicMock()
         api_client._request_raw.side_effect = Exception("General error.")
+        api_client._request_headers = mocker.MagicMock()
+        api_client._request_headers.return_value = httpx.Headers()
         spy_logger = mocker.spy(logger, "error")
         mocked_uuid4 = mocker.patch.object(uuid, "uuid4")
         mocked_uuid4.return_value.hex = mocker.sentinel.hex
@@ -585,7 +629,9 @@ class TestAsyncAPIClient:
         spy_client.assert_called_once_with(
             base_url=api_client.base_url,
             follow_redirects=api_client.follow_redirects,
-            timeout=httpx.Timeout(DEFAULT_TIMEOUT, connect=api_client.timeout),
+            timeout=httpx.Timeout(
+                DEFAULT_TIMEOUT, read=DEFAULT_READ_TIMEOUT, connect=api_client.timeout
+            ),
             headers=api_client.headers,
             auth=api_client._auth,
         )
@@ -814,6 +860,8 @@ class TestAsyncAPIClient:
         api_client: AsyncAPIClient = make_async_api_client()
         api_client._stream = mocker.AsyncMock()
         api_client._request_raw = mocker.AsyncMock()
+        api_client._request_headers = mocker.MagicMock()
+        api_client._request_headers.return_value = httpx.Headers()
         await api_client.request(method="GET", url="/api", stream=True)
         api_client._stream.assert_called_once_with(method="GET", url="/api")
         api_client._request_raw.assert_not_called()
@@ -825,9 +873,9 @@ class TestAsyncAPIClient:
         api_client._stream = mocker.MagicMock()
         api_client._stream.side_effect = Exception("General error.")
         api_client._request_raw = mocker.MagicMock()
+        api_client._request_headers = mocker.MagicMock()
+        api_client._request_headers.return_value = httpx.Headers()
         spy_logger = mocker.spy(logger, "error")
-        mocked_uuid4 = mocker.patch.object(uuid, "uuid4")
-        mocked_uuid4.return_value.hex = mocker.sentinel.hex
         with pytest.raises(Exception, match="General error."):
             await api_client.request(method="GET", url="/api", stream=True)
             api_client._stream.assert_called_once_with(method="GET", url="/api")
@@ -844,6 +892,8 @@ class TestAsyncAPIClient:
         api_client: AsyncAPIClient = make_async_api_client()
         api_client._stream = mocker.AsyncMock()
         api_client._request_raw = mocker.AsyncMock()
+        api_client._request_headers = mocker.MagicMock()
+        api_client._request_headers.return_value = httpx.Headers()
         await api_client.request(method="GET", url="/api", stream=False)
         api_client._request_raw.assert_called_once_with(method="GET", url="/api")
         api_client._stream.assert_not_called()
@@ -857,7 +907,7 @@ class TestAsyncAPIClient:
         api_client._request_raw.side_effect = Exception("General error.")
         spy_logger = mocker.spy(logger, "error")
         mocked_uuid4 = mocker.patch.object(uuid, "uuid4")
-        mocked_uuid4.return_value.hex = mocker.sentinel.hex
+        mocked_uuid4.return_value.hex = "request_id"
         with pytest.raises(Exception, match="General error."):
             await api_client.request(method="GET", url="/api", stream=False)
             api_client._request_raw.assert_called_once_with(method="GET", url="/api")
@@ -865,7 +915,7 @@ class TestAsyncAPIClient:
             spy_logger.assert_called_once_with(
                 "Encountered error during request.",
                 exc_info=True,
-                extra={"request_id": mocker.sentinel.hex},
+                extra={"request_id": "request_id"},
             )
 
     @pytest.mark.asyncio

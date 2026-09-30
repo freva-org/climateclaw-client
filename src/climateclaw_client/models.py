@@ -25,10 +25,10 @@ from pydantic import BaseModel, Field, computed_field, field_validator
 
 from ._streaming import StreamResponse
 
-if sys.version_info.minor < 11:  # pragma: no cover
-    from typing_extensions import Self
+if sys.version_info.minor <= 11:  # pragma: no cover
+    from typing_extensions import Self, TypedDict
 else:
-    from typing import Self
+    from typing import Self, TypedDict
 
 
 class BaseMessage(BaseModel):
@@ -186,23 +186,51 @@ class Code(BaseMessage):
 class CodeOutput(BaseMessage):
     """A code output message."""
 
+    class CodeOutputContent(TypedDict):
+        stdout: str
+        stderr: str
+        result_repr: str
+        display_data: List[Dict[str, Any]]
+        error: str
+        created_files: List[Dict[str, Any]]
+
     variant: Literal["CodeOutput"]
-    content: str
+    content: Union[str, CodeOutputContent]
 
     def repr_markdown(self):
         """Returns a markdown representation of the code output.
 
-        Formats output as blockquoted text.
+        Formats output (result representation, stdout, error) as a python code cell,
+        links any output files and renders output images.
 
         Returns:
             Markdown string with output in blockquotes.
         """
         markdown_str = ""
-        if self.content:
+        if isinstance(self.content, str):
+            text_content = self.content
+            created_files = ""
+        else:
+            text_content = (
+                self.content["result_repr"] or self.content["stdout"] or self.content["error"]
+            )
+            created_files = self.content["created_files"]
+        if text_content:
             markdown_str += "---\n```python"
-            for line in self.content.split("\n"):
+            for line in text_content.split("\n"):
                 markdown_str += f"\n{line}"
             markdown_str += "\n```\n---"
+        if created_files:
+            created_files.sort(key=lambda x: x["mime_type"], reverse=True)
+            for file_dict in created_files:
+                preview_url = file_dict["preview_url"]
+                mime_type = file_dict["mime_type"]
+                path = file_dict["path"]
+                markdown_str += (
+                    f"\n![{path}]({preview_url})\n"
+                    if "image" in mime_type
+                    else f"\nOutput file: [{path}]({preview_url})\n"
+                )
         return markdown_str
 
 
@@ -736,7 +764,7 @@ class StreamConversation(AbstractContextManager, AbstractAsyncContextManager):
         content = str(self._current_message.content) if self._current_message else ""
         code_content = ""
         self._buffered_content += code_chunk
-        prefix = '{"code":'
+        prefix = '{"code":"'
         suffix = '"}'
         prefix_idx = content.find(prefix)
         # Check if we have the complete prefix
@@ -748,10 +776,7 @@ class StreamConversation(AbstractContextManager, AbstractAsyncContextManager):
             # if buffered content ends with suffix, indicates end of code
             if self._buffered_content.endswith(suffix):
                 code_content += (
-                    self._buffered_content.removeprefix(prefix)
-                    .removesuffix(suffix)
-                    .removeprefix('"')
-                    + "\n```\n\n"
+                    self._buffered_content.removeprefix(prefix).removesuffix(suffix) + "\n```\n\n"
                 )
                 self._code_started = False  # reset code-started flag
             # parse buffered content if it does not end with a (potentially) incomplete escape sequence
@@ -760,7 +785,6 @@ class StreamConversation(AbstractContextManager, AbstractAsyncContextManager):
                     self._parse_escaped_chars(self._buffered_content)
                     .removeprefix(prefix)
                     .removesuffix(suffix)
-                    .removeprefix('"')
                 )
                 # reset buffered content
                 self._buffered_content = ""
