@@ -275,6 +275,21 @@ class TestThreadManagement:
         assert thread.messages[0].message.variant == "User"
         assert thread.messages[1].message.variant == "Assistant"
 
+    def test_getthread_unexpected_error_is_logged_and_reraised(
+        self, mocker: MockerFixture, create_client, mock_thread_id
+    ):
+        """Test getthread logs and reraises unexpected errors correctly."""
+        client: ClimateClaw = create_client()
+        client.post = mocker.Mock(side_effect=RuntimeError("get thread failed"))
+        spy_logger = mocker.spy(logger, "error")
+        with pytest.raises(RuntimeError, match="get thread failed"):
+            client.getthread(mock_thread_id)
+        spy_logger.assert_called_with(
+            "Encountered error when trying to get thread.",
+            exc_info=True,
+            extra={"thread_id": mock_thread_id},
+        )
+
     def test_getthread_no_thread_raises_type_error(self, create_client):
         """Test that getthread raises TypeError if no thread_id provided."""
         client: ClimateClaw = create_client()
@@ -307,6 +322,21 @@ class TestThreadManagement:
         client: ClimateClaw = create_client()
         with pytest.raises(TypeError, match="Argument 'thread_id' has to be specified"):
             client.setthreadtopic(new_topic="New Topic")
+
+    def test_setthreadtopic_unexpected_error_is_logged_and_reraised(
+        self, mocker: MockerFixture, create_client, mock_thread_id
+    ):
+        """Test setthreadtopic logs and reraises unexpected errors correctly."""
+        client: ClimateClaw = create_client()
+        client.post = mocker.Mock(side_effect=RuntimeError("set topic failed"))
+        spy_logger = mocker.spy(logger, "error")
+        with pytest.raises(RuntimeError, match="set topic failed"):
+            client.setthreadtopic("New Topic", mock_thread_id)
+        spy_logger.assert_called_with(
+            "Encountered error when trying to set topic of thread.",
+            exc_info=True,
+            extra={"thread_id": mock_thread_id},
+        )
 
     def test_deletethread_success(self, create_client, mock_request, mock_thread_id):
         """Test deleting an existing thread without specifying thread, results in instance thread being deleted and reset."""
@@ -346,6 +376,21 @@ class TestThreadManagement:
         with pytest.raises(TypeError, match=r"Argument 'thread_id' has to be specified.*"):
             client.deletethread()
 
+    def test_deletethread_unexpected_error_is_logged_and_reraised(
+        self, mocker: MockerFixture, create_client, mock_thread_id
+    ):
+        """Test deletethread logs and reraises unexpected errors correctly."""
+        client: ClimateClaw = create_client()
+        client.post = mocker.Mock(side_effect=RuntimeError("delete thread failed"))
+        spy_logger = mocker.spy(logger, "error")
+        with pytest.raises(RuntimeError, match="delete thread failed"):
+            client.deletethread(mock_thread_id)
+        spy_logger.assert_called_with(
+            "Encountered error when trying to delete thread.",
+            exc_info=True,
+            extra={"thread_id": mock_thread_id},
+        )
+
     def test_editthread_minimal_params_success(
         self, create_client, mock_request, mock_thread_id, mock_new_thread_id
     ):
@@ -375,25 +420,45 @@ class TestThreadManagement:
         with pytest.raises(TypeError, match="Argument 'source_thread_id' has to be specified"):
             client.editthread(user_index=1)
 
-    def test_editthread_thread_not_found_raises_value_error(
+    def test_editthread_unexpected_error_is_logged_and_reraised(
+        self, mocker: MockerFixture, create_client, mock_thread_id
+    ):
+        client: ClimateClaw = create_client()
+        client.post = mocker.Mock(side_effect=RuntimeError("edit thread failed"))
+        spy_logger = mocker.spy(logger, "error")
+        with pytest.raises(RuntimeError, match="edit thread failed"):
+            client.editthread(user_index=1, source_thread_id=mock_thread_id)
+        spy_logger.assert_called_with(
+            "Encountered error when trying to edit thread.",
+            exc_info=True,
+            extra={"thread_id": mock_thread_id},
+        )
+
+    def test_editthread_thread_not_found_logs_and_reraises_connection_error(
         self, mocker: MockerFixture, create_client, mock_request, mock_thread_id
     ):
-        """Test that editthread raises a ValueError if backend returns a 404 status error."""
+        """Test that editthread logs and re-raises a 404 status error."""
         client: ClimateClaw = create_client()
         client.thread_id = mock_thread_id
         mock_request("editthread", status_code=404)
-        with pytest.raises(ValueError, match=f"No thread found for id '{mock_thread_id}'"):
+        spy_logger = mocker.spy(logger, "error")
+        with pytest.raises(ConnectionError):
             client.editthread(user_index=1)
+        spy_logger.assert_called_with("Thread not found.", extra={"thread_id": mock_thread_id})
 
-    def test_editthread_user_index_out_of_bounds_raises_index_error(
+    def test_editthread_user_index_out_of_bounds_logs_and_reraises_connection_error(
         self, mocker: MockerFixture, create_client, mock_request, mock_thread_id
     ):
-        """Test that editthread raises an IndexError if backend returns a 422 error (indicating user index is out of bounds)."""
+        """Test that editthread logs and re-raises a 422 status error."""
         client: ClimateClaw = create_client()
         client.thread_id = mock_thread_id
         mock_request("editthread", status_code=422)
-        with pytest.raises(IndexError, match="User message index 200 out of bounds!"):
+        spy_logger = mocker.spy(logger, "error")
+        with pytest.raises(ConnectionError):
             client.editthread(user_index=200)
+        spy_logger.assert_called_with(
+            "User message index 200 out of bounds!", extra={"thread_id": mock_thread_id}
+        )
 
     def test_editthread_internal_server_error_raises(
         self, mocker: MockerFixture, create_client, mock_request, mock_thread_id
@@ -402,10 +467,13 @@ class TestThreadManagement:
         client: ClimateClaw = create_client()
         client.thread_id = mock_thread_id
         mock_request("editthread", status_code=500)
-        with pytest.raises(
-            ConnectionError, match="Editing thread failed due to an internal server error."
-        ):
+        spy_logger = mocker.spy(logger, "error")
+        with pytest.raises(ConnectionError):
             client.editthread(user_index=200)
+        spy_logger.assert_called_with(
+            "Editing thread failed due to an internal server error.",
+            extra={"thread_id": mock_thread_id},
+        )
 
     def test_editthread_missing_keys_in_response_raises(
         self, mocker: MockerFixture, create_client, mock_request, mock_thread_id
@@ -474,25 +542,45 @@ class TestUserFeedback:
         with pytest.raises(ValueError, match="Feedback string must be one of"):
             client.userfeedback(feedback_index=2, feedback="invalid_feedback")
 
-    def test_userfeedback_thread_not_found_raises_value_error(
+    def test_userfeedback_unexpected_error_is_logged_and_reraised(
+        self, mocker: MockerFixture, create_client, mock_thread_id
+    ):
+        client: ClimateClaw = create_client()
+        client.post = mocker.Mock(side_effect=RuntimeError("feedback failed"))
+        spy_logger = mocker.spy(logger, "error")
+        with pytest.raises(RuntimeError, match="feedback failed"):
+            client.userfeedback(feedback_index=2, feedback="up", thread_id=mock_thread_id)
+        spy_logger.assert_called_with(
+            "Encountered error when trying to save/modify user feedback.",
+            exc_info=True,
+            extra={"thread_id": mock_thread_id},
+        )
+
+    def test_userfeedback_thread_not_found_logs_and_reraises_connection_error(
         self, mocker: MockerFixture, create_client, mock_request, mock_thread_id
     ):
-        """Test that userfeedback raises a ValueError if backend returns a 404 status error with a 'thread not found' message."""
+        """Test that userfeedback logs and re-raises a thread-not-found error."""
         client: ClimateClaw = create_client()
         client.thread_id = mock_thread_id
         mock_request("userfeedback", status_code=404, text="thread not found")
-        with pytest.raises(ValueError, match="No thread found for id"):
+        spy_logger = mocker.spy(logger, "error")
+        with pytest.raises(ConnectionError):
             client.userfeedback(feedback_index=2, feedback="up")
+        spy_logger.assert_called_with("Thread not found.", extra={"thread_id": mock_thread_id})
 
-    def test_userfeedback_feedback_not_found_raises_index_error(
+    def test_userfeedback_feedback_not_found_logs_and_reraises_connection_error(
         self, mocker: MockerFixture, create_client, mock_request, mock_thread_id
     ):
-        """Test that userfeedback raises an IndexError if backend returns a 404 status error with a 'feedback not found' message."""
+        """Test that userfeedback logs and re-raises a feedback-not-found error."""
         client: ClimateClaw = create_client()
         client.thread_id = mock_thread_id
         mock_request("userfeedback", status_code=404, text="feedback not found")
-        with pytest.raises(IndexError, match="Feedback not found at index "):
+        spy_logger = mocker.spy(logger, "error")
+        with pytest.raises(ConnectionError):
             client.userfeedback(feedback_index=2, feedback="remove")
+        spy_logger.assert_called_with(
+            "Feedback not found at index 2.", extra={"thread_id": mock_thread_id}
+        )
 
     def test_userfeedback_general_404_error_raises(
         self, mocker: MockerFixture, create_client, mock_request, mock_thread_id
@@ -501,18 +589,28 @@ class TestUserFeedback:
         client: ClimateClaw = create_client()
         client.thread_id = mock_thread_id
         mock_request("userfeedback", status_code=404, text="resource not found")
+        spy_logger = mocker.spy(logger, "error")
         with pytest.raises(ConnectionError):
             client.userfeedback(feedback_index=2, feedback="up")
+        spy_logger.assert_called_with(
+            "Encountered 404 error when trying to save/modify user feedback.",
+            exc_info=True,
+            extra={"thread_id": mock_thread_id},
+        )
 
-    def test_userfeedback_index_out_of_bounds_raises_index_error(
+    def test_userfeedback_index_out_of_bounds_logs_and_reraises_connection_error(
         self, mocker: MockerFixture, create_client, mock_request, mock_thread_id
     ):
-        """Test that userfeedback raises an IndexError if backend returns a 422 status error (feedback index out of bounds)."""
+        """Test that userfeedback logs and re-raises a 422 status error."""
         client: ClimateClaw = create_client()
         client.thread_id = mock_thread_id
         mock_request("userfeedback", status_code=422)
-        with pytest.raises(IndexError, match="Index 20 is out of bounds."):
+        spy_logger = mocker.spy(logger, "error")
+        with pytest.raises(ConnectionError):
             client.userfeedback(feedback_index=20, feedback="remove")
+        spy_logger.assert_called_with(
+            "Index 20 is out of bounds.", extra={"thread_id": mock_thread_id}
+        )
 
     def test_userfeedback_internal_server_error_raises_connection_error(
         self, mocker: MockerFixture, create_client, mock_request, mock_thread_id
@@ -538,8 +636,14 @@ class TestUserFeedback:
         client: ClimateClaw = create_client()
         client.thread_id = mock_thread_id
         mock_request("userfeedback", status_code=401)
-        with pytest.raises(ConnectionError, match=r"\[Errno 401\] Error connecting to url.*"):
+        spy_logger = mocker.spy(logger, "error")
+        with pytest.raises(ConnectionError):
             client.userfeedback(feedback_index=20, feedback="remove")
+        spy_logger.assert_called_with(
+            "Encountered error when trying to save/modify user feedback.",
+            exc_info=True,
+            extra={"thread_id": mock_thread_id},
+        )
 
 
 # =============================================================================
@@ -645,6 +749,22 @@ class TestPrompting:
         client.post.assert_called_once()
         client.stop.assert_called_once()
 
+    def test_prompt_general_exception_raises(
+        self, mocker: MockerFixture, create_client, mock_available_models, mock_thread_id
+    ):
+        """Test that a general exception (except KeyboardInterrupt) raises and triggers log call."""
+        spy_logger = mocker.spy(logger, "error")
+        client: ClimateClaw = create_client(model=mock_available_models[0])
+        client.thread_id = mock_thread_id
+        client.post = mocker.Mock(side_effect=Exception("General exception"))
+        with pytest.raises(Exception, match="General exception"):
+            client.prompt("Test prompt")
+        spy_logger.assert_called_with(
+            "Encountered error when prompting backend.",
+            exc_info=True,
+            extra={"thread_id": mock_thread_id},
+        )
+
     def test_stop_with_specified_thread_id_success(
         self, create_client, mock_thread_id, mock_request
     ):
@@ -686,7 +806,7 @@ class TestPrompting:
         spy_logger = mocker.spy(logger, "warning")
         result = client.stop()
         spy_logger.assert_called_with(
-            f"No active thread could be found under thread_id {mock_thread_id}."
+            "No active thread could be found.", extra={"thread_id": mock_thread_id}
         )
         assert result is True
 
@@ -697,10 +817,13 @@ class TestPrompting:
         client: ClimateClaw = create_client()
         client.thread_id = mock_thread_id
         mock_request("stop", status_code=505)
-        with pytest.raises(
-            ConnectionError, match="Could not stop thread due to an internal server error."
-        ):
+        spy_logger = mocker.spy(logger, "error")
+        with pytest.raises(ConnectionError):
             client.stop()
+        spy_logger.assert_called_with(
+            "Could not stop thread due to an internal server error.",
+            extra={"thread_id": mock_thread_id},
+        )
 
     def test_stop_other_http_error_raises(
         self, mocker: MockerFixture, create_client, mock_request, mock_thread_id
@@ -709,8 +832,28 @@ class TestPrompting:
         client: ClimateClaw = create_client()
         client.thread_id = mock_thread_id
         mock_request("stop", status_code=401)
-        with pytest.raises(ConnectionError, match=r"\[Errno 401\] Error connecting to url.*"):
+        spy_logger = mocker.spy(logger, "error")
+        with pytest.raises(ConnectionError):
             client.stop()
+        spy_logger.assert_called_with(
+            "Encountered error trying to stop active thread.",
+            exc_info=True,
+            extra={"thread_id": mock_thread_id},
+        )
+
+    def test_stop_unexpected_error_is_logged_and_reraised(
+        self, mocker: MockerFixture, create_client, mock_thread_id
+    ):
+        client: ClimateClaw = create_client()
+        client.post = mocker.Mock(side_effect=RuntimeError("stop failed"))
+        spy_logger = mocker.spy(logger, "error")
+        with pytest.raises(RuntimeError, match="stop failed"):
+            client.stop(mock_thread_id)
+        spy_logger.assert_called_with(
+            "Encountered error trying to stop active thread.",
+            exc_info=True,
+            extra={"thread_id": mock_thread_id},
+        )
 
 
 # =============================================================================
@@ -742,6 +885,18 @@ class TestThreadSearch:
         with pytest.raises(ValueError, match="has to be at least 1"):
             client.getuserthreads(num_threads=0)
 
+    def test_getuserthreads_unexpected_error_is_logged_and_reraised(
+        self, mocker: MockerFixture, create_client
+    ):
+        client: ClimateClaw = create_client()
+        client.post = mocker.Mock(side_effect=RuntimeError("get user threads failed"))
+        spy_logger = mocker.spy(logger, "error")
+        with pytest.raises(RuntimeError, match="get user threads failed"):
+            client.getuserthreads()
+        spy_logger.assert_called_with(
+            "Encountered error when trying to get user threads.", exc_info=True
+        )
+
     def test_searchthreads_success(self, create_client, mock_request, mock_thread_list):
         """Test searching threads by query."""
         client: ClimateClaw = create_client()
@@ -758,3 +913,15 @@ class TestThreadSearch:
         client: ClimateClaw = create_client()
         with pytest.raises(ValueError, match="has to be at least 1"):
             client.searchthreads(query="test", num_threads=0)
+
+    def test_searchthreads_unexpected_error_is_logged_and_reraised(
+        self, mocker: MockerFixture, create_client
+    ):
+        client: ClimateClaw = create_client()
+        client.post = mocker.Mock(side_effect=RuntimeError("search threads failed"))
+        spy_logger = mocker.spy(logger, "error")
+        with pytest.raises(RuntimeError, match="search threads failed"):
+            client.searchthreads("test")
+        spy_logger.assert_called_with(
+            "Encountered error when trying to search threads.", exc_info=True
+        )

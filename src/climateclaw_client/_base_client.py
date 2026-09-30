@@ -6,6 +6,7 @@ import random
 import socket
 import time
 import urllib.parse
+import uuid
 from functools import cached_property
 from typing import Any, Dict, Generic, Mapping, TypeVar, Union
 
@@ -119,11 +120,15 @@ class BaseClient(Generic[_HttpxClientT]):
         headers = {**self.default_headers, **custom_headers}
         return httpx.Headers(headers)
 
-    def _request_headers(self, kwargs: dict[str, Any] = {}) -> httpx.Headers | None:
+    def _request_headers(self, kwargs: dict[str, Any] = {}) -> httpx.Headers:
         """Conditionally set request headers, depending if body contains certain keys-value pairs."""
         body = kwargs.get("json") or kwargs.get("params")
 
         headers = {}
+
+        # set unique id for every request, to be sent in the request headers
+        request_id = uuid.uuid4().hex
+        headers["X-Request-Id"] = request_id
 
         if isinstance(body, Mapping):
             if (model := body.get("chatbot")) is not None:
@@ -134,9 +139,7 @@ class BaseClient(Generic[_HttpxClientT]):
 
         # Update headers, with per-request ones taking precedence
         headers.update(kwargs.get("headers", {}))
-        if headers:
-            return httpx.Headers(headers)
-        return None
+        return httpx.Headers(headers)
 
     @classmethod
     def _validate_base_url(cls, base_url: Union[str, httpx.URL]) -> httpx.URL:
@@ -345,14 +348,21 @@ class SyncAPIClient(BaseClient[httpx.Client]):
         Returns:
             StreamResponse if stream=True, otherwise httpx.Response.
         """
-
         headers = self._request_headers(kwargs)
         if headers:
             kwargs["headers"] = headers
-        if stream:
-            return self._stream(*args, **kwargs)
-        else:
-            return self._request_raw(*args, **kwargs)
+        try:
+            if stream:
+                return self._stream(*args, **kwargs)
+            else:
+                return self._request_raw(*args, **kwargs)
+        except Exception:
+            logger.error(
+                f"Encountered error during {'streaming ' if stream else ''}request.",
+                exc_info=True,
+                extra={"request_id": headers.get("X-Request-Id", "")},
+            )
+            raise
 
     def get(self, path: str, *, stream: bool = False, **kwargs) -> StreamResponse | httpx.Response:
         """Makes a GET request to the specified path.
@@ -542,14 +552,21 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
         Returns:
             StreamResponse if stream=True, otherwise httpx.Response.
         """
-
         headers = self._request_headers(kwargs)
         if headers:
             kwargs["headers"] = headers
-        if stream:
-            return await self._stream(*args, **kwargs)
-        else:
-            return await self._request_raw(*args, **kwargs)
+        try:
+            if stream:
+                return await self._stream(*args, **kwargs)
+            else:
+                return await self._request_raw(*args, **kwargs)
+        except Exception:
+            logger.error(
+                f"Encountered error during {'streaming ' if stream else ''}request.",
+                exc_info=True,
+                extra={"request_id": headers.get("X-Request-Id", "")},
+            )
+            raise
 
     async def get(
         self, path: str, *, stream: bool = False, **kwargs

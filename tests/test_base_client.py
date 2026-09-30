@@ -7,7 +7,13 @@ from pytest_httpx import HTTPXMock, IteratorStream
 from pytest_mock import MockerFixture
 
 import climateclaw_client._base_client
-from climateclaw_client._base_client import AsyncAPIClient, BaseClient, SyncAPIClient  # noqa
+from climateclaw_client._base_client import (  # noqa
+    AsyncAPIClient,
+    BaseClient,
+    SyncAPIClient,
+    logger,
+    uuid,
+)
 from climateclaw_client._constants import DEFAULT_READ_TIMEOUT, DEFAULT_TIMEOUT
 from climateclaw_client._streaming import StreamResponse
 
@@ -144,14 +150,20 @@ class TestBaseClient:
         assert headers["accept"] == custom_headers["accept"]
 
     @pytest.mark.parametrize("body_key", ["json", "params"], ids=["json_body", "params_body"])
-    def test_request_headers(self, body_key, make_base_client, mock_thread_id):
+    def test_request_headers(
+        self, mocker: MockerFixture, body_key, make_base_client, mock_thread_id
+    ):
         base_client: BaseClient = make_base_client
-        # assert that calling _request_headers without arguments simply returns an empty headers instance
+        mocked_uuid4 = mocker.patch.object(uuid, "uuid4")
+        mocked_uuid4.return_value.hex = "request_id"
+        request_id_header = httpx.Headers({"X-Request-Id": "request_id"})
+        # assert that calling _request_headers without arguments returns header with "X-Request-Id"
         headers = base_client._request_headers()
-        assert headers is None
+        assert headers == request_id_header
         # assert that any headers already included in request are preserved
         custom_header = httpx.Headers({"Test-Header": "Value123"})
         headers = base_client._request_headers({"headers": custom_header})
+        custom_header.update(request_id_header)
         assert headers == custom_header
         # assert that _request_headers adds "X-Freva-Thread-Id" to the result if "thread_id" is contained in request
         headers = base_client._request_headers({body_key: {"thread_id": mock_thread_id}})
@@ -499,18 +511,62 @@ class TestSyncAPIClient:
         api_client: SyncAPIClient = make_sync_api_client()
         api_client._stream = mocker.MagicMock()
         api_client._request_raw = mocker.MagicMock()
+        api_client._request_headers = mocker.MagicMock()
+        api_client._request_headers.return_value = httpx.Headers()
         api_client.request(method="GET", url="/api", stream=True)
         api_client._stream.assert_called_once_with(method="GET", url="/api")
         api_client._request_raw.assert_not_called()
+
+    def test_request_stream_fail(self, mocker: MockerFixture, make_sync_api_client):
+        """Test request with stream=True that encounters an error raises correctly with an appropriate logging message"""
+        api_client: SyncAPIClient = make_sync_api_client()
+        api_client._stream = mocker.MagicMock()
+        api_client._stream.side_effect = Exception("General error.")
+        api_client._request_raw = mocker.MagicMock()
+        api_client._request_headers = mocker.MagicMock()
+        api_client._request_headers.return_value = httpx.Headers()
+        spy_logger = mocker.spy(logger, "error")
+        with pytest.raises(Exception, match="General error."):
+            api_client.request(method="GET", url="/api", stream=True)
+            api_client._stream.assert_called_once_with(method="GET", url="/api")
+            api_client._request_raw.assert_not_called()
+            spy_logger.assert_called_once_with(
+                "Encountered error during streaming request.",
+                exc_info=True,
+                extra={"request_id": mocker.sentinel.hex},
+            )
 
     def test_request_non_stream(self, mocker: MockerFixture, make_sync_api_client):
         """Test request with stream=False takes the correct branch and passes arguments correctly to _request_raw"""
         api_client: SyncAPIClient = make_sync_api_client()
         api_client._stream = mocker.MagicMock()
         api_client._request_raw = mocker.MagicMock()
+        api_client._request_headers = mocker.MagicMock()
+        api_client._request_headers.return_value = httpx.Headers()
         api_client.request(method="GET", url="/api", stream=False)
         api_client._request_raw.assert_called_once_with(method="GET", url="/api")
         api_client._stream.assert_not_called()
+
+    def test_request_non_stream_fail(self, mocker: MockerFixture, make_sync_api_client):
+        """Test request with stream=False that encounters an error raises correctly with an appropriate logging message"""
+        api_client: SyncAPIClient = make_sync_api_client()
+        api_client._stream = mocker.MagicMock()
+        api_client._request_raw = mocker.MagicMock()
+        api_client._request_raw.side_effect = Exception("General error.")
+        api_client._request_headers = mocker.MagicMock()
+        api_client._request_headers.return_value = httpx.Headers()
+        spy_logger = mocker.spy(logger, "error")
+        mocked_uuid4 = mocker.patch.object(uuid, "uuid4")
+        mocked_uuid4.return_value.hex = mocker.sentinel.hex
+        with pytest.raises(Exception, match="General error."):
+            api_client.request(method="GET", url="/api", stream=False)
+            api_client._request_raw.assert_called_once_with(method="GET", url="/api")
+            api_client._stream.assert_not_called()
+            spy_logger.assert_called_once_with(
+                "Encountered error during request.",
+                exc_info=True,
+                extra={"request_id": mocker.sentinel.hex},
+            )
 
     def test_get(self, mocker: MockerFixture, make_sync_api_client):
         """Test get triggers a call to request with method=GET and passes on arguments correctly"""
@@ -804,9 +860,31 @@ class TestAsyncAPIClient:
         api_client: AsyncAPIClient = make_async_api_client()
         api_client._stream = mocker.AsyncMock()
         api_client._request_raw = mocker.AsyncMock()
+        api_client._request_headers = mocker.MagicMock()
+        api_client._request_headers.return_value = httpx.Headers()
         await api_client.request(method="GET", url="/api", stream=True)
         api_client._stream.assert_called_once_with(method="GET", url="/api")
         api_client._request_raw.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_request_stream_fail(self, mocker: MockerFixture, make_async_api_client):
+        """Test request with stream=True that encounters an error raises correctly with an appropriate logging message"""
+        api_client: AsyncAPIClient = make_async_api_client()
+        api_client._stream = mocker.MagicMock()
+        api_client._stream.side_effect = Exception("General error.")
+        api_client._request_raw = mocker.MagicMock()
+        api_client._request_headers = mocker.MagicMock()
+        api_client._request_headers.return_value = httpx.Headers()
+        spy_logger = mocker.spy(logger, "error")
+        with pytest.raises(Exception, match="General error."):
+            await api_client.request(method="GET", url="/api", stream=True)
+            api_client._stream.assert_called_once_with(method="GET", url="/api")
+            api_client._request_raw.assert_not_called()
+            spy_logger.assert_called_once_with(
+                "Encountered error during streaming request.",
+                exc_info=True,
+                extra={"request_id": mocker.sentinel.hex},
+            )
 
     @pytest.mark.asyncio
     async def test_request_non_stream(self, mocker: MockerFixture, make_async_api_client):
@@ -814,9 +892,31 @@ class TestAsyncAPIClient:
         api_client: AsyncAPIClient = make_async_api_client()
         api_client._stream = mocker.AsyncMock()
         api_client._request_raw = mocker.AsyncMock()
+        api_client._request_headers = mocker.MagicMock()
+        api_client._request_headers.return_value = httpx.Headers()
         await api_client.request(method="GET", url="/api", stream=False)
         api_client._request_raw.assert_called_once_with(method="GET", url="/api")
         api_client._stream.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_request_non_stream_fail(self, mocker: MockerFixture, make_async_api_client):
+        """Test request with stream=False that encounters an error raises correctly with an appropriate logging message"""
+        api_client: AsyncAPIClient = make_async_api_client()
+        api_client._stream = mocker.MagicMock()
+        api_client._request_raw = mocker.MagicMock()
+        api_client._request_raw.side_effect = Exception("General error.")
+        spy_logger = mocker.spy(logger, "error")
+        mocked_uuid4 = mocker.patch.object(uuid, "uuid4")
+        mocked_uuid4.return_value.hex = "request_id"
+        with pytest.raises(Exception, match="General error."):
+            await api_client.request(method="GET", url="/api", stream=False)
+            api_client._request_raw.assert_called_once_with(method="GET", url="/api")
+            api_client._stream.assert_not_called()
+            spy_logger.assert_called_once_with(
+                "Encountered error during request.",
+                exc_info=True,
+                extra={"request_id": "request_id"},
+            )
 
     @pytest.mark.asyncio
     async def test_get(self, mocker: MockerFixture, make_async_api_client):
