@@ -340,7 +340,7 @@ class SyncAPIClient(BaseClient[httpx.Client]):
                 return self._request_raw(*args, **kwargs)
         except Exception:
             logger.error(
-                f"Encountered error during {"streaming " if stream else ""}request.",
+                f"Encountered error during {'streaming ' if stream else ''}request.",
                 exc_info=True,
                 extra={"request_id": request_id},
             )
@@ -538,7 +538,7 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
                 return await self._request_raw(*args, **kwargs)
         except Exception:
             logger.error(
-                f"Encountered error during {"streaming " if stream else ""}request.",
+                f"Encountered error during {'streaming ' if stream else ''}request.",
                 exc_info=True,
                 extra={"request_id": request_id},
             )
