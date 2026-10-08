@@ -308,6 +308,37 @@ asyncio.run(main())
 
 **Note:** The async client uses `httpx.AsyncClient` under the hood and provides all the same methods as the synchronous `ClimateClaw` client, but as coroutines that must be awaited.
 
+## Interactive Shell
+
+The optional `cli` extra installs `climateclaw-shell`, an interactive chat session in the terminal:
+
+```console
+pip install "climateclaw-client[cli]"
+climateclaw-shell --freva-instance https://www.freva.dkrz.de
+climateclaw> what is the warmest cmip6 model?
+climateclaw> exit
+```
+
+The shell uses the same OIDC token handling as the client: the stored token is reused, refreshed
+when it expired, and you are asked to log in only if the refresh token expired as well. On exit
+the token is revoked unless `--keep-token` is given; `--force-login` always asks for a new login.
+
+By default the chatbot is expected at `<freva-instance>/api/chatbot`. Use `--chatbot-url` (or
+`CLIMATECLAW_URL`) for a chatbot on another host, and `--model` to choose a model, defaulting to
+the first available one.
+
+| Input                    | Effect                               |
+| ------------------------ | ------------------------------------ |
+| `<question>`             | Ask the chatbot                      |
+| `/model <name>`          | Switch to another model              |
+| `/new`                   | Start a new conversation thread      |
+| `exit`, `quit`, `logout` | Leave the shell                      |
+| Ctrl+C while streaming   | Stop the current answer              |
+| `\` at the end of a line | Continue the input on the next line |
+| Tab                      | Complete commands and model names    |
+
+Run `climateclaw-shell --help` for all options.
+
 ## Configuration Options
 
 | Parameter | Type | Default | Description |

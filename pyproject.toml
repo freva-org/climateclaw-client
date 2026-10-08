@@ -37,6 +37,9 @@ dependencies = [
     "pillow",
 ]
 
+[project.scripts]
+climateclaw-shell = "climateclaw_client.cli:main"
+
 [project.urls]
 Homepage = "https://github.com/freva-org/climateclaw-client"
 
@@ -47,7 +50,13 @@ Tracker = "https://github.com/freva-org/climateclaw-client/issues"
 
 
 [project.optional-dependencies]
+cli = [
+    "typer",
+    "rich",
+    "prompt_toolkit",
+]
 testsite = [
+    "climateclaw_client[cli]",
     "tox",
     "isort",
     "black",
