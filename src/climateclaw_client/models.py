@@ -186,7 +186,12 @@ class Code(BaseMessage):
 class CodeOutput(BaseMessage):
     """A code output message."""
 
-    class CodeOutputContent(TypedDict):
+    class CodeOutputContent(TypedDict, total=False):
+        """Result of a code execution, the server omits fields that do not apply.
+
+        A cancelled tool run, for example, only contains an ``error``.
+        """
+
         stdout: str
         stderr: str
         result_repr: str
@@ -212,9 +217,12 @@ class CodeOutput(BaseMessage):
             created_files = ""
         else:
             text_content = (
-                self.content["result_repr"] or self.content["stdout"] or self.content["error"]
+                self.content.get("result_repr")
+                or self.content.get("stdout")
+                or self.content.get("error")
+                or ""
             )
-            created_files = self.content["created_files"]
+            created_files = self.content.get("created_files") or []
         if text_content:
             markdown_str += "---\n```python"
             for line in text_content.split("\n"):
