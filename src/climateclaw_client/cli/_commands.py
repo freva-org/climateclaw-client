@@ -20,18 +20,19 @@ EXIT_COMMANDS = ("exit", "quit")
 HELP_COMMANDS = ("u", "usage", "h", "help")
 SLASH_PREFIX = "/"
 CONTINUATION = "\\"
-PROMPT = "climateclaw> "
+PROMPT = "climateclaw ({model})> "
+"""The input prompt, it shows the model in use."""
 CONTINUATION_PROMPT = "...> "
 PENDING_LINES: List[str] = []
 """Lines of the current input that were continued with a backslash."""
 
 
-def read_input(prompt: Callable[[str], str] | None = None) -> str:
+def read_input(prompt: Callable[[str], str] | None = None, model: str | None = None) -> str:
     """Read a prompt, a trailing backslash continues on the next line."""
     prompt = prompt or input
     PENDING_LINES.clear()
     try:
-        text = prompt(PROMPT)
+        text = prompt(PROMPT.format(model=model) if model else "climateclaw> ")
         while text.rstrip().endswith(CONTINUATION):
             PENDING_LINES.append(text.rstrip()[: -len(CONTINUATION)])
             text = prompt(CONTINUATION_PROMPT)
@@ -320,13 +321,6 @@ def choose_model(client: ClimateClaw) -> None:
     """Use the first available model unless one was given."""
     bots = client.available_models
     client.model = client.model or (bots[0] if bots else None)  # type: ignore[assignment]
-
-
-def show_models(client: ClimateClaw) -> None:
-    """Choose the model and show which ones are available."""
-    choose_model(client)
-    pprint(f"[b]Available models:[/b] {', '.join(client.available_models)}")
-    pprint(f"[b]Using:[/b] {client.model}")
 
 
 def usage(client: ClimateClaw, arg: str = "") -> None:

@@ -16,7 +16,6 @@ from ._commands import (
     handle,
     open_topic,
     read_input,
-    show_models,
 )
 from ._completion import setup as setup_completion
 from ._log import logger, resolve_level, set_level
@@ -70,12 +69,12 @@ def connect(auth: TokenAuth, chatbot_url: Optional[str], model: Optional[str]) -
 
 def run(client: ClimateClaw) -> None:
     """Read prompts and commands until the user leaves."""
-    show_models(client)
+    choose_model(client)
     pprint("[dim]Type help for the usage.[/dim]")
     prompt = setup_completion(client)
     while True:
         try:
-            line = read_input(prompt)
+            line = read_input(prompt, client.model)
         except EOFError:
             break
         except KeyboardInterrupt:

@@ -139,7 +139,8 @@ class TestApp:
         # The usage is only shown when asked for.
         assert result.output.index("Hello there") < result.output.index("Usage")
         assert "Hello there" in result.output
-        assert "Using: gpt-4.1-mini" in result.output
+        assert "climateclaw (gpt-4.1-mini)> " in result.output
+        assert "Using:" not in result.output
         about, usage, future = (result.output.index(t) for t in ("About", "Usage", "yet"))
         assert about < usage < future
         assert "Stop." not in result.output
