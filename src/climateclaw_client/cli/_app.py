@@ -149,6 +149,7 @@ def chat(
     ),
     topic: Optional[str] = typer.Option(
         None,
+        "-t",
         "--topic",
         help=(
             "Continue the thread with this topic and show its history, "
