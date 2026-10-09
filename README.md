@@ -315,9 +315,13 @@ The optional `cli` extra installs `climateclaw-shell`, an interactive chat sessi
 ```console
 pip install "climateclaw-client[cli]"
 climateclaw-shell --freva-instance https://www.freva.dkrz.de
-climateclaw> what is the warmest cmip6 model?
-climateclaw> exit
+climateclaw (gpt-4.1-mini)> what is the warmest cmip6 model?
+climateclaw (gpt-4.1-mini)> exit
 ```
+
+The prompt shows the model in use. `-p "<prompt>"` sends a single prompt or command, prints the
+answer and exits. `--topic <topic>` continues your thread with exactly this topic (ignoring case)
+and shows its history, or starts a new thread with this topic.
 
 The shell uses the same OIDC token handling as the client: the stored token is reused, refreshed
 when it expired, and you are asked to log in only if the refresh token expired as well. On exit
@@ -334,7 +338,9 @@ the first available one.
 | `/new [topic]`           | Start a new thread, optionally with a topic  |
 | `/threads`               | List your most recent threads                |
 | `/threads <query>`       | Search your threads by topic                 |
-| `exit`, `quit`, `logout` | Leave the shell                              |
+| `/delete [--force] [id]` | Delete threads, by default the active one    |
+| `exit`, `quit`           | Leave the shell                              |
+| `help`, `usage`, `h`, `u`| Show the usage, also with a leading `/`      |
 | Ctrl+C while streaming   | Stop the current answer                      |
 | `\` at the end of a line | Continue the input on the next line          |
 | Tab                      | Complete commands and model names            |
@@ -347,9 +353,9 @@ contain spaces, e.g. `/new El Nino in CMIP6`, and is what `/threads <query>` sea
 with `*`. Everything after `/threads` is sent as one search query, so `/threads el nino` searches
 for "el nino".
 
-On start the shell prints this usage, followed by the server features the shell does not offer
-yet (such as deleting threads or giving feedback). These are available through the
-[Python client](#thread-management).
+The usage is shown on `help` and on an unknown command, together with information from the
+server and the server features the shell does not offer yet (such as giving feedback). These are
+available through the [Python client](#thread-management).
 
 Run `climateclaw-shell --help` for all options.
 
