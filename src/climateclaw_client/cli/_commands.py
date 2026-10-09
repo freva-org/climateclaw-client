@@ -46,6 +46,8 @@ def switch_model(client: ClimateClaw, arg: str) -> None:
     pprint(f"[b]Using:[/b] {client.model}")
 
 
+KNOWN_TOPICS: Dict[str, str] = {}
+"""Topics of the threads seen in listings, by thread id."""
 PENDING_TOPICS: Dict[str, str] = {}
 """Topics of new threads, set once the thread is stored with its first prompt."""
 
@@ -118,6 +120,12 @@ def _threads_table(threads: List[Dict[str, Any]], current: str | None) -> Table:
     return table
 
 
+def _remember_topics(threads: List[Dict[str, Any]]) -> None:
+    for thread in threads:
+        if thread.get("thread_id"):
+            KNOWN_TOPICS[str(thread["thread_id"])] = str(thread.get("topic", ""))
+
+
 def list_threads(client: ClimateClaw, arg: str) -> None:
     """List your threads, or search them by topic."""
     try:
@@ -131,8 +139,61 @@ def list_threads(client: ClimateClaw, arg: str) -> None:
     if not threads:
         pprint(f"[yellow]No threads found{f' for {escape(arg)!r}' if arg else ''}.[/yellow]")
         return
+    _remember_topics(threads)
     pprint(_threads_table(threads, client.thread_id))
     pprint(f"[dim]Showing {len(threads)} of {total} threads, * marks the active one.[/dim]")
+
+
+DELETE_FORCE = "--force"
+DELETE_LOOKUP = 100
+"""Number of recent threads fetched to find the topics of unknown threads."""
+
+
+def _topics(client: ClimateClaw, thread_ids: List[str]) -> Dict[str, str]:
+    """Get the topics of threads, fetching the recent threads if needed."""
+    if any(t not in KNOWN_TOPICS and t not in PENDING_TOPICS for t in thread_ids):
+        try:
+            _remember_topics(client.getuserthreads(DELETE_LOOKUP)[1])
+        except (*REQUEST_ERRORS, ValueError) as error:
+            logger.debug("Could not look up thread topics: %s", error)
+    return {t: KNOWN_TOPICS.get(t) or PENDING_TOPICS.get(t) or "unknown topic" for t in thread_ids}
+
+
+def confirm(question: str) -> bool:
+    """Ask a yes/no question, no is the default."""
+    return input(question).strip().lower() in ("y", "yes")
+
+
+def delete_threads(client: ClimateClaw, arg: str) -> None:
+    """Delete threads, by default the active one."""
+    words = arg.split()
+    force = DELETE_FORCE in words
+    thread_ids = list(dict.fromkeys(w for w in words if w != DELETE_FORCE))
+    if not thread_ids:
+        if not client.thread_id:
+            pprint("[yellow]No active thread, pass the ids of the threads to delete.[/yellow]")
+            return
+        thread_ids = [client.thread_id]
+    topics = _topics(client, thread_ids)
+    for thread_id in thread_ids:
+        label = f"{escape(topics[thread_id])!r} ({thread_id})"
+        if not force:
+            try:
+                if not confirm(f"Delete thread {topics[thread_id]!r} ({thread_id})? [y/N] "):
+                    pprint(f"[dim]Kept {label}.[/dim]")
+                    continue
+            except (EOFError, KeyboardInterrupt):
+                print()
+                pprint("[yellow]Cancelled.[/yellow]")
+                return
+        try:
+            client.deletethread(thread_id)
+        except REQUEST_ERRORS as error:
+            logger.error("Could not delete thread %s: %s", thread_id, error)
+            continue
+        KNOWN_TOPICS.pop(thread_id, None)
+        PENDING_TOPICS.pop(thread_id, None)
+        pprint(f"[green]Deleted {label}.[/green]")
 
 
 SlashCommand = Callable[[ClimateClaw, str], None]
@@ -141,6 +202,7 @@ SLASH_COMMANDS: Dict[str, Tuple[str, SlashCommand]] = {
     "model": ("[name]", switch_model),
     "new": ("[topic]", new_thread),
     "threads": ("[query]", list_threads),
+    "delete": (f"[{DELETE_FORCE}] [thread-id ...]", delete_threads),
 }
 """Shell commands: name -> (argument usage, function)."""
 
@@ -179,6 +241,7 @@ SHELL_ENDPOINTS = {
     "getuserthreads",
     "searchthreads",
     "setthreadtopic",
+    "deletethread",
     "help",
     "ping",
 }

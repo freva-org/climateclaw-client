@@ -15,7 +15,9 @@ from prompt_toolkit.key_binding import KeyBindings
 
 from ..client import ClimateClaw
 from ._commands import (
+    DELETE_FORCE,
     EXIT_COMMANDS,
+    KNOWN_TOPICS,
     PENDING_LINES,
     SLASH_COMMANDS,
     SLASH_PREFIX,
@@ -35,6 +37,10 @@ class Completer:
         """
         if line.startswith(f"{SLASH_PREFIX}model "):
             return [m for m in self.client.available_models if m.startswith(text)]
+        if line.startswith(f"{SLASH_PREFIX}delete "):
+            used = line.split()
+            words = [DELETE_FORCE] + list(KNOWN_TOPICS)
+            return [w for w in words if w.startswith(text) and w not in used]
         if line:
             return []
         words = [SLASH_PREFIX + n for n in SLASH_COMMANDS] + list(EXIT_COMMANDS)

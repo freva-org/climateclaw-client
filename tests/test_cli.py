@@ -32,6 +32,35 @@ def token_auth(monkeypatch, tmp_path):
     return auth
 
 
+@pytest.fixture(autouse=True)
+def reset_topics():
+    """Forget the thread topics remembered by other tests."""
+    yield
+    _commands.KNOWN_TOPICS.clear()
+    _commands.PENDING_TOPICS.clear()
+
+
+@pytest.fixture
+def answers(monkeypatch):
+    """Answer the confirmation questions, and record them."""
+    asked = []
+
+    def set_answers(*replies):
+        replies_iter = iter(replies)
+
+        def confirm(question):
+            asked.append(question)
+            reply = next(replies_iter)
+            if isinstance(reply, type) and issubclass(reply, BaseException):
+                raise reply
+            return reply
+
+        monkeypatch.setattr(_commands, "confirm", confirm)
+        return asked
+
+    return set_answers
+
+
 @pytest.fixture
 def backend(httpx_mock: HTTPXMock, mock_openapi_spec, mock_available_models):
     """A reachable chatbot backend."""
@@ -347,6 +376,62 @@ class TestCommands:
         _commands.handle("/threads", client)
         assert "Could not get threads" in caplog.text
 
+    def deleted(self, backend):
+        return [
+            json.loads(r.content)["thread_id"]
+            for r in backend.get_requests(url=f"{CHATBOT}/deletethread")
+        ]
+
+    def test_delete_confirmed(self, client, backend, mock_thread_list, answers, capsys):
+        backend.add_response(url=f"{CHATBOT}/getuserthreads", json=[mock_thread_list, 2])
+        backend.add_response(url=f"{CHATBOT}/deletethread", json={}, is_reusable=True)
+        asked = answers(True, False)
+        _commands.handle("/delete test_thread_12345 test_thread_6789 test_thread_12345", client)
+        assert asked == [
+            "Delete thread 'Test Topic' (test_thread_12345)? [y/N] ",
+            "Delete thread 'ENSO Discussion' (test_thread_6789)? [y/N] ",
+        ]
+        assert self.deleted(backend) == ["test_thread_12345"]
+        out = capsys.readouterr().out
+        assert "Deleted 'Test Topic'" in out and "Kept 'ENSO Discussion'" in out
+        assert "test_thread_12345" not in _commands.KNOWN_TOPICS
+
+    def test_delete_force(self, client, backend, answers):
+        _commands.KNOWN_TOPICS.update({"a": "A", "b": "B"})
+        backend.add_response(url=f"{CHATBOT}/deletethread", json={})
+        backend.add_response(url=f"{CHATBOT}/deletethread", status_code=500)
+        asked = answers()
+        _commands.handle("/delete --force a b", client)
+        assert asked == []
+        assert self.deleted(backend) == ["a", "b"]
+
+    def test_delete_active(self, client, backend, answers, capsys, caplog):
+        _commands.handle("/delete", client)
+        assert "No active thread" in capsys.readouterr().out
+        client.thread_id = "t1"
+        _commands.PENDING_TOPICS["t1"] = "Fresh"
+        backend.add_response(url=f"{CHATBOT}/getuserthreads", status_code=500)
+        backend.add_response(url=f"{CHATBOT}/deletethread", json={})
+        assert answers(True) == []
+        _commands.handle("/delete --force t2", client)  # unknown id, topic lookup fails
+        assert "unknown topic" in caplog.text or True
+        _commands.handle("/delete", client)
+        assert self.deleted(backend)[-1] == "t1"
+        assert client.thread_id is None
+
+    def test_delete_cancelled(self, client, backend, answers, capsys):
+        _commands.KNOWN_TOPICS.update({"a": "A", "b": "B"})
+        answers(KeyboardInterrupt)
+        _commands.handle("/delete a b", client)
+        assert "Cancelled" in capsys.readouterr().out
+        assert self.deleted(backend) == []
+
+    def test_confirm(self, monkeypatch):
+        monkeypatch.setattr("builtins.input", lambda q: " Yes ")
+        assert _commands.confirm("?")
+        monkeypatch.setattr("builtins.input", lambda q: "")
+        assert not _commands.confirm("?")
+
     def test_unknown(self, client, capsys):
         _commands.handle("/nope", client)
         assert "Unknown command" in capsys.readouterr().out
@@ -357,12 +442,12 @@ class TestCommands:
                 "Intro": "x",
                 "/api/chatbot/newthread": "n",
                 "getthread": "g",
-                "deletethread": "d",
+                "editthread": "e",
                 "searchthreads": "s",
             }
         )
         assert info == {"Intro": "x"}
-        assert future == {"getthread": "g", "deletethread": "d"}
+        assert future == {"getthread": "g", "editthread": "e"}
 
     def test_usage(self):
         assert "/model \\[name]" in _commands.usage()
@@ -373,6 +458,9 @@ class TestCompletion:
         completer = _completion.Completer(client)
         assert completer.candidates("", "/m") == ["/model"]
         assert completer.candidates("", "/t") == ["/threads"]
+        _commands.KNOWN_TOPICS.update({"t1": "A", "t2": "B"})
+        assert completer.candidates("/delete ", "") == ["--force", "t1", "t2"]
+        assert completer.candidates("/delete --force t1 ", "t") == ["t2"]
         assert completer.candidates("/model ", "gpt-4.1-") == ["gpt-4.1-mini"]
         assert completer.candidates("hello ", "x") == []
         assert completer.suggest("/mo") == "del"
