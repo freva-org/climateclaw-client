@@ -2,6 +2,7 @@
 
 import base64
 import json
+import re
 import tempfile
 from pathlib import Path
 from typing import Any, Dict, List
@@ -26,6 +27,83 @@ WAITING = "[dim]Waiting for the answer, press Ctrl+C to cancel...[/dim]"
 STDERR_LINES = 3
 REQUEST_ERRORS = (ConnectionError, httpx.HTTPError, AuthError)
 """Errors of a failed request that should not end the shell."""
+
+
+LATEX_SYMBOLS = {
+    "rightarrow": "→",
+    "to": "→",
+    "leftarrow": "←",
+    "gets": "←",
+    "Rightarrow": "⇒",
+    "Leftarrow": "⇐",
+    "leftrightarrow": "↔",
+    "Leftrightarrow": "⇔",
+    "uparrow": "↑",
+    "downarrow": "↓",
+    "times": "×",
+    "cdot": "·",
+    "div": "÷",
+    "pm": "±",
+    "mp": "∓",
+    "approx": "≈",
+    "sim": "∼",
+    "neq": "≠",
+    "ne": "≠",
+    "leq": "≤",
+    "le": "≤",
+    "geq": "≥",
+    "ge": "≥",
+    "ll": "≪",
+    "gg": "≫",
+    "propto": "∝",
+    "infty": "∞",
+    "partial": "∂",
+    "nabla": "∇",
+    "sum": "∑",
+    "prod": "∏",
+    "int": "∫",
+    "sqrt": "√",
+    "circ": "°",
+    "degree": "°",
+    "in": "∈",
+    "alpha": "α",
+    "beta": "β",
+    "gamma": "γ",
+    "delta": "δ",
+    "Delta": "Δ",
+    "epsilon": "ε",
+    "theta": "θ",
+    "lambda": "λ",
+    "mu": "μ",
+    "pi": "π",
+    "rho": "ρ",
+    "sigma": "σ",
+    "Sigma": "Σ",
+    "tau": "τ",
+    "phi": "φ",
+    "omega": "ω",
+    "Omega": "Ω",
+}
+_LATEX_INLINE = re.compile(r"\$([^$\n]*\\[A-Za-z][^$\n]*)\$")
+_LATEX_COMMAND = re.compile(r"\\([A-Za-z]+)")
+
+
+def _latex_to_text(markdown: str) -> str:
+    """Replace simple inline LaTeX like ``$\\rightarrow$`` by Unicode.
+
+    Formulas with commands that have no Unicode equivalent are left as is.
+    """
+
+    def replace(match: "re.Match[str]") -> str:
+        formula = _LATEX_COMMAND.sub(
+            lambda cmd: LATEX_SYMBOLS.get(cmd.group(1), cmd.group(0)),
+            match.group(1),
+        )
+        if "\\" in formula:
+            return match.group(0)
+        return formula.replace("{", "").replace("}", "").strip()
+
+    return _LATEX_INLINE.sub(replace, markdown)
 
 
 def _code_text(raw: str) -> str:
@@ -112,7 +190,7 @@ class Renderer:
         self.kind, self.buffer = None, ""
         if kind == "Assistant" and buffer.strip():
             self.live.update(Text(""))
-            self.console.print(Markdown(buffer))
+            self.console.print(Markdown(_latex_to_text(buffer)))
         elif kind == "Code" and buffer.strip():
             self.console.print(
                 Panel(
@@ -150,7 +228,7 @@ class Renderer:
         if kind == "Assistant":
             self.kind = kind
             self.buffer += str(content)
-            self.live.update(Markdown(self.buffer))
+            self.live.update(Markdown(_latex_to_text(self.buffer)))
         elif kind == "Code":
             self.kind = kind
             # A complete code chunk arrives already decoded by the stream parser.
