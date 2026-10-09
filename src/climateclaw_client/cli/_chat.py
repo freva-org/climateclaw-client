@@ -20,7 +20,7 @@ from rich.text import Text
 
 from .._auth import TokenAuth
 from ..client import ClimateClaw
-from ..models import StreamConversation
+from ..models import Conversation, StreamConversation
 from ._log import logger
 
 WAITING = "[dim]Waiting for the answer, press Ctrl+C to cancel...[/dim]"
@@ -218,7 +218,7 @@ class Renderer:
         """Render one streamed variant."""
         kind = variant.get("variant")
         content = variant.get("content", "")
-        if kind in ("ServerHint", None):
+        if kind in ("ServerHint", "Prompt", None):
             return
         self.received = True
         if kind != self.kind:
@@ -248,6 +248,8 @@ class Renderer:
             self.console.print(Panel(Text(str(content)), title=kind, border_style="red"))
         elif kind == "StreamEnd":
             self._save_images()
+        elif kind == "User":
+            self.console.print(Text(f"> {content}", style="bold"))
 
 
 def _track_thread(client: ClimateClaw, variant: Dict[str, Any]) -> None:
@@ -281,6 +283,13 @@ def ask(client: ClimateClaw, text: str) -> None:
         pprint("[yellow]Stopped.[/yellow]")
     except REQUEST_ERRORS as error:
         logger.error("Chatbot request failed: %s", error)
+
+
+def show_history(conversation: Conversation) -> None:
+    """Render the messages of a stored thread."""
+    with Renderer() as renderer:
+        for message in conversation.raw_messages:
+            renderer.feed(message.message.model_dump())
 
 
 def revoke(auth: TokenAuth) -> None:

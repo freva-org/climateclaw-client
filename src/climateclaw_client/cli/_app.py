@@ -10,7 +10,14 @@ from .._auth import TokenAuth
 from .._version import get_versions
 from ..client import ClimateClaw
 from ._chat import REQUEST_ERRORS, revoke
-from ._commands import EXIT_COMMANDS, choose_model, handle, read_input, show_intro
+from ._commands import (
+    EXIT_COMMANDS,
+    choose_model,
+    handle,
+    open_topic,
+    read_input,
+    show_models,
+)
 from ._completion import setup as setup_completion
 from ._log import logger, resolve_level, set_level
 
@@ -63,7 +70,8 @@ def connect(auth: TokenAuth, chatbot_url: Optional[str], model: Optional[str]) -
 
 def run(client: ClimateClaw) -> None:
     """Read prompts and commands until the user leaves."""
-    show_intro(client)
+    show_models(client)
+    pprint("[dim]Type help for the usage.[/dim]")
     prompt = setup_completion(client)
     while True:
         try:
@@ -140,6 +148,14 @@ def chat(
         "--prompt",
         help="Send a single prompt or command, print the answer and exit.",
     ),
+    topic: Optional[str] = typer.Option(
+        None,
+        "--topic",
+        help=(
+            "Continue the thread with this topic and show its history, "
+            "or start a new thread with this topic."
+        ),
+    ),
     version: Optional[bool] = typer.Option(
         False,
         "-V",
@@ -164,9 +180,13 @@ def chat(
             client = connect(auth, chatbot_url, model)
         except (*REQUEST_ERRORS, KeyError, ValueError) as error:
             logger.critical(
-                "No usable chatbot found: %s", error, exc_info=logger.isEnabledFor(logging.DEBUG)
+                "No usable chatbot found: %s",
+                error,
+                exc_info=logger.isEnabledFor(logging.DEBUG),
             )
             raise typer.Exit(1) from error
+        if topic:
+            open_topic(client, topic)
         if command is None:
             run(client)
         elif command.strip():

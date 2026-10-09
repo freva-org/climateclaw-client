@@ -6,14 +6,18 @@ from typing import Any, Callable, Dict, List, Tuple
 import httpx
 from rich import print as pprint
 from rich.markup import escape
+from rich.panel import Panel
 from rich.table import Table
+from rich.text import Text
 
 from .._constants import CLIMATECLAW_API_ENDPOINTS
 from ..client import ClimateClaw
-from ._chat import REQUEST_ERRORS, ask
+from ..models import Conversation
+from ._chat import REQUEST_ERRORS, ask, show_history
 from ._log import logger
 
-EXIT_COMMANDS = ("exit", "quit", "logout")
+EXIT_COMMANDS = ("exit", "quit")
+HELP_COMMANDS = ("u", "usage", "h", "help")
 SLASH_PREFIX = "/"
 CONTINUATION = "\\"
 PROMPT = "climateclaw> "
@@ -64,6 +68,29 @@ def new_thread(client: ClimateClaw, arg: str) -> None:
         pprint(f"[b]New thread:[/b] {escape(arg)} ({thread_id})")
     else:
         pprint(f"[b]New thread:[/b] {thread_id}")
+
+
+def open_topic(client: ClimateClaw, topic: str) -> None:
+    """Continue the thread with this topic, or start a new one with it."""
+    try:
+        _, threads = client.searchthreads(topic)
+    except (*REQUEST_ERRORS, ValueError) as error:
+        logger.error("Could not search threads: %s", error)
+        threads = []
+    wanted = topic.strip().casefold()
+    match = next(
+        (t for t in threads if str(t.get("topic", "")).strip().casefold() == wanted),
+        None,
+    )
+    if match is None:
+        new_thread(client, topic)
+        return
+    client.thread_id = str(match["thread_id"])
+    _remember_topics([match])
+    pprint(f"[b]Thread:[/b] {escape(str(match.get('topic', '')))} ({client.thread_id})")
+    content = match.get("content")
+    if isinstance(content, Conversation):
+        show_history(content)
 
 
 def apply_topic(client: ClimateClaw) -> None:
@@ -212,25 +239,24 @@ def run_slash_command(client: ClimateClaw, line: str) -> None:
     name, _, arg = line[len(SLASH_PREFIX) :].partition(" ")
     if name not in SLASH_COMMANDS:
         pprint(f"[yellow]Unknown command: {SLASH_PREFIX}{name}[/yellow]")
+        pprint(usage_panel())
         return
     SLASH_COMMANDS[name][1](client, arg.strip())
 
 
-def usage() -> str:
-    """Describe how to use the shell as an aligned list."""
+def usage_rows() -> List[Tuple[str, str]]:
+    """Describe how to use the shell, as pairs of input and description."""
     rows: List[Tuple[str, str]] = [("<question>", "Ask the chatbot.")]
     for name, (args, func) in SLASH_COMMANDS.items():
         call = f"{SLASH_PREFIX}{name} {args}".strip()
         rows.append((call, (func.__doc__ or "").strip()))
-    rows += [
+    return rows + [
         (" | ".join(EXIT_COMMANDS), "Leave the session."),
+        (" | ".join(HELP_COMMANDS), "Show this usage."),
         (f"... {CONTINUATION}", "Continue the input on the next line."),
         ("Ctrl+C", "Stop the current answer."),
         ("Tab", "Complete commands and model names."),
     ]
-    width = max(len(call) for call, _ in rows)
-    lines = [f"  [cyan]{escape(call.ljust(width))}[/cyan]  {escape(text)}" for call, text in rows]
-    return "\n".join(["[b]Usage[/b]", ""] + lines + [""])
 
 
 SHELL_ENDPOINTS = {
@@ -245,7 +271,7 @@ SHELL_ENDPOINTS = {
     "help",
     "ping",
 }
-"""Server endpoints the shell uses, they are covered by :func:`usage`."""
+"""Server endpoints the shell uses, they are covered by :func:`usage_rows`."""
 
 
 def _endpoint(name: str) -> str:
@@ -256,7 +282,7 @@ def _endpoint(name: str) -> str:
 def split_help(payload: Dict[str, Any]) -> Tuple[Dict[str, str], Dict[str, str]]:
     """Split the server help into general information and future features.
 
-    Entries for endpoints the shell uses are dropped, :func:`usage`
+    Entries for endpoints the shell uses are dropped, :func:`usage_rows`
     describes them. Entries for other endpoints are features the shell
     does not offer yet. Everything else is general information.
     """
@@ -271,9 +297,23 @@ def split_help(payload: Dict[str, Any]) -> Tuple[Dict[str, str], Dict[str, str]]
     return info, future
 
 
-def _section(title: str, entries: Dict[str, str]) -> str:
-    lines = [f"  [b]{escape(name)}[/b]: {escape(text)}" for name, text in entries.items()]
-    return "\n".join([f"[b]{title}[/b]", ""] + lines + [""])
+def _panel(title: str, rows: List[Tuple[str, str]], style: str, key_style: str) -> Panel:
+    """Frame a part of the usage like code, output and errors."""
+    grid = Table.grid(padding=(0, 2))
+    grid.add_column(style=key_style, no_wrap=True)
+    grid.add_column()
+    for key, text in rows:
+        grid.add_row(Text(key), Text(text))
+    return Panel(grid, title=title, title_align="left", border_style=style)
+
+
+def usage_panel() -> Panel:
+    """Show how to use the shell in a panel."""
+    return _panel("Usage", usage_rows(), "cyan", "cyan")
+
+
+def _section(title: str, entries: Dict[str, str], style: str) -> Panel:
+    return _panel(title, list(entries.items()), style, "bold")
 
 
 def choose_model(client: ClimateClaw) -> None:
@@ -282,24 +322,34 @@ def choose_model(client: ClimateClaw) -> None:
     client.model = client.model or (bots[0] if bots else None)  # type: ignore[assignment]
 
 
-def show_intro(client: ClimateClaw) -> None:
-    """Show how to use the shell and what the server offers beyond that."""
-    res = client.get(client._construct_path("help"))
-    assert isinstance(res, httpx.Response)
-    info, future = split_help(dict(res.json()))
-    if info:
-        pprint(_section("About", info))
-    pprint(usage())
-    if future:
-        pprint(_section("Not available in the shell yet", future))
+def show_models(client: ClimateClaw) -> None:
+    """Choose the model and show which ones are available."""
     choose_model(client)
     pprint(f"[b]Available models:[/b] {', '.join(client.available_models)}")
     pprint(f"[b]Using:[/b] {client.model}")
 
 
+def usage(client: ClimateClaw, arg: str = "") -> None:
+    """Show how to use the shell."""
+    try:
+        res = client.get(client._construct_path("help"))
+        assert isinstance(res, httpx.Response)
+        info, future = split_help(dict(res.json()))
+    except (*REQUEST_ERRORS, ValueError) as error:
+        logger.debug("Could not get the server help: %s", error)
+        info, future = {}, {}
+    if info:
+        pprint(_section("About", info, "magenta"))
+    pprint(usage_panel())
+    if future:
+        pprint(_section("Not available in the shell yet", future, "yellow"))
+
+
 def handle(line: str, client: ClimateClaw) -> None:
     """Dispatch a line to the chatbot or a shell command."""
-    if line.startswith(SLASH_PREFIX):
+    if line.removeprefix(SLASH_PREFIX) in HELP_COMMANDS:
+        usage(client)
+    elif line.startswith(SLASH_PREFIX):
         run_slash_command(client, line)
     else:
         ask(client, line)

@@ -134,8 +134,10 @@ class TestApp:
             ),
         )
         backend.add_response(url=f"{CHATBOT}/stop", json={})
-        result = invoke("--model", "gpt-4.1-mini", "--keep-token", input="hi\nexit\n")
+        result = invoke("--model", "gpt-4.1-mini", "--keep-token", input="hi\nhelp\nexit\n")
         assert result.exit_code == 0, result.output
+        # The usage is only shown when asked for.
+        assert result.output.index("Hello there") < result.output.index("Usage")
         assert "Hello there" in result.output
         assert "Using: gpt-4.1-mini" in result.output
         about, usage, future = (result.output.index(t) for t in ("About", "Usage", "yet"))
@@ -345,6 +347,27 @@ class TestCommands:
         _commands.handle("third question", client)
         assert len(backend.get_requests(url=f"{CHATBOT}/setthreadtopic")) == 2
 
+    def test_open_existing_topic(self, client, backend, mock_thread_list, capsys):
+        backend.add_response(url=f"{CHATBOT}/searchthreads", json=[mock_thread_list, 2])
+        _commands.open_topic(client, " enso discussion")
+        assert client.thread_id == "test_thread_6789"
+        out = capsys.readouterr().out
+        assert "Thread: ENSO Discussion (test_thread_6789)" in out
+        assert "> " in out
+
+    def test_open_new_topic(self, client, backend, mock_thread_list, capsys, caplog):
+        backend.add_response(url=f"{CHATBOT}/searchthreads", json=[mock_thread_list, 2])
+        backend.add_response(url=f"{CHATBOT}/newthread", json="t8")
+        _commands.open_topic(client, "ENSO")
+        assert client.thread_id == "t8"
+        assert _commands.PENDING_TOPICS["t8"] == "ENSO"
+        assert "New thread: ENSO (t8)" in capsys.readouterr().out
+        backend.add_response(url=f"{CHATBOT}/searchthreads", status_code=500)
+        backend.add_response(url=f"{CHATBOT}/newthread", json="t9")
+        _commands.open_topic(client, "Rain")
+        assert client.thread_id == "t9"
+        assert "Could not search threads" in caplog.text
+
     def test_threads(self, client, backend, mock_thread_list, mock_thread_id, capsys):
         client.thread_id = mock_thread_id
         backend.add_response(url=f"{CHATBOT}/getuserthreads", json=[mock_thread_list, 5])
@@ -450,7 +473,15 @@ class TestCommands:
 
     def test_unknown(self, client, capsys):
         _commands.handle("/nope", client)
-        assert "Unknown command" in capsys.readouterr().out
+        out = capsys.readouterr().out
+        assert "Unknown command" in out
+        assert "Usage" in out
+
+    def test_help(self, client, backend, capsys):
+        backend.add_response(url=f"{CHATBOT}/help", status_code=500)
+        for line in ("help", "/usage"):
+            _commands.handle(line, client)
+            assert "Usage" in capsys.readouterr().out
 
     def test_split_help(self):
         info, future = _commands.split_help(
@@ -466,7 +497,7 @@ class TestCommands:
         assert future == {"getthread": "g", "editthread": "e"}
 
     def test_usage(self):
-        assert "/model \\[name]" in _commands.usage()
+        assert ("/model [name]", _commands.switch_model.__doc__.strip()) in _commands.usage_rows()
 
 
 class TestCompletion:

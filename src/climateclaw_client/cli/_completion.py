@@ -17,6 +17,7 @@ from ..client import ClimateClaw
 from ._commands import (
     DELETE_FORCE,
     EXIT_COMMANDS,
+    HELP_COMMANDS,
     KNOWN_TOPICS,
     PENDING_LINES,
     SLASH_COMMANDS,
@@ -43,7 +44,9 @@ class Completer:
             return [w for w in words if w.startswith(text) and w not in used]
         if line:
             return []
-        words = [SLASH_PREFIX + n for n in SLASH_COMMANDS] + list(EXIT_COMMANDS)
+        words = (
+            [SLASH_PREFIX + n for n in SLASH_COMMANDS] + list(EXIT_COMMANDS) + list(HELP_COMMANDS)
+        )
         return [w for w in words if w.startswith(text)]
 
     def matches(self, before_cursor: str) -> Tuple[str, List[str]]:
