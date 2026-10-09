@@ -451,10 +451,10 @@ class TestCommands:
         client.thread_id = "t1"
         _commands.PENDING_TOPICS["t1"] = "Fresh"
         backend.add_response(url=f"{CHATBOT}/getuserthreads", status_code=500)
-        backend.add_response(url=f"{CHATBOT}/deletethread", json={})
+        backend.add_response(url=f"{CHATBOT}/deletethread", json={}, is_reusable=True)
         assert answers(True) == []
         _commands.handle("/delete --force t2", client)  # unknown id, topic lookup fails
-        assert "unknown topic" in caplog.text or True
+        assert "Deleted 'unknown topic' (t2)" in capsys.readouterr().out
         _commands.handle("/delete", client)
         assert self.deleted(backend)[-1] == "t1"
         assert client.thread_id is None
