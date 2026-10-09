@@ -10,7 +10,7 @@ from .._auth import TokenAuth
 from .._version import get_versions
 from ..client import ClimateClaw
 from ._chat import REQUEST_ERRORS, revoke
-from ._commands import EXIT_COMMANDS, handle, read_input, show_intro
+from ._commands import EXIT_COMMANDS, choose_model, handle, read_input, show_intro
 from ._completion import setup as setup_completion
 from ._log import logger, resolve_level, set_level
 
@@ -132,6 +132,14 @@ def chat(
     verbose: int = typer.Option(
         0, "-v", help="Increase verbosity: -v debug, -vv trace.", count=True
     ),
+    command: Optional[str] = typer.Option(
+        None,
+        "-c",
+        "-p",
+        "--command",
+        "--prompt",
+        help="Send a single prompt or command, print the answer and exit.",
+    ),
     version: Optional[bool] = typer.Option(
         False,
         "-V",
@@ -159,7 +167,11 @@ def chat(
                 "No usable chatbot found: %s", error, exc_info=logger.isEnabledFor(logging.DEBUG)
             )
             raise typer.Exit(1) from error
-        run(client)
+        if command is None:
+            run(client)
+        elif command.strip():
+            choose_model(client)
+            handle(command.strip(), client)
     except REQUEST_ERRORS as error:
         logger.critical("%s", error, exc_info=logger.isEnabledFor(logging.DEBUG))
         raise typer.Exit(1) from error

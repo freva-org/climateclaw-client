@@ -276,6 +276,12 @@ def _section(title: str, entries: Dict[str, str]) -> str:
     return "\n".join([f"[b]{title}[/b]", ""] + lines + [""])
 
 
+def choose_model(client: ClimateClaw) -> None:
+    """Use the first available model unless one was given."""
+    bots = client.available_models
+    client.model = client.model or (bots[0] if bots else None)  # type: ignore[assignment]
+
+
 def show_intro(client: ClimateClaw) -> None:
     """Show how to use the shell and what the server offers beyond that."""
     res = client.get(client._construct_path("help"))
@@ -286,9 +292,8 @@ def show_intro(client: ClimateClaw) -> None:
     pprint(usage())
     if future:
         pprint(_section("Not available in the shell yet", future))
-    bots = client.available_models
-    client.model = client.model or (bots[0] if bots else None)  # type: ignore[assignment]
-    pprint(f"[b]Available models:[/b] {', '.join(bots)}")
+    choose_model(client)
+    pprint(f"[b]Available models:[/b] {', '.join(client.available_models)}")
     pprint(f"[b]Using:[/b] {client.model}")
 
 

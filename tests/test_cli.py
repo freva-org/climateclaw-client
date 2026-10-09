@@ -150,6 +150,22 @@ class TestApp:
         stop = json.loads(backend.get_request(url=f"{CHATBOT}/stop").content)
         assert stop == {"thread_id": mock_new_thread_id}
 
+    def test_single_command(self, backend, token_auth, mock_new_thread_id):
+        backend.add_response(url=f"{CHATBOT}/newthread", json=mock_new_thread_id)
+        backend.add_response(
+            url=f"{CHATBOT}/streamresponse",
+            content=stream_body(
+                {"variant": "Assistant", "content": "Hello there"},
+                {"variant": "StreamEnd", "content": ""},
+            ),
+        )
+        backend.add_response(url=f"{CHATBOT}/stop", json={})
+        result = invoke("--keep-token", "-c", "hi")
+        assert result.exit_code == 0, result.output
+        assert "Hello there" in result.output
+        assert "Usage" not in result.output
+        assert "About" not in result.output
+
     def test_unreachable_chatbot(self, httpx_mock: HTTPXMock, token_auth):
         httpx_mock.add_response(url=f"{CHATBOT}/openapi.json", status_code=404)
         result = invoke(input="exit\n")
