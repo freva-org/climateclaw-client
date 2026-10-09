@@ -45,14 +45,35 @@ def switch_model(client: ClimateClaw, arg: str) -> None:
     pprint(f"[b]Using:[/b] {client.model}")
 
 
+PENDING_TOPICS: Dict[str, str] = {}
+"""Topics of new threads, set once the thread is stored with its first prompt."""
+
+
 def new_thread(client: ClimateClaw, arg: str) -> None:
-    """Start a new conversation thread."""
+    """Start a new conversation thread, optionally with a topic."""
     try:
         thread_id = client.newthread()
     except REQUEST_ERRORS as error:
         logger.error("Could not start a new thread: %s", error)
         return
-    pprint(f"[b]New thread:[/b] {thread_id}")
+    if arg:
+        PENDING_TOPICS[thread_id] = arg
+        pprint(f"[b]New thread:[/b] {escape(arg)} ({thread_id})")
+    else:
+        pprint(f"[b]New thread:[/b] {thread_id}")
+
+
+def apply_topic(client: ClimateClaw) -> None:
+    """Set the pending topic of the active thread."""
+    thread_id = client.thread_id
+    if not thread_id or thread_id not in PENDING_TOPICS:
+        return
+    try:
+        client.setthreadtopic(PENDING_TOPICS[thread_id], thread_id=thread_id)
+    except REQUEST_ERRORS as error:
+        logger.warning("Could not set the thread topic: %s", error)
+        return
+    del PENDING_TOPICS[thread_id]
 
 
 def _threads_table(threads: List[Dict[str, Any]], current: str | None) -> Table:
@@ -91,7 +112,7 @@ SlashCommand = Callable[[ClimateClaw, str], None]
 
 SLASH_COMMANDS: Dict[str, Tuple[str, SlashCommand]] = {
     "model": ("[name]", switch_model),
-    "new": ("", new_thread),
+    "new": ("[topic]", new_thread),
     "threads": ("[query]", list_threads),
 }
 """Shell commands: name -> (argument usage, function)."""
@@ -130,6 +151,7 @@ SHELL_ENDPOINTS = {
     "availablechatbots",
     "getuserthreads",
     "searchthreads",
+    "setthreadtopic",
     "help",
     "ping",
 }
@@ -186,3 +208,4 @@ def handle(line: str, client: ClimateClaw) -> None:
         run_slash_command(client, line)
     else:
         ask(client, line)
+        apply_topic(client)

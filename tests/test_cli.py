@@ -283,6 +283,22 @@ class TestCommands:
         _commands.handle("/new", client)
         assert "Could not start a new thread" in caplog.text
 
+    def test_new_thread_with_topic(self, client, backend, capsys, caplog, monkeypatch):
+        monkeypatch.setattr(_commands, "ask", lambda c, line: None)
+        backend.add_response(url=f"{CHATBOT}/newthread", json="t7")
+        _commands.handle("/new  El Nino ", client)
+        assert "El Nino (t7)" in capsys.readouterr().out
+        backend.add_response(url=f"{CHATBOT}/setthreadtopic", status_code=500)
+        _commands.handle("first question", client)
+        assert "Could not set the thread topic" in caplog.text
+        backend.add_response(url=f"{CHATBOT}/setthreadtopic", json={})
+        _commands.handle("second question", client)
+        sent = json.loads(backend.get_requests(url=f"{CHATBOT}/setthreadtopic")[-1].content)
+        assert sent == {"thread_id": "t7", "topic": "El Nino"}
+        assert "t7" not in _commands.PENDING_TOPICS
+        _commands.handle("third question", client)
+        assert len(backend.get_requests(url=f"{CHATBOT}/setthreadtopic")) == 2
+
     def test_threads(self, client, backend, mock_thread_list, mock_thread_id, capsys):
         client.thread_id = mock_thread_id
         backend.add_response(url=f"{CHATBOT}/getuserthreads", json=[mock_thread_list, 5])

@@ -38,7 +38,7 @@ Input                       Effect
 ==========================  ==================================================
 ``<question>``              Ask the chatbot, the answer is streamed back.
 ``/model [name]``           Switch to another model, or show the current one.
-``/new``                    Start a new conversation thread.
+``/new [topic]``            Start a new thread, optionally with a topic.
 ``/threads``                List your most recent threads.
 ``/threads <query>``        Search your threads by topic.
 ``exit``, ``quit``,         Leave the shell.
@@ -47,6 +47,10 @@ Ctrl+C while streaming      Stop the current answer.
 ``\`` at the end of a line  Continue the input on the next line.
 Tab                         Complete commands and model names.
 ==========================  ==================================================
+
+``/new <topic>`` takes a topic, not a thread id: the shell creates a new thread and names it
+``<topic>`` once the first question is sent, since only then is the thread stored. The topic can
+contain spaces, e.g. ``/new El Nino in CMIP6``, and is what ``/threads <query>`` searches.
 
 ``/threads`` shows up to 20 threads with their date, topic and id; the active thread is marked
 with ``*``. Everything after ``/threads`` is sent as one search query, so ``/threads el nino``
