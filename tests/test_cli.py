@@ -4,6 +4,7 @@ import functools
 import json
 import logging
 import runpy
+from datetime import datetime, timezone
 
 import httpx
 import pytest
@@ -305,7 +306,29 @@ class TestCommands:
         _commands.handle("/threads", client)
         out = capsys.readouterr().out
         assert "ENSO Discussion" in out and "Showing 2 of 5 threads" in out
-        assert "*  2024-01-01T12:00:00" in out
+        assert "*  1 Jan 2024" in out
+
+    @pytest.mark.parametrize(
+        "value, expected",
+        [
+            ("2026-10-09T10:01:00", "Today 10:01"),
+            ("2026-10-08T09:12:30.123", "Yesterday 09:12"),
+            ("2026-10-05T14:30:00", "Mon 14:30"),
+            ("2026-03-08T09:05:00", "8 Mar 09:05"),
+            ("2024-01-01T12:00:00", "1 Jan 2024"),
+            ("2026-10-09", "Today 00:00"),
+            ("yesterday-ish", "yesterday-ish"),
+        ],
+    )
+    def test_format_date(self, value, expected):
+        now = datetime(2026, 10, 9, 18, 0)
+        assert _commands.format_date(value, now) == expected
+
+    def test_format_date_timezone(self):
+        """Dates with a timezone are shown in local time."""
+        local = datetime(2026, 10, 9, 12, 0).astimezone()
+        utc = local.astimezone(timezone.utc).isoformat()
+        assert _commands.format_date(utc, datetime(2026, 10, 9, 18, 0)) == "Today 12:00"
 
     def test_search_threads(self, client, backend, mock_thread_list, capsys):
         backend.add_response(url=f"{CHATBOT}/searchthreads", json=[mock_thread_list[1:], 1])

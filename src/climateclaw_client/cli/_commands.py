@@ -1,5 +1,6 @@
 """Commands understood by the interactive shell."""
 
+from datetime import datetime
 from typing import Any, Callable, Dict, List, Tuple
 
 import httpx
@@ -76,6 +77,32 @@ def apply_topic(client: ClimateClaw) -> None:
     del PENDING_TOPICS[thread_id]
 
 
+def format_date(value: str, now: datetime | None = None) -> str:
+    """Format an ISO date like a chat app, relative to ``now``.
+
+    Recent dates show the day and time, older ones only the date. Dates
+    with a timezone are shown in local time, unparseable ones unchanged.
+    """
+    try:
+        date = datetime.fromisoformat(value)
+    except (TypeError, ValueError):
+        return value
+    if date.tzinfo is not None:
+        date = date.astimezone().replace(tzinfo=None)
+    now = now or datetime.now()
+    days = (now.date() - date.date()).days
+    time = date.strftime("%H:%M")
+    if days == 0:
+        return f"Today {time}"
+    if days == 1:
+        return f"Yesterday {time}"
+    if 1 < days < 7:
+        return f"{date:%a} {time}"
+    if date.year == now.year:
+        return f"{date.day} {date:%b} {time}"
+    return f"{date.day} {date:%b %Y}"
+
+
 def _threads_table(threads: List[Dict[str, Any]], current: str | None) -> Table:
     table = Table(box=None, header_style="bold", pad_edge=False)
     for column in ("", "Date", "Topic", "Thread id"):
@@ -84,7 +111,7 @@ def _threads_table(threads: List[Dict[str, Any]], current: str | None) -> Table:
         thread_id = str(thread.get("thread_id", ""))
         table.add_row(
             "*" if thread_id == current else "",
-            str(thread.get("date", "")),
+            format_date(str(thread.get("date", ""))),
             escape(str(thread.get("topic", ""))),
             thread_id,
         )
