@@ -41,7 +41,11 @@ def backend(httpx_mock: HTTPXMock, mock_openapi_spec, mock_available_models):
         is_reusable=True,
         is_optional=True,
     )
-    httpx_mock.add_response(url=f"{CHATBOT}/help", json={"Hi": "Ask me."}, is_optional=True)
+    httpx_mock.add_response(
+        url=f"{CHATBOT}/help",
+        json={"Hi": "Ask me.", "/api/chatbot/stop": "Stop.", "userfeedback": "Rate."},
+        is_optional=True,
+    )
     return httpx_mock
 
 
@@ -104,6 +108,10 @@ class TestApp:
         assert result.exit_code == 0, result.output
         assert "Hello there" in result.output
         assert "Using: gpt-4.1-mini" in result.output
+        about, usage, future = (result.output.index(t) for t in ("About", "Usage", "yet"))
+        assert about < usage < future
+        assert "Stop." not in result.output
+        assert result.output.index("Rate.") > future
         sent = json.loads(backend.get_request(url=f"{CHATBOT}/streamresponse").content)
         assert sent["chatbot"] == "gpt-4.1-mini"
         request = backend.get_request(url=f"{CHATBOT}/streamresponse")
@@ -275,9 +283,47 @@ class TestCommands:
         _commands.handle("/new", client)
         assert "Could not start a new thread" in caplog.text
 
+    def test_threads(self, client, backend, mock_thread_list, mock_thread_id, capsys):
+        client.thread_id = mock_thread_id
+        backend.add_response(url=f"{CHATBOT}/getuserthreads", json=[mock_thread_list, 5])
+        _commands.handle("/threads", client)
+        out = capsys.readouterr().out
+        assert "ENSO Discussion" in out and "Showing 2 of 5 threads" in out
+        assert "*  2024-01-01T12:00:00" in out
+
+    def test_search_threads(self, client, backend, mock_thread_list, capsys):
+        backend.add_response(url=f"{CHATBOT}/searchthreads", json=[mock_thread_list[1:], 1])
+        _commands.handle("/threads enso  discussion", client)
+        assert json.loads(backend.get_request(url=f"{CHATBOT}/searchthreads").content) == {
+            "query": "enso  discussion",
+            "num_threads": 20,
+        }
+        assert "ENSO Discussion" in capsys.readouterr().out
+
+    def test_threads_empty_or_failing(self, client, backend, capsys, caplog):
+        backend.add_response(url=f"{CHATBOT}/searchthreads", json=[[], 0])
+        _commands.handle("/threads nothing", client)
+        assert "No threads found for 'nothing'" in capsys.readouterr().out
+        backend.add_response(url=f"{CHATBOT}/getuserthreads", status_code=500)
+        _commands.handle("/threads", client)
+        assert "Could not get threads" in caplog.text
+
     def test_unknown(self, client, capsys):
         _commands.handle("/nope", client)
         assert "Unknown command" in capsys.readouterr().out
+
+    def test_split_help(self):
+        info, future = _commands.split_help(
+            {
+                "Intro": "x",
+                "/api/chatbot/newthread": "n",
+                "getthread": "g",
+                "deletethread": "d",
+                "searchthreads": "s",
+            }
+        )
+        assert info == {"Intro": "x"}
+        assert future == {"getthread": "g", "deletethread": "d"}
 
     def test_usage(self):
         assert "/model \\[name]" in _commands.usage()
@@ -287,6 +333,7 @@ class TestCompletion:
     def test_candidates(self, client):
         completer = _completion.Completer(client)
         assert completer.candidates("", "/m") == ["/model"]
+        assert completer.candidates("", "/t") == ["/threads"]
         assert completer.candidates("/model ", "gpt-4.1-") == ["gpt-4.1-mini"]
         assert completer.candidates("hello ", "x") == []
         assert completer.suggest("/mo") == "del"

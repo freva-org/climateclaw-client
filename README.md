@@ -327,15 +327,25 @@ By default the chatbot is expected at `<freva-instance>/api/chatbot`. Use `--cha
 `CLIMATECLAW_URL`) for a chatbot on another host, and `--model` to choose a model, defaulting to
 the first available one.
 
-| Input                    | Effect                               |
-| ------------------------ | ------------------------------------ |
-| `<question>`             | Ask the chatbot                      |
-| `/model <name>`          | Switch to another model              |
-| `/new`                   | Start a new conversation thread      |
-| `exit`, `quit`, `logout` | Leave the shell                      |
-| Ctrl+C while streaming   | Stop the current answer              |
-| `\` at the end of a line | Continue the input on the next line |
-| Tab                      | Complete commands and model names    |
+| Input                    | Effect                                       |
+| ------------------------ | -------------------------------------------- |
+| `<question>`             | Ask the chatbot                              |
+| `/model [name]`          | Switch to another model, or show the current |
+| `/new`                   | Start a new conversation thread              |
+| `/threads`               | List your most recent threads                |
+| `/threads <query>`       | Search your threads by topic                 |
+| `exit`, `quit`, `logout` | Leave the shell                              |
+| Ctrl+C while streaming   | Stop the current answer                      |
+| `\` at the end of a line | Continue the input on the next line          |
+| Tab                      | Complete commands and model names            |
+
+`/threads` shows up to 20 threads with their date, topic and id; the active thread is marked
+with `*`. Everything after `/threads` is sent as one search query, so `/threads el nino` searches
+for "el nino".
+
+On start the shell prints this usage, followed by the server features the shell does not offer
+yet (such as deleting threads or giving feedback). These are available through the
+[Python client](#thread-management).
 
 Run `climateclaw-shell --help` for all options.
 

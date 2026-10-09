@@ -9,8 +9,8 @@ from rich import print as pprint
 from .._auth import TokenAuth
 from .._version import get_versions
 from ..client import ClimateClaw
-from ._chat import REQUEST_ERRORS, revoke, show_intro
-from ._commands import EXIT_COMMANDS, handle, read_input, usage
+from ._chat import REQUEST_ERRORS, revoke
+from ._commands import EXIT_COMMANDS, handle, read_input, show_intro
 from ._completion import setup as setup_completion
 from ._log import logger, resolve_level, set_level
 
@@ -63,7 +63,6 @@ def connect(auth: TokenAuth, chatbot_url: Optional[str], model: Optional[str]) -
 
 def run(client: ClimateClaw) -> None:
     """Read prompts and commands until the user leaves."""
-    pprint(usage())
     show_intro(client)
     prompt = setup_completion(client)
     while True:

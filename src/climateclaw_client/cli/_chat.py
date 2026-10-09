@@ -205,18 +205,6 @@ def ask(client: ClimateClaw, text: str) -> None:
         logger.error("Chatbot request failed: %s", error)
 
 
-def show_intro(client: ClimateClaw) -> None:
-    """Show the chatbot help and the available chatbots."""
-    res = client.get(client._construct_path("help"))
-    assert isinstance(res, httpx.Response)
-    for name, text in dict(res.json()).items():
-        pprint(f"[b]{name}[/b]: {text}")
-    bots = client.available_models
-    client.model = client.model or (bots[0] if bots else None)  # type: ignore[assignment]
-    pprint(f"[b]Available models:[/b] {', '.join(bots)}")
-    pprint(f"[b]Using:[/b] {client.model}")
-
-
 def revoke(auth: TokenAuth) -> None:
     """Revoke the session token by removing it from the token store.
 
