@@ -308,6 +308,57 @@ asyncio.run(main())
 
 **Note:** The async client uses `httpx.AsyncClient` under the hood and provides all the same methods as the synchronous `ClimateClaw` client, but as coroutines that must be awaited.
 
+## Interactive Shell
+
+The optional `cli` extra installs `climateclaw-shell`, an interactive chat session in the terminal:
+
+```console
+pip install "climateclaw-client[cli]"
+climateclaw-shell --freva-instance https://www.freva.dkrz.de
+climateclaw (gpt-4.1-mini)> what is the warmest cmip6 model?
+climateclaw (gpt-4.1-mini)> exit
+```
+
+The prompt shows the model in use. `-p "<prompt>"` sends a single prompt or command, prints the
+answer and exits. `--topic <topic>` continues your thread with exactly this topic (ignoring case)
+and shows its history, or starts a new thread with this topic.
+
+The shell uses the same OIDC token handling as the client: the stored token is reused, refreshed
+when it expired, and you are asked to log in only if the refresh token expired as well. On exit
+the token is revoked unless `--keep-token` is given; `--force-login` always asks for a new login.
+
+By default the chatbot is expected at `<freva-instance>/api/chatbot`. Use `--chatbot-url` (or
+`CLIMATECLAW_URL`) for a chatbot on another host, and `--model` to choose a model, defaulting to
+the first available one.
+
+| Input                    | Effect                                       |
+| ------------------------ | -------------------------------------------- |
+| `<question>`             | Ask the chatbot                              |
+| `/model [name]`          | Switch to another model, or show the current |
+| `/new [topic]`           | Start a new thread, optionally with a topic  |
+| `/threads`               | List your most recent threads                |
+| `/threads <query>`       | Search your threads by topic                 |
+| `/delete [--force] [id]` | Delete threads, by default the active one    |
+| `exit`, `quit`           | Leave the shell                              |
+| `help`, `usage`, `h`, `u`| Show the usage, also with a leading `/`      |
+| Ctrl+C while streaming   | Stop the current answer                      |
+| `\` at the end of a line | Continue the input on the next line          |
+| Tab                      | Complete commands and model names            |
+
+`/new <topic>` takes a topic, not a thread id: the shell creates a new thread and names it
+`<topic>` once the first question is sent, since only then is the thread stored. The topic can
+contain spaces, e.g. `/new El Nino in CMIP6`, and is what `/threads <query>` searches.
+
+`/threads` shows up to 20 threads with their date, topic and id; the active thread is marked
+with `*`. Everything after `/threads` is sent as one search query, so `/threads el nino` searches
+for "el nino".
+
+The usage is shown on `help` and on an unknown command, together with information from the
+server and the server features the shell does not offer yet (such as giving feedback). These are
+available through the [Python client](#thread-management).
+
+Run `climateclaw-shell --help` for all options.
+
 ## Configuration Options
 
 | Parameter | Type | Default | Description |

@@ -9,6 +9,7 @@ This library provides both synchronous and asynchronous interfaces for communica
    :caption: Contents:
 
    usage
+   shell
    api/index
 
 

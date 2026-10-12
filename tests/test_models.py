@@ -295,6 +295,17 @@ class TestCodeOutputMessage:
         expected = "---\n```python\nComputation result: 123\n```\n---\n![era5_soi_1980_2010.png](https://test-server/era5_soi_1980_2010.png)\n\nOutput file: [era5_soi_1980_2010.nc](https://test-server/era5_soi_1980_2010.nc)\n"
         assert msg.repr_markdown() == expected
 
+    def test_partial_code_output_content(self):
+        """Test a code output with missing fields, as sent for a cancelled tool run."""
+        message = {
+            "variant": "CodeOutput",
+            "content": {"error": "Tool task cancelled", "created_files": [], "display_data": []},
+        }
+        msg = MessageModel(message=message)
+        assert msg.repr_markdown() == "---\n```python\nTool task cancelled\n```\n---"
+        empty = CodeOutput(variant="CodeOutput", content={})
+        assert empty.repr_markdown() == ""
+
 
 # =============================================================================
 # ServerHint Message Tests

@@ -4,7 +4,7 @@ import json
 import logging
 from functools import cached_property
 from importlib import metadata
-from typing import Any, Dict, List, Literal, Tuple, cast
+from typing import Any, Coroutine, Dict, List, Literal, Tuple, TypeVar, cast
 
 import httpx
 import nest_asyncio
@@ -27,7 +27,22 @@ except metadata.PackageNotFoundError:  # pragma: no cover
 
 logger = logging.getLogger(__name__)
 
-nest_asyncio.apply()
+_T = TypeVar("_T")
+
+
+def _run_sync(coro: Coroutine[Any, Any, _T]) -> _T:
+    """Run a coroutine to completion from synchronous code.
+
+    ``nest_asyncio`` is only applied if an event loop is already running
+    (e.g. in Jupyter). It patches asyncio globally and breaks task tracking
+    on newer Python versions, so it must not be applied on import.
+    """
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+    nest_asyncio.apply()
+    return asyncio.run(coro)
 
 
 class ClimateClaw(SyncAPIClient):
@@ -720,7 +735,7 @@ class AsyncClimateClaw(AsyncAPIClient):
             auth_url=auth_url,
             interactive_auth=interactive_auth,
         )
-        asyncio.run(self._validate_backend_endpoints())
+        _run_sync(self._validate_backend_endpoints())
         self.thread_id = thread_id
         self.model = model
 
@@ -731,7 +746,7 @@ class AsyncClimateClaw(AsyncAPIClient):
         Returns:
             List of available model names.
         """
-        response = asyncio.run(self.get(path=self._construct_path("chatbots"), stream=False))
+        response = _run_sync(self.get(path=self._construct_path("chatbots"), stream=False))
         response = cast(httpx.Response, response)
         return response.json()
 
