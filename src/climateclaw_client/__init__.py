@@ -1,3 +1,9 @@
+# isort: off
+import logging
+
+logging.getLogger(__name__).addHandler(logging.NullHandler())
+# isort: on
+
 from ._version import get_versions
 from .client import AsyncClimateClaw, ClimateClaw
 from .models import (

@@ -6,13 +6,14 @@ import random
 import socket
 import time
 import urllib.parse
+import uuid
 from functools import cached_property
-from typing import Any, Dict, Generic, TypeVar, Union
+from typing import Any, Dict, Generic, Mapping, TypeVar, Union
 
 import httpx
 
 from ._auth import TokenAuth
-from ._constants import DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT
+from ._constants import DEFAULT_MAX_RETRIES, DEFAULT_READ_TIMEOUT, DEFAULT_TIMEOUT
 from ._streaming import StreamResponse
 
 logger: logging.Logger = logging.getLogger(__name__)
@@ -106,7 +107,7 @@ class BaseClient(Generic[_HttpxClientT]):
             for k, v in {
                 "Content-Type": "application/json",
                 "Accept": "application/json",
-                "User-Agent": f"climate-claw-python/{self._version} ({platform.machine()} {platform.system().lower()}) Python/{platform.python_version()}",
+                "User-Agent": f"climateclaw-python/{self._version} ({platform.machine()} {platform.system().lower()}) Python/{platform.python_version()}",
                 "X-Freva-Vault-URL": f"{self.base_url.scheme}://{self.base_url.host}:5002",
                 "X-Freva-Rest-URL": f"{self.base_url.scheme}://{self.base_url.host}:7777",
                 "X-Freva-Config-Path": "/opt/freva/core/freva/evaluation_system.conf",
@@ -117,6 +118,27 @@ class BaseClient(Generic[_HttpxClientT]):
     def _build_headers(self, custom_headers: Headers = {}) -> httpx.Headers:
         """Builds request headers by merging default and custom headers."""
         headers = {**self.default_headers, **custom_headers}
+        return httpx.Headers(headers)
+
+    def _request_headers(self, kwargs: dict[str, Any] = {}) -> httpx.Headers:
+        """Conditionally set request headers, depending if body contains certain keys-value pairs."""
+        body = kwargs.get("json") or kwargs.get("params")
+
+        headers = {}
+
+        # set unique id for every request, to be sent in the request headers
+        request_id = uuid.uuid4().hex
+        headers["X-Request-Id"] = request_id
+
+        if isinstance(body, Mapping):
+            if (model := body.get("chatbot")) is not None:
+                headers["X-Freva-Bot-Model"] = str(model)
+
+            if (thread_id := body.get("thread_id")) is not None:
+                headers["X-Freva-Thread-Id"] = str(thread_id)
+
+        # Update headers, with per-request ones taking precedence
+        headers.update(kwargs.get("headers", {}))
         return httpx.Headers(headers)
 
     @classmethod
@@ -236,7 +258,7 @@ class SyncAPIClient(BaseClient[httpx.Client]):
         return httpx.Client(
             base_url=self.base_url,
             follow_redirects=self.follow_redirects,
-            timeout=httpx.Timeout(DEFAULT_TIMEOUT, connect=self.timeout),
+            timeout=httpx.Timeout(DEFAULT_TIMEOUT, read=DEFAULT_READ_TIMEOUT, connect=self.timeout),
             headers=self.headers,
             auth=self._auth,
         )
@@ -326,10 +348,21 @@ class SyncAPIClient(BaseClient[httpx.Client]):
         Returns:
             StreamResponse if stream=True, otherwise httpx.Response.
         """
-        if stream:
-            return self._stream(*args, **kwargs)
-        else:
-            return self._request_raw(*args, **kwargs)
+        headers = self._request_headers(kwargs)
+        if headers:
+            kwargs["headers"] = headers
+        try:
+            if stream:
+                return self._stream(*args, **kwargs)
+            else:
+                return self._request_raw(*args, **kwargs)
+        except Exception:
+            logger.error(
+                f"Encountered error during {'streaming ' if stream else ''}request.",
+                exc_info=True,
+                extra={"request_id": headers.get("X-Request-Id", "")},
+            )
+            raise
 
     def get(self, path: str, *, stream: bool = False, **kwargs) -> StreamResponse | httpx.Response:
         """Makes a GET request to the specified path.
@@ -429,7 +462,7 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
         return httpx.AsyncClient(
             base_url=self.base_url,
             follow_redirects=self.follow_redirects,
-            timeout=httpx.Timeout(DEFAULT_TIMEOUT, connect=self.timeout),
+            timeout=httpx.Timeout(DEFAULT_TIMEOUT, read=DEFAULT_READ_TIMEOUT, connect=self.timeout),
             headers=self.headers,
             auth=self._auth,
         )
@@ -509,11 +542,31 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
         return r
 
     async def request(self, *args, stream=False, **kwargs) -> StreamResponse | httpx.Response:
-        """Makes an HTTP request, either streaming or non-streaming."""
-        if stream:
-            return await self._stream(*args, **kwargs)
-        else:
-            return await self._request_raw(*args, **kwargs)
+        """Makes an HTTP request, either streaming or non-streaming.
+
+        Args:
+            *args: Positional arguments passed to the request method.
+            stream: If True, returns a StreamResponse for streaming JSON objects.
+            **kwargs: Keyword arguments passed to the request method.
+
+        Returns:
+            StreamResponse if stream=True, otherwise httpx.Response.
+        """
+        headers = self._request_headers(kwargs)
+        if headers:
+            kwargs["headers"] = headers
+        try:
+            if stream:
+                return await self._stream(*args, **kwargs)
+            else:
+                return await self._request_raw(*args, **kwargs)
+        except Exception:
+            logger.error(
+                f"Encountered error during {'streaming ' if stream else ''}request.",
+                exc_info=True,
+                extra={"request_id": headers.get("X-Request-Id", "")},
+            )
+            raise
 
     async def get(
         self, path: str, *, stream: bool = False, **kwargs
