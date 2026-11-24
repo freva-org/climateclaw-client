@@ -35,7 +35,7 @@ class BaseClient(Generic[_HttpxClientT]):
         follow_redirects: Whether to follow HTTP redirects.
         max_retries: Maximum number of retry attempts for failed requests.
         timeout: Request timeout in seconds.
-        token_store_path: Path to the token store file.
+        store_path: Path to the token store file.
         auth_url: URL determining location of auth endpoint.
     """
 
@@ -45,7 +45,7 @@ class BaseClient(Generic[_HttpxClientT]):
     follow_redirects: bool
     max_retries: int
     timeout: float
-    token_store_path: str
+    store_path: str
     auth_url: httpx.URL
 
     def __init__(
@@ -53,7 +53,7 @@ class BaseClient(Generic[_HttpxClientT]):
         *,
         version: str,
         base_url: str | httpx.URL,
-        token_store_path: str = "",
+        store_path: str = "",
         follow_redirects: bool = True,
         max_retries: int = DEFAULT_MAX_RETRIES,
         timeout: float = DEFAULT_TIMEOUT,
@@ -66,7 +66,7 @@ class BaseClient(Generic[_HttpxClientT]):
         Args:
             version: Client version string.
             base_url: Base URL for the ClimateClaw API.
-            token_store_path: Path to store authentication tokens.
+            store_path: Path to store authentication tokens.
             follow_redirects: Whether to follow HTTP redirects.
             max_retries: Maximum number of retry attempts.
             timeout: Request timeout in seconds.
@@ -80,7 +80,7 @@ class BaseClient(Generic[_HttpxClientT]):
         self.timeout = timeout
         self.max_retries = max_retries
         self.headers = self._build_headers(custom_headers)
-        self._token_store_path = token_store_path
+        self._store_path = store_path
         self.auth_url = self._validate_base_url(auth_url) if auth_url else self.base_url
         self._interactive_auth = interactive_auth
 
@@ -89,7 +89,7 @@ class BaseClient(Generic[_HttpxClientT]):
         """Lazy-loaded authentication handler."""
         return TokenAuth(
             base_url=self.auth_url,
-            token_store_path=self._token_store_path,
+            store_path=self._store_path,
             interactive=self._interactive_auth,
         )
 
@@ -204,7 +204,7 @@ class SyncAPIClient(BaseClient[httpx.Client]):
         *,
         version: str,
         base_url: str | httpx.URL,
-        token_store_path: str = "",
+        store_path: str = "",
         follow_redirects: bool = True,
         max_retries: int = DEFAULT_MAX_RETRIES,
         timeout: float = DEFAULT_TIMEOUT,
@@ -218,7 +218,7 @@ class SyncAPIClient(BaseClient[httpx.Client]):
         Args:
             version: Client version string.
             base_url: Base URL for the ClimateClaw API.
-            token_store_path: Path to store authentication tokens.
+            store_path: Path to store authentication tokens.
             follow_redirects: Whether to follow HTTP redirects.
             max_retries: Maximum number of retry attempts.
             timeout: Request timeout in seconds.
@@ -239,7 +239,7 @@ class SyncAPIClient(BaseClient[httpx.Client]):
         super().__init__(
             version=version,
             base_url=base_url,
-            token_store_path=token_store_path,
+            store_path=store_path,
             follow_redirects=follow_redirects,
             max_retries=max_retries,
             timeout=timeout,
@@ -408,7 +408,7 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
         *,
         version: str,
         base_url: str | httpx.URL,
-        token_store_path: str = "",
+        store_path: str = "",
         follow_redirects: bool = True,
         max_retries: int = DEFAULT_MAX_RETRIES,
         timeout: float = DEFAULT_TIMEOUT,
@@ -422,7 +422,7 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
         Args:
             version: Client version string.
             base_url: Base URL for the ClimateClaw API.
-            token_store_path: Path to store authentication tokens.
+            store_path: Path to store authentication tokens.
             follow_redirects: Whether to follow HTTP redirects.
             max_retries: Maximum number of retry attempts.
             timeout: Request timeout in seconds.
@@ -443,7 +443,7 @@ class AsyncAPIClient(BaseClient[httpx.AsyncClient]):
         super().__init__(
             version=version,
             base_url=base_url,
-            token_store_path=token_store_path,
+            store_path=store_path,
             follow_redirects=follow_redirects,
             max_retries=max_retries,
             timeout=timeout,
